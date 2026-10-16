@@ -1,0 +1,40 @@
+# Compiled backend output
+**/target/
+target/
+*.class
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# Frontend dependencies and build
+**/node_modules/
+node_modules/
+**/dist/
+dist/
+.npm
+*.tsbuildinfo
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.settings/
+.classpath
+.project
+.factorypath
+.apt_generated
+
+# Environment and sensitive keys
+.env
+.env.local
+.env.*.local
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
