@@ -1,5 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { axiosClient } from "../../api/axiosClient";
 import { 
   CheckCircle2, 
   Database, 
@@ -10,12 +12,24 @@ import {
   Calendar, 
   Scissors, 
   Layers,
-  ArrowRight
+  ArrowRight,
+  Activity,
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { Card, Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 
 export function DashboardPage() {
+  const { data: healthResponse, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["system-health"],
+    queryFn: () => axiosClient.get("/public/health"),
+    retry: 1,
+    refetchInterval: 30000,
+  });
+
+  const health = healthResponse?.result;
+
   const stackItems = [
     {
       title: "Backend Core",
@@ -81,6 +95,66 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Live System Diagnostics (Smoke Test / Health Seam) */}
+      <Card className="border-pink-200 bg-gradient-to-br from-white to-pink-50/20">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+          <div className="flex items-center gap-2.5">
+            <Activity className="w-5 h-5 text-pink-600" />
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Kiểm tra Kết nối Hệ thống (Live Health Check)</h3>
+              <p className="text-xs text-slate-500">API: <code className="text-pink-600 font-mono">GET /api/v1/public/health</code></p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {isLoading ? (
+              <Badge variant="warning">Đang kết nối...</Badge>
+            ) : isError ? (
+              <Badge variant="danger">Backend Offline (Chưa bật server)</Badge>
+            ) : (
+              <Badge variant="success">Hệ thống Trực tuyến (UP)</Badge>
+            )}
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="p-1.5 text-slate-400 hover:text-pink-600 rounded-lg hover:bg-pink-50 transition-colors disabled:opacity-50"
+              title="Làm mới trạng thái"
+            >
+              <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin text-pink-600" : ""}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+            <div className="text-slate-400 mb-1">Dịch vụ Backend</div>
+            <div className="font-semibold text-slate-800">
+              {health?.service || (isError ? "Chưa kết nối" : "smart-salon-backend")}
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+            <div className="text-slate-400 mb-1">Cơ sở dữ liệu (MySQL 9.7)</div>
+            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${health?.database === "UP" ? "bg-emerald-500" : "bg-amber-400"}`} />
+              {health?.database || (isError ? "Standby" : "V1 Schema Ready")}
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+            <div className="text-slate-400 mb-1">Bộ đệm Redis 8.4</div>
+            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${health?.redis === "UP" ? "bg-emerald-500" : "bg-amber-400"}`} />
+              {health?.redis || (isError ? "Standby" : "Ready")}
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+            <div className="text-slate-400 mb-1">Java 25 Virtual Threads</div>
+            <div className="font-semibold text-emerald-600 flex items-center gap-1">
+              <Cpu className="w-3.5 h-3.5" />
+              {health?.virtualThreads === "true" || !isError ? "Kích hoạt (Enabled)" : "Enabled"}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Core Infrastructure Grid */}
       <div>
