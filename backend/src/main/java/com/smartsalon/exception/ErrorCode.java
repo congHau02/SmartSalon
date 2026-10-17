@@ -22,7 +22,8 @@ public enum ErrorCode {
     SERVICE_NOT_FOUND(2002, "Không tìm thấy dịch vụ yêu cầu", HttpStatus.NOT_FOUND),
     INVALID_COMMISSION_RATES(2003, "Tổng tỷ lệ hoa hồng các bước kỹ thuật không được vượt quá 100%", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_STOCK(3001, "Tồn kho vật tư (ml/gram) không đủ để xuất", HttpStatus.BAD_REQUEST),
-    PRODUCT_NOT_FOUND(3002, "Không tìm thấy sản phẩm hoặc vật tư yêu cầu", HttpStatus.NOT_FOUND);
+    PRODUCT_NOT_FOUND(3002, "Không tìm thấy sản phẩm hoặc vật tư yêu cầu", HttpStatus.NOT_FOUND),
+    PRODUCT_ALREADY_EXISTS(3003, "Mã SKU sản phẩm đã tồn tại trong hệ thống", HttpStatus.CONFLICT);
 
     private final int code;
     private final String message;

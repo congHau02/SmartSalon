@@ -1,6 +1,6 @@
 # Issue 04: Master Products, Branch Inventory, Auto-Unseal Conversion Engine & Stock Operations Backend
 
-Status: ready-for-agent
+Status: resolved
 
 ## Description
 
@@ -13,18 +13,32 @@ Implement the Inventory management and dual-level conversion engine supporting:
 
 ## Tasks
 
-- [ ] Create JPA entities: `ProductEntity`, `BranchInventoryEntity`, `InventoryTransactionEntity` under `com.smartsalon.inventory.entity`.
-- [ ] Create JPA repositories: `ProductRepository`, `BranchInventoryRepository` (with pessimistic locking for concurrent deductions), `InventoryTransactionRepository`.
-- [ ] Implement DTOs: `ProductRequest`, `ProductResponse`, `StockInRequest`, `StockAdjustmentRequest`, `BranchInventoryResponse`, `InventoryTransactionResponse`.
-- [ ] Implement `InventoryService`:
+- [x] Create JPA entities: `ProductEntity`, `BranchInventoryEntity`, `InventoryTransactionEntity` under `com.smartsalon.inventory.entity`.
+- [x] Create JPA repositories: `ProductRepository`, `BranchInventoryRepository` (with pessimistic locking for concurrent deductions), `InventoryTransactionRepository`.
+- [x] Implement DTOs: `ProductRequest`, `ProductResponse`, `StockInRequest`, `StockAdjustmentRequest`, `BranchInventoryResponse`, `InventoryTransactionResponse`.
+- [x] Implement `InventoryService`:
   - CRUD for Master Products.
   - Stock In transaction incrementing `stock_units` and appending audit log.
   - Stock Adjustment transaction reconciling physical volumes and logging discrepancy reasons.
   - Core method `deductConsumables(Long branchId, Long productId, BigDecimal volumeAmount, Long referenceOrderId)` with auto-unseal algorithm.
-- [ ] Implement `ProductController` and `BranchInventoryController`.
-- [ ] Add unit and slice tests verifying:
+- [x] Implement `ProductController` and `BranchInventoryController`.
+- [x] Add unit and slice tests verifying:
   - Unit-to-volume math during Stock In.
   - Auto-unseal calculation when deducting more than current opened volume.
   - Prevention of negative stock with `INSUFFICIENT_STOCK` exception.
 
 ## Comments
+
+- Implemented `ProductEntity`, `BranchInventoryEntity`, and `InventoryTransactionEntity` with `InventoryTransactionType` enum (`STOCK_IN`, `STOCK_ADJUSTMENT`, `AUTO_UNSEAL`, `SERVICE_CONSUMPTION`).
+- Built dual-level conversion engine in `InventoryService.deductConsumables()`:
+  - Consumes available opened volume (`current_volume`).
+  - Auto-unseals sealed units when deficit occurs (`unitsToUnseal = ceil(deficit / volumeOrWeightPerUnit)`).
+  - Strictly prevents negative balances by throwing `INSUFFICIENT_STOCK` (3001).
+  - Emits immutable audit log with running balance snapshot.
+- Implemented `ProductController` (`/api/v1/products`) with public catalog browsing and `@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")` on mutating operations.
+- Implemented `BranchInventoryController` (`/api/v1/branches/{branchId}/inventory`) supporting low-stock alert filtering, stock-in, stock adjustment, and transaction audit queries.
+- Cleaned up architecture per parallel code review findings: decoupled branch-specific fields from Master Product DTOs, used strongly-typed transaction enums, and refined filter chain permissions.
+- Test coverage:
+  - `InventoryServiceTest`: 6/6 unit tests passing (unit-to-volume math, auto-unseal, multiple unseal, insufficient stock guard, adjustment reconciliation).
+  - `InventoryIntegrationTest`: 5/5 integration tests passing (public catalog, admin CRUD, duplicate SKU rejection, stock-in & adjustment, RBAC enforcement).
+  - Total test suite: 35/35 tests PASS.
