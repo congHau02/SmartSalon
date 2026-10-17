@@ -4,6 +4,7 @@ import {
   Package,
   Boxes,
   ClipboardList,
+  CalendarCheck,
 } from "lucide-react";
 
 export const ADMIN_NAV_GROUPS = [
@@ -15,6 +16,16 @@ export const ADMIN_NAV_GROUPS = [
         to: "/admin",
         icon: LayoutDashboard,
         end: true,
+      },
+    ],
+  },
+  {
+    groupTitle: "Lịch hẹn & Điều phối",
+    items: [
+      {
+        label: "Quản lý Lịch hẹn",
+        to: "/admin/bookings",
+        icon: CalendarCheck,
       },
     ],
   },

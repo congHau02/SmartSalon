@@ -16,6 +16,7 @@ import { ProductsPage } from "./features/inventory/ProductsPage";
 import { BranchInventoryPage } from "./features/inventory/BranchInventoryPage";
 import { InventoryTransactionsPage } from "./features/inventory/InventoryTransactionsPage";
 import { BookingWizardPage } from "./features/booking/BookingWizardPage";
+import { AdminBookingsPage } from "./features/booking/AdminBookingsPage";
 import { CustomerServicesPage } from "./features/catalog/CustomerServicesPage";
 
 function PosPlaceholder() {
@@ -56,6 +57,7 @@ export default function App() {
                 <Route path="/" element={<Navigate to="/admin" replace />} />
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<DashboardPage />} />
+                  <Route path="bookings" element={<AdminBookingsPage />} />
                   <Route path="services" element={<ServicesPage />} />
                   <Route path="products" element={<ProductsPage />} />
                   <Route path="inventory" element={<BranchInventoryPage />} />
