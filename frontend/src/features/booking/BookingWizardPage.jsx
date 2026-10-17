@@ -3,11 +3,13 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, CalendarCheck, ShieldCheck } from "lucide-react";
 import { axiosClient } from "../../api/axiosClient";
+import { catalogApi } from "../catalog/catalogApi";
 import { useBookingStylists, useCreateBooking } from "./useBooking";
 import { BookingStepIndicator } from "./components/BookingStepIndicator";
 import { BranchAndServiceStep } from "./components/BranchAndServiceStep";
 import { StylistAndSlotStep } from "./components/StylistAndSlotStep";
 import { CustomerConfirmStep } from "./components/CustomerConfirmStep";
+import { DepositQrStep } from "./components/DepositQrStep";
 
 // Helper get today in YYYY-MM-DD
 function getTodayString() {
@@ -22,10 +24,6 @@ export function BookingWizardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Step state
-  const stepParam = parseInt(searchParams.get("step") || "1", 10);
-  const [currentStep, setCurrentStep] = useState(stepParam >= 1 && stepParam <= 4 ? stepParam : 1);
-
   // Wizard selections
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [selectedServices, setSelectedServices] = useState([]);
@@ -35,14 +33,37 @@ export function BookingWizardPage() {
   const [bookingCode, setBookingCode] = useState(searchParams.get("code") || null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Sync step with URL
+  // Step state
+  const initialCode = searchParams.get("code");
+  const stepParam = parseInt(searchParams.get("step") || (initialCode ? "4" : "1"), 10);
+  const [currentStep, setCurrentStep] = useState(stepParam >= 1 && stepParam <= 4 ? stepParam : 1);
+
+  // Fetch all active services for query param preselection
+  const { data: allServices = [] } = useQuery({
+    queryKey: ["catalog", "services", "public"],
+    queryFn: () => catalogApi.getServices({ activeOnly: true }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Pre-select service if ?serviceId=... is in URL
   useEffect(() => {
-    const step = parseInt(searchParams.get("step") || "1", 10);
+    const serviceIdParam = searchParams.get("serviceId");
+    if (serviceIdParam && allServices.length > 0 && selectedServices.length === 0) {
+      const matched = allServices.find((s) => String(s.id) === String(serviceIdParam));
+      if (matched) {
+        setSelectedServices([matched]);
+      }
+    }
+  }, [searchParams, allServices, selectedServices.length]);
+
+  // Sync step and code with URL
+  useEffect(() => {
+    const code = searchParams.get("code");
+    const step = parseInt(searchParams.get("step") || (code ? "4" : "1"), 10);
     if (step >= 1 && step <= 4 && step !== currentStep) {
       setCurrentStep(step);
     }
-    const code = searchParams.get("code");
-    if (code) {
+    if (code && code !== bookingCode) {
       setBookingCode(code);
     }
   }, [searchParams]);
@@ -210,18 +231,15 @@ export function BookingWizardPage() {
       )}
 
       {currentStep === 4 && (
-        <div className="p-8 text-center bg-white rounded-2xl border border-pink-200 shadow-sm space-y-4">
-          <div className="w-16 h-16 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center mx-auto">
-            <CalendarCheck className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-900">Giữ chỗ thành công trong 5 phút!</h2>
-          <p className="text-sm text-slate-600">
-            Mã đặt hẹn của bạn: <strong className="text-pink-600 text-base">{bookingCode}</strong>
-          </p>
-          <p className="text-xs text-slate-500">
-            Tính năng thanh toán cọc VietQR và vé hẹn điện tử đang được hoàn thiện ở Issue 06.
-          </p>
-        </div>
+        <DepositQrStep
+          bookingCode={bookingCode}
+          onRestartBooking={() => {
+            setBookingCode(null);
+            setSelectedServices([]);
+            setSelectedSlotTime(null);
+            goToStep(1, null);
+          }}
+        />
       )}
     </div>
   );

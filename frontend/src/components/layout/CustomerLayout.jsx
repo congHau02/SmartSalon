@@ -1,11 +1,14 @@
-import React from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Sparkles, Calendar, Scissors, Search, User, LogIn } from "lucide-react";
 import { useAuth } from "../../features/auth/useAuth";
+import { BookingLookupModal } from "../../features/booking/components/BookingLookupModal";
 
 export function CustomerLayout() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [isLookupOpen, setIsLookupOpen] = useState(false);
 
   const isBookingActive = location.pathname.includes("/booking");
   const isServicesActive = location.pathname.includes("/services");
@@ -45,6 +48,15 @@ export function CustomerLayout() {
               <Scissors className="w-4 h-4" />
               <span>Bảng giá dịch vụ</span>
             </Link>
+
+            <button
+              type="button"
+              onClick={() => setIsLookupOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-slate-600 hover:text-pink-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer font-semibold"
+            >
+              <Search className="w-4 h-4" />
+              <span>Tra cứu lịch</span>
+            </button>
           </nav>
         </div>
 
@@ -75,6 +87,16 @@ export function CustomerLayout() {
       <footer className="border-t border-pink-100/60 bg-white/60 py-6 text-center text-xs text-slate-400">
         © 2026 SmartSalon Vietnam • Hệ thống Đặt lịch làm đẹp & Điều phối thông minh
       </footer>
+
+      {/* Booking Lookup Modal */}
+      <BookingLookupModal
+        isOpen={isLookupOpen}
+        onClose={() => setIsLookupOpen(false)}
+        onSelectBooking={(code) => {
+          setIsLookupOpen(false);
+          navigate(`/customer/booking?step=4&code=${code}`);
+        }}
+      />
     </div>
   );
 }

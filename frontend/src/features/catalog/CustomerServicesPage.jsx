@@ -98,7 +98,7 @@ export function CustomerServicesPage() {
                   {svc.durationMinutes} phút
                 </span>
                 <Link
-                  to="/customer/booking"
+                  to={`/customer/booking?serviceId=${svc.id}`}
                   className="font-bold text-pink-600 hover:text-pink-700 flex items-center gap-1 transition-colors"
                 >
                   <span>Đặt lịch ngay</span>
