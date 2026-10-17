@@ -1,0 +1,70 @@
+package com.smartsalon.inventory.entity;
+
+import com.smartsalon.common.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "products")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ProductEntity extends BaseEntity {
+
+    @Column(name = "branch_id")
+    private Long branchId;
+
+    @Column(name = "name", nullable = false, length = 150)
+    private String name;
+
+    @Column(name = "sku", nullable = false, unique = true, length = 100)
+    private String sku;
+
+    @Column(name = "barcode", length = 100)
+    private String barcode;
+
+    @Column(name = "unit", nullable = false, length = 50)
+    private String unit;
+
+    @Column(name = "volume_or_weight_per_unit", nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal volumeOrWeightPerUnit = BigDecimal.ZERO;
+
+    @Column(name = "volume_unit", nullable = false, length = 20)
+    @Builder.Default
+    private String volumeUnit = "ml";
+
+    @Column(name = "current_stock_units", nullable = false)
+    @Builder.Default
+    private int currentStockUnits = 0;
+
+    @Column(name = "current_volume", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal currentVolume = BigDecimal.ZERO;
+
+    @Column(name = "min_stock_alert_units", nullable = false)
+    @Builder.Default
+    private int minStockAlertUnits = 5;
+
+    @Column(name = "cost_price", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal costPrice = BigDecimal.ZERO;
+
+    @Column(name = "retail_price", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal retailPrice = BigDecimal.ZERO;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private boolean isActive = true;
+}

@@ -19,7 +19,10 @@ public enum ErrorCode {
     BRANCH_NOT_FOUND(1008, "Không tìm thấy chi nhánh yêu cầu", HttpStatus.NOT_FOUND),
     ROLE_NOT_FOUND(1009, "Không tìm thấy vai trò người dùng trong hệ thống", HttpStatus.NOT_FOUND),
     SLOT_ALREADY_LOCKED(2001, "Khung giờ này vừa có khách khác giữ chỗ", HttpStatus.CONFLICT),
-    INSUFFICIENT_STOCK(3001, "Tồn kho vật tư (ml/gram) không đủ để xuất", HttpStatus.BAD_REQUEST);
+    SERVICE_NOT_FOUND(2002, "Không tìm thấy dịch vụ yêu cầu", HttpStatus.NOT_FOUND),
+    INVALID_COMMISSION_RATES(2003, "Tổng tỷ lệ hoa hồng các bước kỹ thuật không được vượt quá 100%", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_STOCK(3001, "Tồn kho vật tư (ml/gram) không đủ để xuất", HttpStatus.BAD_REQUEST),
+    PRODUCT_NOT_FOUND(3002, "Không tìm thấy sản phẩm hoặc vật tư yêu cầu", HttpStatus.NOT_FOUND);
 
     private final int code;
     private final String message;
