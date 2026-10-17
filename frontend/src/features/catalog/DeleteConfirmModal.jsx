@@ -36,7 +36,7 @@ export function DeleteConfirmModal({
       >
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-6 h-6" />
+            <AlertTriangle className="w-6 h-6" aria-hidden="true" />
           </div>
           <div>
             <h3 id={titleId} className="text-base font-bold text-slate-900">

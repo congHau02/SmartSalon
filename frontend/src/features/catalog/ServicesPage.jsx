@@ -48,15 +48,14 @@ export function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeOnly, setActiveOnly] = useState(false);
 
-  // TanStack Query
+  // TanStack Query: Fetch catalog (optionally filtered by active state)
   const {
-    data: services = [],
+    data: allServices = [],
     isLoading,
     isError,
     error,
     refetch,
   } = useServices({
-    category: selectedCategory === "ALL" ? null : selectedCategory,
     activeOnly: activeOnly ? true : null,
   });
 
@@ -81,21 +80,25 @@ export function ServicesPage() {
     }
   };
 
-  // Derive dynamic list of all unique categories present in services + presets
+  // Derive dynamic list of all unique categories present across catalog + presets
   const availableCategories = useMemo(() => {
     const set = new Set(PRESET_CATEGORIES);
-    if (Array.isArray(services)) {
-      services.forEach((s) => {
+    if (Array.isArray(allServices)) {
+      allServices.forEach((s) => {
         if (s.category) set.add(s.category);
       });
     }
     return Array.from(set);
-  }, [services]);
+  }, [allServices]);
 
-  // Client-side search filtering
+  // Client-side search and category filtering
   const filteredServices = useMemo(() => {
-    if (!Array.isArray(services)) return [];
-    let list = services;
+    if (!Array.isArray(allServices)) return [];
+    let list = allServices;
+
+    if (selectedCategory && selectedCategory !== "ALL") {
+      list = list.filter((s) => s.category === selectedCategory);
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -108,20 +111,20 @@ export function ServicesPage() {
     }
 
     return list;
-  }, [services, searchQuery]);
+  }, [allServices, selectedCategory, searchQuery]);
 
-  // Catalog statistics
+  // Catalog statistics computed over full catalog
   const stats = useMemo(() => {
-    if (!Array.isArray(services)) {
+    if (!Array.isArray(allServices)) {
       return { total: 0, active: 0, withBom: 0, avgPrice: 0 };
     }
-    const total = services.length;
-    const active = services.filter((s) => s.isActive !== false).length;
-    const withBom = services.filter((s) => s.bomList && s.bomList.length > 0).length;
-    const totalPrice = services.reduce((sum, s) => sum + (Number(s.basePrice) || 0), 0);
+    const total = allServices.length;
+    const active = allServices.filter((s) => s.isActive !== false).length;
+    const withBom = allServices.filter((s) => s.bomList && s.bomList.length > 0).length;
+    const totalPrice = allServices.reduce((sum, s) => sum + (Number(s.basePrice) || 0), 0);
     const avgPrice = total > 0 ? Math.round(totalPrice / total) : 0;
     return { total, active, withBom, avgPrice };
-  }, [services]);
+  }, [allServices]);
 
   // Action handlers
   const handleOpenCreateModal = () => {
@@ -212,17 +215,18 @@ export function ServicesPage() {
           }`}
         >
           {toast.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
           ) : (
-            <AlertCircle className="w-4 h-4 shrink-0" />
+            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
           )}
           <span>{toast.message}</span>
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="ml-2 w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/20 cursor-pointer"
+            aria-label="Đóng thông báo"
+            className="ml-2 w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg flex items-center justify-center hover:bg-white/20 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -324,24 +328,24 @@ export function ServicesPage() {
             <button
               type="button"
               onClick={() => setSelectedCategory("ALL")}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 ${
                 selectedCategory === "ALL"
                   ? "bg-slate-900 text-white shadow-xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
               }`}
             >
-              Tất cả ({services.length})
+              Tất cả ({allServices.length})
             </button>
 
             {availableCategories.map((cat) => {
-              const count = services.filter((s) => s.category === cat).length;
+              const count = allServices.filter((s) => s.category === cat).length;
               const isSelected = selectedCategory === cat;
               return (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 ${
                     isSelected
                       ? "bg-pink-600 text-white shadow-xs shadow-pink-500/20"
                       : "bg-slate-100 text-slate-600 hover:bg-pink-50 hover:text-pink-700"
@@ -365,22 +369,22 @@ export function ServicesPage() {
           {/* Search Box & Quick Status Filter */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
             <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Tìm kiếm nhanh theo tên dịch vụ, mô tả..."
-                className="w-full h-10 pl-9.5 pr-8 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
+                className="w-full h-10 pl-9.5 pr-10 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
                   aria-label="Xóa ô tìm kiếm"
-                  className="w-6 h-6 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
+                  className="w-10 h-10 min-w-[40px] min-h-[40px] absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -576,20 +580,20 @@ export function ServicesPage() {
                             type="button"
                             onClick={() => handleOpenEditModal(service)}
                             aria-label={`Chỉnh sửa ${service.name}`}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                            className="w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
                             title="Chỉnh sửa dịch vụ & BOM"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-4 h-4" aria-hidden="true" />
                           </button>
 
                           <button
                             type="button"
                             onClick={() => setDeletingService(service)}
                             aria-label={`Xóa ${service.name}`}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                             title="Xóa dịch vụ"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                         </div>
                       </td>

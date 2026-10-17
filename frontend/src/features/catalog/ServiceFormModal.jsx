@@ -201,8 +201,8 @@ function ServiceFormInner({
       errs.durationMinutes = "Thời lượng thực hiện phải tối thiểu 1 phút";
     }
 
-    if (basePrice === "" || Number(basePrice) < 0) {
-      errs.basePrice = "Giá cơ bản không được âm";
+    if (basePrice === "" || Number(basePrice) <= 0) {
+      errs.basePrice = "Giá cơ bản phải lớn hơn 0 VNĐ";
     }
 
     // Validate BOM items
@@ -232,17 +232,18 @@ function ServiceFormInner({
     }
 
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    return { isValid: Object.keys(errs).length === 0, errs };
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!validateForm()) {
-      if (errors.name || errors.category || errors.durationMinutes || errors.basePrice) {
+    const { isValid, errs } = validateForm();
+    if (!isValid) {
+      if (errs.name || errs.category || errs.durationMinutes || errs.basePrice) {
         setActiveTab("basic");
-      } else if (Object.keys(errors).some((k) => k.startsWith("bom_"))) {
+      } else if (Object.keys(errs).some((k) => k.startsWith("bom_"))) {
         setActiveTab("bom");
-      } else if (isCommissionExceeded || Object.keys(errors).some((k) => k.startsWith("step_"))) {
+      } else if (isCommissionExceeded || Object.keys(errs).some((k) => k.startsWith("step_"))) {
         setActiveTab("steps");
       }
       return;
@@ -280,7 +281,7 @@ function ServiceFormInner({
       <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/60">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-700 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5" />
+            <Sparkles className="w-5 h-5" aria-hidden="true" />
           </div>
           <div>
             <h2 id={titleId} className="text-lg font-bold text-slate-900 leading-tight">
@@ -297,9 +298,9 @@ function ServiceFormInner({
           onClick={onClose}
           disabled={isSubmitting}
           aria-label="Đóng cửa sổ"
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
@@ -309,7 +310,7 @@ function ServiceFormInner({
           role="alert"
           className="mx-6 mt-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 animate-in fade-in"
         >
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" aria-hidden="true" />
           <div className="flex-1 font-medium">
             Có thông tin chưa hợp lệ. Vui lòng kiểm tra lại các mục được đánh dấu màu đỏ.
           </div>
@@ -706,9 +707,9 @@ function ServiceFormInner({
                         type="button"
                         onClick={() => handleRemoveBomItem(index)}
                         aria-label={`Xóa vật tư dòng ${index + 1}`}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -718,9 +719,9 @@ function ServiceFormInner({
                   <button
                     type="button"
                     onClick={handleAddBomItem}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 hover:text-pink-700 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 hover:text-pink-700 cursor-pointer min-h-[44px] py-2 px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 rounded-lg"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4" aria-hidden="true" />
                     <span>Thêm dòng hoá chất / vật tư khác</span>
                   </button>
                 </div>
@@ -870,9 +871,9 @@ function ServiceFormInner({
                     type="button"
                     onClick={() => handleRemoveStep(index)}
                     aria-label={`Xóa bước kỹ thuật ${index + 1}`}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                    className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               ))}
@@ -880,9 +881,9 @@ function ServiceFormInner({
               <button
                 type="button"
                 onClick={handleAddStep}
-                className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 hover:border-pink-300 hover:bg-pink-50/40 text-xs font-bold text-slate-600 hover:text-pink-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full min-h-[44px] py-2.5 rounded-xl border-2 border-dashed border-slate-200 hover:border-pink-300 hover:bg-pink-50/40 text-xs font-bold text-slate-600 hover:text-pink-700 transition-all flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>Thêm bước kỹ thuật</span>
               </button>
             </div>
