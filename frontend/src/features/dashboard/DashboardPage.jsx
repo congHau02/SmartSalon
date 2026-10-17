@@ -14,8 +14,7 @@ import {
   Layers,
   ArrowRight,
   Activity,
-  RefreshCw,
-  AlertCircle
+  RefreshCw
 } from "lucide-react";
 import { Card, Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";

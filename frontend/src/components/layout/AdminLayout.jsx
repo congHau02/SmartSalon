@@ -1,8 +1,17 @@
 import React from "react";
-import { Outlet, Link } from "react-router-dom";
-import { Scissors, Calendar, Users, Package, Settings, LogOut } from "lucide-react";
+import { Outlet, Link, useNavigate } from "react-router-dom";
+import { Scissors, Calendar, Users, Package, LogOut, ShieldCheck } from "lucide-react";
+import { useAuth } from "../../features/auth/useAuth";
 
 export function AdminLayout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
+
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-800">
       {/* Sidebar */}
@@ -48,11 +57,25 @@ export function AdminLayout() {
           </Link>
         </nav>
 
+        {/* User Status & Logout */}
         <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-          <div className="text-xs text-slate-500">v0.0.1 Phase 1</div>
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-700 font-bold flex items-center justify-center text-xs shrink-0">
+              {user?.fullName?.charAt(0) || user?.username?.charAt(0) || "U"}
+            </div>
+            <div className="truncate">
+              <p className="text-xs font-semibold text-slate-800 truncate">
+                {user?.fullName || user?.username || "Nhân viên"}
+              </p>
+              <p className="text-[10px] text-slate-400 truncate">
+                {user?.roles?.[0] || "User"}
+              </p>
+            </div>
+          </div>
           <button
             type="button"
-            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+            onClick={handleLogout}
+            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
             title="Đăng xuất"
           >
             <LogOut className="w-4 h-4" />
@@ -63,12 +86,18 @@ export function AdminLayout() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
-          <div className="text-sm font-medium text-slate-500">
-            Hạ tầng & Hệ thống Quản trị Salon
+          <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
+            <span>Hạ tầng & Hệ thống Quản trị Salon</span>
+            {user?.branchName && (
+              <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                {user.branchName}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-              API Connected
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {user?.username ? `@${user.username}` : "API Connected"}
             </span>
           </div>
         </header>
