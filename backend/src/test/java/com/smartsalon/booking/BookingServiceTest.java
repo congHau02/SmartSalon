@@ -294,4 +294,41 @@ class BookingServiceTest {
         assertThat(res.status()).isEqualTo(BookingStatus.CANCELLED);
         verify(redisLockService, times(1)).unlockSlots(eq(20L), eq(bookingTime), eq(bookingTime.plusMinutes(60)));
     }
+
+    @Test
+    @DisplayName("Ném ngoại lệ SLOT_NOT_AVAILABLE khi thời gian hẹn ở quá khứ")
+    void holdSlotAndCreate_pastBookingTime_throwsException() {
+        LocalDateTime pastBookingTime = LocalDateTime.now().minusHours(2);
+        CreateBookingRequest request = new CreateBookingRequest(
+                1L, 20L, List.of(10L), pastBookingTime,
+                "Khách Quá Khứ", "0911223399", null
+        );
+
+        when(branchRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(branch));
+        when(serviceRepository.findAllById(List.of(10L))).thenReturn(List.of(service60m));
+
+        assertThatThrownBy(() -> bookingService.holdSlotAndCreate(request))
+                .isInstanceOf(AppException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.SLOT_NOT_AVAILABLE);
+    }
+
+    @Test
+    @DisplayName("Ném ngoại lệ VALIDATION_ERROR khi chuyển trạng thái lịch hẹn không hợp lệ (CANCELLED -> CONFIRMED)")
+    void updateBookingStatus_invalidTransition_throwsException() {
+        BookingEntity booking = BookingEntity.builder()
+                .branch(branch)
+                .staff(stylist)
+                .status(BookingStatus.CANCELLED)
+                .build();
+        booking.setId(800L);
+
+        when(bookingRepository.findById(800L)).thenReturn(Optional.of(booking));
+
+        UpdateBookingStatusRequest req = new UpdateBookingStatusRequest(BookingStatus.CONFIRMED, null);
+        assertThatThrownBy(() -> bookingService.updateBookingStatus(800L, req))
+                .isInstanceOf(AppException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
+    }
 }

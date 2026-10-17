@@ -21,7 +21,7 @@ public class BookingExpirationScheduler {
     private final RedisLockService redisLockService;
 
     @Scheduled(fixedDelay = 30000)
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void sweepExpiredHoldBookings() {
         LocalDateTime now = LocalDateTime.now();
         List<BookingEntity> expiredList = bookingRepository.findExpiredHoldBookings(now);

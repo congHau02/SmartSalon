@@ -42,6 +42,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
 
+    public static final BigDecimal DEPOSIT_RATE = new BigDecimal("0.20");
+    public static final int HOLD_TTL_MINUTES = 5;
+
     private final BookingRepository bookingRepository;
     private final BranchRepository branchRepository;
     private final ServiceRepository serviceRepository;
@@ -72,9 +75,14 @@ public class BookingServiceImpl implements BookingService {
 
         LocalDateTime startTime = request.bookingTime();
         LocalDateTime endTime = startTime.plusMinutes(totalDurationMinutes);
+        LocalDateTime now = LocalDateTime.now();
 
-        LocalTime openTime = LocalTime.of(8, 30);
-        LocalTime closeTime = LocalTime.of(20, 30);
+        if (startTime.isBefore(now)) {
+            throw new AppException(ErrorCode.SLOT_NOT_AVAILABLE);
+        }
+
+        LocalTime openTime = SlotCalculationServiceImpl.OPENING_TIME;
+        LocalTime closeTime = SlotCalculationServiceImpl.CLOSING_TIME;
         if (startTime.toLocalTime().isBefore(openTime) || endTime.toLocalTime().isAfter(closeTime)
                 || !endTime.toLocalDate().isEqual(startTime.toLocalDate())) {
             throw new AppException(ErrorCode.SLOT_NOT_AVAILABLE);
@@ -83,7 +91,7 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal totalPrice = services.stream()
                 .map(ServiceEntity::getBasePrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal depositAmount = totalPrice.multiply(new BigDecimal("0.20")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal depositAmount = totalPrice.multiply(DEPOSIT_RATE).setScale(0, RoundingMode.HALF_UP);
 
         String datePart = startTime.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String bookingCode;
@@ -97,7 +105,6 @@ public class BookingServiceImpl implements BookingService {
             }
         } while (bookingRepository.findByBookingCodeAndIsDeletedFalse(bookingCode).isPresent());
 
-        LocalDateTime now = LocalDateTime.now();
         UserEntity assignedStylist;
 
         if (request.stylistId() != null) {
@@ -140,8 +147,8 @@ public class BookingServiceImpl implements BookingService {
                 throw new AppException(ErrorCode.SLOT_NOT_AVAILABLE);
             }
 
-            LocalDateTime dayStart = startTime.toLocalDate().atTime(8, 30);
-            LocalDateTime dayEnd = startTime.toLocalDate().atTime(20, 30);
+            LocalDateTime dayStart = startTime.toLocalDate().atTime(openTime);
+            LocalDateTime dayEnd = startTime.toLocalDate().atTime(closeTime);
             List<BookingEntity> dayBookings = bookingRepository.findActiveBookingsByBranchAndDay(branch.getId(), dayStart, dayEnd, now);
             Map<Long, Integer> stylistWorkload = new HashMap<>();
             for (BookingEntity b : dayBookings) {
@@ -168,11 +175,15 @@ public class BookingServiceImpl implements BookingService {
             assignedStylist = lockedStylist;
         }
 
-        // Resolve logged-in customer or find/create guest customer by phone
+        // Resolve customer: if authenticated user has CUSTOMER role, bind them.
+        // Otherwise (unauthenticated or staff/admin booking for walk-in), resolve by phone.
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity customer = null;
         if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            customer = userRepository.findByUsernameAndIsDeletedFalse(auth.getName()).orElse(null);
+            UserEntity authUser = userRepository.findByUsernameAndIsDeletedFalse(auth.getName()).orElse(null);
+            if (authUser != null && authUser.getRoles().stream().anyMatch(r -> "CUSTOMER".equals(r.getName()))) {
+                customer = authUser;
+            }
         }
 
         String phone = request.customerPhone().trim();
@@ -209,7 +220,7 @@ public class BookingServiceImpl implements BookingService {
                 .depositAmount(depositAmount)
                 .depositStatus(DepositStatus.UNPAID)
                 .status(BookingStatus.PENDING_PAYMENT)
-                .slotLockExpiresAt(now.plusMinutes(5))
+                .slotLockExpiresAt(now.plusMinutes(HOLD_TTL_MINUTES))
                 .customerName(request.customerName().trim())
                 .customerPhone(phone)
                 .notes(request.notes())
@@ -282,6 +293,10 @@ public class BookingServiceImpl implements BookingService {
         BookingStatus newStatus = request.status();
         BookingStatus oldStatus = booking.getStatus();
 
+        if (!isValidStatusTransition(oldStatus, newStatus)) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
         if (newStatus == BookingStatus.CANCELLED || newStatus == BookingStatus.EXPIRED) {
             if (oldStatus == BookingStatus.PENDING_PAYMENT && booking.getStaff() != null) {
                 redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
@@ -297,6 +312,17 @@ public class BookingServiceImpl implements BookingService {
 
         booking = bookingRepository.save(booking);
         return toResponse(booking);
+    }
+
+    private boolean isValidStatusTransition(BookingStatus from, BookingStatus to) {
+        if (from == to) return true;
+        return switch (from) {
+            case PENDING_PAYMENT -> to == BookingStatus.CONFIRMED || to == BookingStatus.CANCELLED || to == BookingStatus.EXPIRED;
+            case CONFIRMED -> to == BookingStatus.CHECKED_IN || to == BookingStatus.CANCELLED || to == BookingStatus.NO_SHOW;
+            case CHECKED_IN -> to == BookingStatus.IN_PROGRESS || to == BookingStatus.CANCELLED;
+            case IN_PROGRESS -> to == BookingStatus.COMPLETED;
+            case COMPLETED, CANCELLED, EXPIRED, NO_SHOW -> false;
+        };
     }
 
     private BookingResponse toResponse(BookingEntity entity) {
