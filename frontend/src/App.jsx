@@ -2,7 +2,6 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./features/auth/AuthContext";
 import { BranchProvider } from "./features/branch/BranchContext";
-import { useBranch } from "./features/branch/useBranch";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RegisterPage } from "./features/auth/RegisterPage";
 import { UnauthorizedPage } from "./features/auth/UnauthorizedPage";
@@ -13,6 +12,9 @@ import { PosLayout } from "./components/layout/PosLayout";
 import { CustomerLayout } from "./components/layout/CustomerLayout";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { ServicesPage } from "./features/catalog/ServicesPage";
+import { ProductsPage } from "./features/inventory/ProductsPage";
+import { BranchInventoryPage } from "./features/inventory/BranchInventoryPage";
+import { InventoryTransactionsPage } from "./features/inventory/InventoryTransactionsPage";
 
 function PosPlaceholder() {
   return (
@@ -31,50 +33,6 @@ function CustomerBookingPlaceholder() {
       <h3 className="text-xl font-bold text-pink-700 mb-2">Cổng Đặt lịch Khách Hàng (Smart Booking)</h3>
       <p className="text-slate-500 text-sm">
         Tính năng xử lý giữ slot tạm thời (5 phút) và thanh toán đặt cọc VietQR.
-      </p>
-    </div>
-  );
-}
-
-function ProductsPlaceholder() {
-  return (
-    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-        Toàn hệ thống (Catalog chung)
-      </div>
-      <h3 className="text-xl font-bold text-slate-800">Danh mục Master Product & Quy cách đóng gói</h3>
-      <p className="text-slate-500 text-sm max-w-lg mx-auto">
-        Đang xây dựng: Danh mục sản phẩm gốc, barcode/SKU, thể tích/khối lượng chuẩn và giá bán lẻ toàn hệ thống.
-      </p>
-    </div>
-  );
-}
-
-function InventoryPlaceholder() {
-  const { selectedBranch } = useBranch();
-  return (
-    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
-        Chi nhánh: {selectedBranch?.name || "Đang tải chi nhánh..."}
-      </div>
-      <h3 className="text-xl font-bold text-slate-800">Tồn kho chi nhánh (Branch Inventory)</h3>
-      <p className="text-slate-500 text-sm max-w-lg mx-auto">
-        Đang xây dựng: Quản lý số lượng chai/hộp nguyên (Sealed Units), dung tích đã mở (Opened Volume) và cơ chế tự động bóc seal khi trừ BOM.
-      </p>
-    </div>
-  );
-}
-
-function TransactionsPlaceholder() {
-  const { selectedBranch } = useBranch();
-  return (
-    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
-        Chi nhánh: {selectedBranch?.name || "Đang tải chi nhánh..."}
-      </div>
-      <h3 className="text-xl font-bold text-slate-800">Lịch sử giao dịch kho (Inventory Transactions)</h3>
-      <p className="text-slate-500 text-sm max-w-lg mx-auto">
-        Đang xây dựng: Bảng kê chi tiết nhập kho (Stock In), xuất dùng theo đơn đặt lịch (BOM Deduction) và cân đối hao hụt (Stock Adjustment).
       </p>
     </div>
   );
@@ -105,9 +63,9 @@ export default function App() {
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<DashboardPage />} />
                   <Route path="services" element={<ServicesPage />} />
-                  <Route path="products" element={<ProductsPlaceholder />} />
-                  <Route path="inventory" element={<InventoryPlaceholder />} />
-                  <Route path="inventory/transactions" element={<TransactionsPlaceholder />} />
+                  <Route path="products" element={<ProductsPage />} />
+                  <Route path="inventory" element={<BranchInventoryPage />} />
+                  <Route path="inventory/transactions" element={<InventoryTransactionsPage />} />
                 </Route>
               </Route>
 

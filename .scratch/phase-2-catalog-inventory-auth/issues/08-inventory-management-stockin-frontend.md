@@ -1,6 +1,6 @@
 # Issue 08: Master Products & Branch Inventory UI with Dual-Level Indicators (Sealed + In-use), Stock-In & Adjustment Modals
 
-Status: ready-for-agent
+Status: ready-for-human
 
 ## Description
 
@@ -15,12 +15,19 @@ Implement the Inventory and Product management frontend at `/admin/products` and
 
 ## Tasks
 
-- [ ] Create `src/features/inventory/ProductsPage.jsx` for Master Catalog management.
-- [ ] Create `src/features/inventory/BranchInventoryPage.jsx` displaying branch-scoped stock cards/table.
-- [ ] Implement `StockInModal.jsx` connected to `POST /api/v1/branches/{branchId}/inventory/stock-in`.
-- [ ] Implement `StockAdjustmentModal.jsx` connected to `POST /api/v1/branches/{branchId}/inventory/adjustment`.
-- [ ] Implement `InventoryTransactionsPage.jsx` displaying historical audit movements.
-- [ ] Connect TanStack Query hooks for inventory data fetching and cache invalidation.
-- [ ] Apply dual-level indicators with clear visual feedback (badges and progress bars).
+- [x] Create `src/features/inventory/ProductsPage.jsx` for Master Catalog management.
+- [x] Create `src/features/inventory/BranchInventoryPage.jsx` displaying branch-scoped stock cards/table.
+- [x] Implement `StockInModal.jsx` connected to `POST /api/v1/branches/{branchId}/inventory/stock-in`.
+- [x] Implement `StockAdjustmentModal.jsx` connected to `POST /api/v1/branches/{branchId}/inventory/adjustment`.
+- [x] Implement `InventoryTransactionsPage.jsx` displaying historical audit movements.
+- [x] Connect TanStack Query hooks for inventory data fetching and cache invalidation.
+- [x] Apply dual-level indicators with clear visual feedback (badges and progress bars).
 
 ## Comments
+
+- Implemented `inventoryApi.js` and TanStack Query hooks in `useInventory.js` with fine-grained cache invalidation for products, branch inventory, and transaction audit trails.
+- Built `ProductsPage.jsx` with Master items table, real-time search, unit filters, active status toggles, `ProductFormModal.jsx` and `DeleteProductModal.jsx`.
+- Built `BranchInventoryPage.jsx` with dual-level stock indicators (Level 1: Sealed units badges; Level 2: In-use container volume progress bars), low-stock warning pills, and direct triggers for `StockInModal` and `StockAdjustmentModal`.
+- Built `InventoryTransactionsPage.jsx` with filterable transaction type pills, product selectors, and immutable audit movement records.
+- All forms feature keyed inner components to avoid cascading renders, accessible ARIA attributes, >=44x44px touch targets, and `focus-visible` styling compliant with `ui-ux-pro-max`.
+- Oxlint: 0 warnings, 0 errors. Vite build verified.
