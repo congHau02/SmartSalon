@@ -1,6 +1,6 @@
 # Issue 06: AdminLayout Enhancement with Interactive Sidebar, Header Branch Switcher & User Profile Menu
 
-Status: ready-for-agent
+Status: resolved
 
 ## Description
 
@@ -12,15 +12,20 @@ Enhance the `AdminLayout` component into a production-grade salon management she
 
 ## Tasks
 
-- [ ] Fetch branch list from `/api/v1/branches` (or use active branch from auth context).
-- [ ] Implement Branch Context / state so that child views (Inventory, Catalog, Reports) automatically react to branch switching.
-- [ ] Redesign `src/components/layout/AdminLayout.jsx` with full navigation structure:
+- [x] Fetch branch list from `/api/v1/branches` (or use active branch from auth context).
+- [x] Implement Branch Context / state so that child views (Inventory, Catalog, Reports) automatically react to branch switching.
+- [x] Redesign `src/components/layout/AdminLayout.jsx` with full navigation structure:
   - Overview / Dashboard (`/admin`)
   - Catalog: Dịch vụ & BOM (`/admin/services`)
   - Catalog: Danh mục sản phẩm (`/admin/products`)
   - Kho: Tồn kho chi nhánh (`/admin/inventory`)
-  - Kho: Lịch sử biến động (`/admin/inventory/transactions`)
-- [ ] Add user badge, branch selector dropdown, and logout trigger in the top navbar.
-- [ ] Ensure responsive collapse behavior for smaller screens.
+  - Kho: Lịch sử giao dịch kho (`/admin/inventory/transactions`)
+- [x] Add user badge, branch selector dropdown, and logout trigger in the top navbar.
+- [x] Ensure responsive collapse behavior for smaller screens.
 
 ## Comments
+
+- Implemented `BranchContext` & `useBranch` with ApiResponse result unwrapping and role-based branch locking for non-admin/staff.
+- Extracted shared navigation config and hierarchical breadcrumbs in `src/lib/navigation.js`.
+- Fully compliant with `GLOSSARY.md` (no forbidden terms).
+- Clean mobile drawer navigation with touch targets >= 44px. Oxlint 0 warnings/0 errors; build passes cleanly.

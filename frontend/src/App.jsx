@@ -1,6 +1,8 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./features/auth/AuthContext";
+import { BranchProvider } from "./features/branch/BranchContext";
+import { useBranch } from "./features/branch/useBranch";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RegisterPage } from "./features/auth/RegisterPage";
 import { UnauthorizedPage } from "./features/auth/UnauthorizedPage";
@@ -16,7 +18,7 @@ function PosPlaceholder() {
     <div className="p-8 text-center bg-slate-800 rounded-xl border border-slate-700">
       <h3 className="text-xl font-bold mb-2">Bảng điều phối Ghế / Giường (Kanban & Timeline)</h3>
       <p className="text-slate-400 text-sm">
-        Tính năng thuộc Phase 2 - POS & Điều phối tại quầy. Sẽ tích hợp WebSocket STOMP thời gian thực.
+        Tính năng thuộc POS & Điều phối tại quầy. Sẽ tích hợp WebSocket STOMP thời gian thực.
       </p>
     </div>
   );
@@ -27,7 +29,66 @@ function CustomerBookingPlaceholder() {
     <div className="p-8 text-center bg-white rounded-xl border border-pink-200 shadow-sm">
       <h3 className="text-xl font-bold text-pink-700 mb-2">Cổng Đặt lịch Khách Hàng (Smart Booking)</h3>
       <p className="text-slate-500 text-sm">
-        Tính năng thuộc Phase 2 - Xử lý giữ slot tạm thời (5 phút) và thanh toán đặt cọc VietQR.
+        Tính năng xử lý giữ slot tạm thời (5 phút) và thanh toán đặt cọc VietQR.
+      </p>
+    </div>
+  );
+}
+
+function ServicesPlaceholder() {
+  const { selectedBranch } = useBranch();
+  return (
+    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+        Chi nhánh: {selectedBranch?.name || "Hệ thống chung"}
+      </div>
+      <h3 className="text-xl font-bold text-slate-800">Quản lý Dịch vụ & Định mức BOM</h3>
+      <p className="text-slate-500 text-sm max-w-lg mx-auto">
+        Đang xây dựng: Thiết lập danh mục dịch vụ, định mức BOM trừ vật tư tiêu hao (ml/gram) và tỷ lệ hoa hồng theo từng bước dịch vụ.
+      </p>
+    </div>
+  );
+}
+
+function ProductsPlaceholder() {
+  return (
+    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+        Toàn hệ thống (Catalog chung)
+      </div>
+      <h3 className="text-xl font-bold text-slate-800">Danh mục Master Product & Quy cách đóng gói</h3>
+      <p className="text-slate-500 text-sm max-w-lg mx-auto">
+        Đang xây dựng: Danh mục sản phẩm gốc, barcode/SKU, thể tích/khối lượng chuẩn và giá bán lẻ toàn hệ thống.
+      </p>
+    </div>
+  );
+}
+
+function InventoryPlaceholder() {
+  const { selectedBranch } = useBranch();
+  return (
+    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+        Chi nhánh: {selectedBranch?.name || "Đang tải chi nhánh..."}
+      </div>
+      <h3 className="text-xl font-bold text-slate-800">Tồn kho chi nhánh (Branch Inventory)</h3>
+      <p className="text-slate-500 text-sm max-w-lg mx-auto">
+        Đang xây dựng: Quản lý số lượng chai/hộp nguyên (Sealed Units), dung tích đã mở (Opened Volume) và cơ chế tự động bóc seal khi trừ BOM.
+      </p>
+    </div>
+  );
+}
+
+function TransactionsPlaceholder() {
+  const { selectedBranch } = useBranch();
+  return (
+    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+        Chi nhánh: {selectedBranch?.name || "Đang tải chi nhánh..."}
+      </div>
+      <h3 className="text-xl font-bold text-slate-800">Lịch sử giao dịch kho (Inventory Transactions)</h3>
+      <p className="text-slate-500 text-sm max-w-lg mx-auto">
+        Đang xây dựng: Bảng kê chi tiết nhập kho (Stock In), xuất dùng theo đơn đặt lịch (BOM Deduction) và cân đối hao hụt (Stock Adjustment).
       </p>
     </div>
   );
@@ -36,60 +97,60 @@ function CustomerBookingPlaceholder() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Auth Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <BranchProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Auth Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-          {/* Customer Portal (Public / Semi-Public) */}
-          <Route path="/customer" element={<CustomerLayout />}>
-            <Route index element={<CustomerBookingPlaceholder />} />
-            <Route path="booking" element={<CustomerBookingPlaceholder />} />
-            <Route path="services" element={<div className="p-6 bg-white rounded-xl border">Bảng giá dịch vụ</div>} />
-          </Route>
+            {/* Customer Portal (Public / Semi-Public) */}
+            <Route path="/customer" element={<CustomerLayout />}>
+              <Route index element={<CustomerBookingPlaceholder />} />
+              <Route path="booking" element={<CustomerBookingPlaceholder />} />
+              <Route path="services" element={<div className="p-6 bg-white rounded-xl border">Bảng giá dịch vụ</div>} />
+            </Route>
 
-          {/* Protected Admin Portal */}
-          <Route element={<RequireAuth />}>
-            <Route element={<RoleGuard allowedRoles={["ADMIN", "MANAGER", "STAFF"]} />}>
-              <Route path="/" element={<AdminLayout />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="staff" element={<div className="p-6 bg-white rounded-xl border">Quản lý nhân sự & hoa hồng</div>} />
-                <Route path="inventory" element={<div className="p-6 bg-white rounded-xl border">Kho định mức (BOM)</div>} />
+            {/* Protected Admin Portal */}
+            <Route element={<RequireAuth />}>
+              <Route element={<RoleGuard allowedRoles={["ADMIN", "MANAGER", "STAFF"]} />}>
+                <Route path="/" element={<Navigate to="/admin" replace />} />
+                <Route path="/admin" element={<AdminLayout />}>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="services" element={<ServicesPlaceholder />} />
+                  <Route path="products" element={<ProductsPlaceholder />} />
+                  <Route path="inventory" element={<InventoryPlaceholder />} />
+                  <Route path="inventory/transactions" element={<TransactionsPlaceholder />} />
+                </Route>
               </Route>
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="staff" element={<div className="p-6 bg-white rounded-xl border">Quản lý nhân sự & hoa hồng</div>} />
-                <Route path="inventory" element={<div className="p-6 bg-white rounded-xl border">Kho định mức (BOM)</div>} />
+
+              {/* Protected POS Dispatching */}
+              <Route element={<RoleGuard allowedRoles={["ADMIN", "MANAGER", "STAFF", "STYLIST"]} />}>
+                <Route path="/pos" element={<PosLayout />}>
+                  <Route index element={<PosPlaceholder />} />
+                </Route>
               </Route>
             </Route>
 
-            {/* Protected POS Dispatching */}
-            <Route element={<RoleGuard allowedRoles={["ADMIN", "MANAGER", "STAFF", "STYLIST"]} />}>
-              <Route path="/pos" element={<PosLayout />}>
-                <Route index element={<PosPlaceholder />} />
-              </Route>
-            </Route>
-          </Route>
-
-          {/* 404 Fallback */}
-          <Route
-            path="*"
-            element={
-              <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700">
-                <div className="text-center">
-                  <h1 className="text-4xl font-bold mb-2">404</h1>
-                  <p className="mb-4">Trang không tồn tại</p>
-                  <a href="/" className="text-pink-600 hover:underline text-sm font-medium">
-                    Trở về trang chủ
-                  </a>
+            {/* 404 Fallback */}
+            <Route
+              path="*"
+              element={
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700">
+                  <div className="text-center">
+                    <h1 className="text-4xl font-bold mb-2">404</h1>
+                    <p className="mb-4">Trang không tồn tại</p>
+                    <a href="/" className="text-pink-600 hover:underline text-sm font-medium">
+                      Trở về trang chủ
+                    </a>
+                  </div>
                 </div>
-              </div>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
+      </BranchProvider>
     </AuthProvider>
   );
 }

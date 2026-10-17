@@ -18,8 +18,11 @@ import {
 } from "lucide-react";
 import { Card, Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
+import { useBranch } from "../../features/branch/useBranch";
+import { Building2 } from "lucide-react";
 
 export function DashboardPage() {
+  const { selectedBranch } = useBranch();
   const { data: healthResponse, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["system-health"],
     queryFn: () => axiosClient.get("/public/health"),
@@ -69,9 +72,17 @@ export function DashboardPage() {
       {/* Hero Banner */}
       <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 rounded-2xl p-8 text-white shadow-md">
         <div className="max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium">
-            <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-            <span>Phase 1: Khởi tạo Hạ tầng & Base Core Hoàn Tất</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              <span>Phase 1: Khởi tạo Hạ tầng & Base Core Hoàn Tất</span>
+            </div>
+            {selectedBranch && (
+              <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium">
+                <Building2 className="w-3.5 h-3.5 text-pink-200" />
+                <span>Chi nhánh hoạt động: <strong>{selectedBranch.name}</strong></span>
+              </div>
+            )}
           </div>
           <h2 className="text-3xl font-bold tracking-tight">
             SmartSalon - Nền tảng Đặt lịch & POS Salon Hiện đại
