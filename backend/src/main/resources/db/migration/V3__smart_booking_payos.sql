@@ -5,8 +5,8 @@
 -- ============================================================================
 
 -- 1. Bổ sung các cột phục vụ thuật toán Overlap & Tra cứu vào bảng bookings
-ALTER TABLE bookings ADD COLUMN booking_code VARCHAR(30) NOT NULL;
-ALTER TABLE bookings ADD COLUMN end_time DATETIME NOT NULL;
+ALTER TABLE bookings ADD COLUMN booking_code VARCHAR(30) NOT NULL DEFAULT '';
+ALTER TABLE bookings ADD COLUMN end_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE bookings ADD COLUMN total_duration_minutes INT NOT NULL DEFAULT 30;
 ALTER TABLE bookings ADD COLUMN total_price DECIMAL(15, 2) NOT NULL DEFAULT 0.00;
 ALTER TABLE bookings ADD COLUMN customer_name VARCHAR(150) NULL;
@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS booking_services (
     duration_minutes INT NOT NULL DEFAULT 30,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NULL ON UPDATE CURRENT_TIMESTAMP(6),
+    created_by VARCHAR(100) NULL,
     is_deleted TINYINT(1) NOT NULL DEFAULT 0,
     CONSTRAINT fk_booking_services_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
     CONSTRAINT fk_booking_services_service FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,

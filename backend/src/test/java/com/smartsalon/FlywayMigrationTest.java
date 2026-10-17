@@ -21,7 +21,7 @@ class FlywayMigrationTest {
     private DataSource dataSource;
 
     @Test
-    @DisplayName("Should validate Flyway migration V1 and V2 scripts against database")
+    @DisplayName("Should validate Flyway migration V1, V2, and V3 scripts against database")
     void shouldExecuteFlywayMigration() {
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
@@ -77,19 +77,28 @@ class FlywayMigrationTest {
                 "SELECT COUNT(*) FROM booking_services", Integer.class);
         assertNotNull(bookingServiceCount, "Table booking_services must exist and be queryable");
 
-        // Assert new columns exist on bookings by selecting them
+        // Assert new columns exist on bookings and booking_services by selecting them
         jdbcTemplate.execute("SELECT booking_code, end_time, total_duration_minutes, total_price, customer_name, customer_phone FROM bookings WHERE 1=0");
+        jdbcTemplate.execute("SELECT price, duration_minutes, created_by, is_deleted FROM booking_services WHERE 1=0");
 
         // 7. Verify V3 Seed Data: Branch 2, Stylists & Staff
         Integer branchCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM branches WHERE id = 2", Integer.class);
         assertEquals(1, branchCount, "Branch 2 (SmartSalon Luxury - Quận 3) must be seeded");
 
-        Integer stylistCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM user_roles ur " +
+        Integer branch1StylistCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users u " +
+                "JOIN user_roles ur ON u.id = ur.user_id " +
                 "JOIN roles r ON ur.role_id = r.id " +
-                "WHERE r.name = 'STYLIST'", Integer.class);
-        assertTrue(stylistCount != null && stylistCount >= 4, "Expected at least 4 seeded stylists");
+                "WHERE r.name = 'STYLIST' AND u.branch_id = 1", Integer.class);
+        assertTrue(branch1StylistCount != null && branch1StylistCount >= 3, "Expected at least 3 seeded stylists at Branch 1");
+
+        Integer branch2StylistCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users u " +
+                "JOIN user_roles ur ON u.id = ur.user_id " +
+                "JOIN roles r ON ur.role_id = r.id " +
+                "WHERE r.name = 'STYLIST' AND u.branch_id = 2", Integer.class);
+        assertEquals(1, branch2StylistCount, "Expected at least 1 seeded stylist at Branch 2");
 
         Integer staffCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM users WHERE username = 'staff.le'", Integer.class);
