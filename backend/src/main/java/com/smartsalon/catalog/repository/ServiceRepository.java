@@ -23,4 +23,6 @@ public interface ServiceRepository extends JpaRepository<ServiceEntity, Long> {
 
     @Query("SELECT DISTINCT s.category FROM ServiceEntity s WHERE s.isDeleted = false ORDER BY s.category ASC")
     List<String> findDistinctCategories();
+
+    List<ServiceEntity> findAllByIdInAndIsDeletedFalseAndIsActiveTrue(List<Long> ids);
 }

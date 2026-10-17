@@ -40,6 +40,49 @@ public class TestAuthConfig {
     }
 
     @Bean
+    @Primary
+    public com.smartsalon.booking.service.RedisLockService testRedisLockService() {
+        return new com.smartsalon.booking.service.RedisLockService() {
+            private final Map<String, String> locks = new ConcurrentHashMap<>();
+
+            @Override
+            public boolean tryLockSlots(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime, String lockOwner) {
+                java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
+                synchronized (locks) {
+                    for (String k : keys) {
+                        if (locks.containsKey(k)) return false;
+                    }
+                    for (String k : keys) {
+                        locks.put(k, lockOwner != null ? lockOwner : "LOCKED");
+                    }
+                    return true;
+                }
+            }
+
+            @Override
+            public boolean isAnySlotLocked(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+                java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
+                for (String k : keys) {
+                    if (locks.containsKey(k)) return true;
+                }
+                return false;
+            }
+
+            @Override
+            public void unlockSlots(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+                java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
+                keys.forEach(locks::remove);
+            }
+
+            @Override
+            public java.util.List<String> getLockedSlots(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+                java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
+                return keys.stream().filter(locks::containsKey).toList();
+            }
+        };
+    }
+
+    @Bean
     public org.springframework.boot.ApplicationRunner testDataInitializer(
             com.smartsalon.user.repository.UserRepository userRepository,
             com.smartsalon.user.repository.RoleRepository roleRepository,
@@ -61,7 +104,7 @@ public class TestAuthConfig {
                 );
                 roleRepository.save(com.smartsalon.user.entity.RoleEntity.builder().name("MANAGER").description("Manager").build());
                 roleRepository.save(com.smartsalon.user.entity.RoleEntity.builder().name("STAFF").description("Staff").build());
-                roleRepository.save(com.smartsalon.user.entity.RoleEntity.builder().name("STYLIST").description("Stylist").build());
+                com.smartsalon.user.entity.RoleEntity stylistRole = roleRepository.save(com.smartsalon.user.entity.RoleEntity.builder().name("STYLIST").description("Stylist").build());
                 roleRepository.save(com.smartsalon.user.entity.RoleEntity.builder().name("CUSTOMER").description("Customer").build());
 
                 userRepository.save(
@@ -74,6 +117,19 @@ public class TestAuthConfig {
                                 .branch(branch)
                                 .isActive(true)
                                 .roles(java.util.Set.of(adminRole))
+                                .build()
+                );
+
+                userRepository.save(
+                        com.smartsalon.user.entity.UserEntity.builder()
+                                .username("stylist.minh")
+                                .passwordHash(passwordEncoder.encode("Admin@123"))
+                                .fullName("Trần Minh Tuấn (Master Stylist)")
+                                .phone("0911000001")
+                                .email("minh.tuan@smartsalon.vn")
+                                .branch(branch)
+                                .isActive(true)
+                                .roles(java.util.Set.of(stylistRole))
                                 .build()
                 );
             }

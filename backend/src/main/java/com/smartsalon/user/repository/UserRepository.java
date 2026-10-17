@@ -23,4 +23,10 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     boolean existsByPhone(String phone);
 
     boolean existsByEmail(String email);
+
+    @Query("SELECT u FROM UserEntity u JOIN u.roles r WHERE u.branch.id = :branchId AND r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
+    java.util.List<UserEntity> findActiveStylistsByBranchId(@Param("branchId") Long branchId);
+
+    @Query("SELECT u FROM UserEntity u JOIN u.roles r WHERE r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
+    java.util.List<UserEntity> findAllActiveStylists();
 }

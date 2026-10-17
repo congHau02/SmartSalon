@@ -1,0 +1,28 @@
+package com.smartsalon.booking.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface RedisLockService {
+
+    /**
+     * Atomically lock all 30-minute buckets in [startTime, endTime) for a stylist with 300s TTL.
+     * @return true if all buckets were locked successfully, false if any bucket was already locked.
+     */
+    boolean tryLockSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime, String lockOwner);
+
+    /**
+     * Check if any 30-minute bucket in [startTime, endTime) is currently locked for a stylist.
+     */
+    boolean isAnySlotLocked(Long stylistId, LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * Release all 30-minute bucket locks in [startTime, endTime) for a stylist.
+     */
+    void unlockSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * List all locked bucket keys in [startTime, endTime) for a stylist.
+     */
+    List<String> getLockedSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime);
+}
