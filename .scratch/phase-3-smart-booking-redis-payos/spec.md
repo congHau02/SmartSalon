@@ -1,6 +1,6 @@
 # Specification: Phase 3 - Smart Booking, Redis Slot Lock & PayOS Deposit
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
