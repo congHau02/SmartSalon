@@ -77,7 +77,7 @@ export function ServiceBomTable({
                     })}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 cursor-pointer"
                   >
-                    <option value="">-- Chọn sản phẩm trong kho master --</option>
+                    <option value="">-- Chọn sản phẩm trong danh mục master --</option>
                     {masterProducts.map((prod) => (
                       <option key={prod.id} value={prod.id}>
                         {prod.name} ({prod.sku || "Chưa có SKU"}) - {prod.volumeOrWeightPerUnit}{" "}

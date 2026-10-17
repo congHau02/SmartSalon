@@ -84,6 +84,8 @@ function ProductFormInner({
             id="product-name"
             type="text"
             {...register("name")}
+            aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? "product-name-error" : undefined}
             placeholder="Ví dụ: Kem nhuộm tóc L'Oreal Inoa 60g, Dầu gội Olaplex No.4..."
             className={`w-full h-11 px-3.5 rounded-xl border text-sm text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
               errors.name
@@ -92,7 +94,9 @@ function ProductFormInner({
             }`}
           />
           {errors.name && (
-            <p className="mt-1 text-xs text-rose-600 font-medium">{errors.name.message}</p>
+            <p id="product-name-error" className="mt-1 text-xs text-rose-600 font-medium">
+              {errors.name.message}
+            </p>
           )}
         </div>
 
@@ -110,6 +114,8 @@ function ProductFormInner({
               type="text"
               disabled={isEditMode}
               {...register("sku")}
+              aria-invalid={Boolean(errors.sku)}
+              aria-describedby={errors.sku ? "product-sku-error" : undefined}
               placeholder="Ví dụ: LOR-INOA-60, OLA-NO4-250"
               className={`w-full h-11 px-3.5 rounded-xl border text-sm uppercase text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                 isEditMode ? "opacity-60 cursor-not-allowed bg-slate-100" : ""
@@ -120,7 +126,9 @@ function ProductFormInner({
               }`}
             />
             {errors.sku && (
-              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.sku.message}</p>
+              <p id="product-sku-error" className="mt-1 text-xs text-rose-600 font-medium">
+                {errors.sku.message}
+              </p>
             )}
             {isEditMode && (
               <p className="mt-1 text-[11px] text-slate-400">Mã SKU là duy nhất và không thể thay đổi</p>
@@ -186,13 +194,15 @@ function ProductFormInner({
                 min="0.1"
                 step="0.5"
                 {...register("volumeOrWeightPerUnit")}
+                aria-invalid={Boolean(errors.volumeOrWeightPerUnit)}
+                aria-describedby={errors.volumeOrWeightPerUnit ? "product-volume-error" : undefined}
                 placeholder="500"
                 className={`w-full h-10 px-3 rounded-xl border text-xs text-slate-900 bg-white focus:border-pink-500 focus:ring-1 focus:ring-pink-500 ${
                   errors.volumeOrWeightPerUnit ? "border-rose-400" : "border-slate-200"
                 }`}
               />
               {errors.volumeOrWeightPerUnit && (
-                <p className="mt-1 text-[11px] text-rose-600 font-medium">
+                <p id="product-volume-error" className="mt-1 text-[11px] text-rose-600 font-medium">
                   {errors.volumeOrWeightPerUnit.message}
                 </p>
               )}
@@ -237,6 +247,8 @@ function ProductFormInner({
                 min="0"
                 step="5000"
                 {...register("costPrice")}
+                aria-invalid={Boolean(errors.costPrice)}
+                aria-describedby={errors.costPrice ? "product-cost-price-error" : undefined}
                 className={`w-full h-11 pl-3.5 pr-14 rounded-xl border text-sm text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                   errors.costPrice
                     ? "border-rose-400 focus:ring-rose-400/30"
@@ -247,6 +259,11 @@ function ProductFormInner({
                 VNĐ
               </div>
             </div>
+            {errors.costPrice && (
+              <p id="product-cost-price-error" className="mt-1 text-xs text-rose-600 font-medium">
+                {errors.costPrice.message}
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500 font-medium">
               {formatCurrency(Number(watchedCostPrice) || 0)}
             </p>
@@ -266,6 +283,8 @@ function ProductFormInner({
                 min="0"
                 step="5000"
                 {...register("retailPrice")}
+                aria-invalid={Boolean(errors.retailPrice)}
+                aria-describedby={errors.retailPrice ? "product-retail-price-error" : undefined}
                 className={`w-full h-11 pl-3.5 pr-14 rounded-xl border text-sm text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                   errors.retailPrice
                     ? "border-rose-400 focus:ring-rose-400/30"
@@ -276,6 +295,11 @@ function ProductFormInner({
                 VNĐ
               </div>
             </div>
+            {errors.retailPrice && (
+              <p id="product-retail-price-error" className="mt-1 text-xs text-rose-600 font-medium">
+                {errors.retailPrice.message}
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500 font-medium">
               {formatCurrency(Number(watchedRetailPrice) || 0)}
             </p>
@@ -295,6 +319,8 @@ function ProductFormInner({
                 min="0"
                 step="1"
                 {...register("minStockAlertUnits")}
+                aria-invalid={Boolean(errors.minStockAlertUnits)}
+                aria-describedby={errors.minStockAlertUnits ? "product-min-stock-error" : undefined}
                 className={`w-full h-11 pl-3.5 pr-14 rounded-xl border text-sm text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                   errors.minStockAlertUnits
                     ? "border-rose-400 focus:ring-rose-400/30"
@@ -305,6 +331,11 @@ function ProductFormInner({
                 kiện
               </div>
             </div>
+            {errors.minStockAlertUnits && (
+              <p id="product-min-stock-error" className="mt-1 text-xs text-rose-600 font-medium">
+                {errors.minStockAlertUnits.message}
+              </p>
+            )}
           </div>
         </div>
 

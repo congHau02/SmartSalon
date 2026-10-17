@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { stockAdjustmentSchema } from "./stockAdjustmentSchema";
@@ -79,6 +79,28 @@ export function useStockAdjustmentForm({
   const watchedStockUnits = useWatch({ control, name: "actualStockUnits" });
   const watchedVolume = useWatch({ control, name: "actualVolume" });
   const watchedIsCustomReason = useWatch({ control, name: "isCustomReason" });
+
+  useEffect(() => {
+    if (preselectedProductId) {
+      setValue("productId", String(preselectedProductId));
+      const found = availableOptions.find((item) => String(item.productId) === String(preselectedProductId));
+      if (found) {
+        setValue("actualStockUnits", found.stockUnits ?? 0);
+        setValue("actualVolume", found.currentVolume ?? 0);
+        setValue("unitCapacity", found.volumeOrWeightPerUnit || 1);
+        setValue("packagingUnit", found.packagingUnit || "chai");
+        setValue("volumeUnit", found.volumeUnit || "ml");
+      }
+    } else if (!watchedProductId && availableOptions.length > 0) {
+      const first = availableOptions[0];
+      setValue("productId", String(first.productId));
+      setValue("actualStockUnits", first.stockUnits ?? 0);
+      setValue("actualVolume", first.currentVolume ?? 0);
+      setValue("unitCapacity", first.volumeOrWeightPerUnit || 1);
+      setValue("packagingUnit", first.packagingUnit || "chai");
+      setValue("volumeUnit", first.volumeUnit || "ml");
+    }
+  }, [preselectedProductId, availableOptions, watchedProductId, setValue]);
 
   const selectedItem = availableOptions.find(
     (item) => String(item.productId) === String(watchedProductId)

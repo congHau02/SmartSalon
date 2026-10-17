@@ -132,7 +132,7 @@ export function InventoryTable({
                       type="button"
                       onClick={() => handleOpenStockIn(item.productId)}
                       aria-label={`Nhập thêm ${item.productName}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                       title="Nhập thêm hàng"
                     >
                       <ArrowDownToLine className="w-3.5 h-3.5" aria-hidden="true" />
@@ -143,7 +143,7 @@ export function InventoryTable({
                       type="button"
                       onClick={() => handleOpenAdjustment(item.productId)}
                       aria-label={`Kiểm kê ${item.productName}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                       title="Kiểm kê thực tế"
                     >
                       <Scale className="w-3.5 h-3.5" aria-hidden="true" />

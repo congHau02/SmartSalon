@@ -33,7 +33,7 @@ export function ServiceTable({
             <th className="py-3.5 px-4">Thời lượng</th>
             <th className="py-3.5 px-4">Giá niêm yết</th>
             <th className="py-3.5 px-4">Định mức BOM</th>
-            <th className="py-3.5 px-4">Quy trình & Hoa hồng</th>
+            <th className="py-3.5 px-4">Bước kỹ thuật & Hoa hồng</th>
             <th className="py-3.5 px-4 text-center">Trạng thái</th>
             <th className="py-3.5 pl-4 pr-6 text-right">Thao tác</th>
           </tr>
@@ -128,7 +128,7 @@ export function ServiceTable({
                     type="button"
                     onClick={(e) => handleToggleActive(service, e)}
                     title={isServiceActive ? "Bấm để tạm ngưng" : "Bấm để mở lại"}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-all min-h-[32px] ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold cursor-pointer transition-all min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 ${
                       isServiceActive
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100"
                         : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"

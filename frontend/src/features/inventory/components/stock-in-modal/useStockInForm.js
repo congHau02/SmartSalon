@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { stockInSchema } from "./stockInSchema";
@@ -31,6 +32,22 @@ export function useStockInForm({ preselectedProductId, products, onSubmit }) {
   const watchedProductId = useWatch({ control, name: "productId" });
   const watchedQuantity = useWatch({ control, name: "quantityUnits" });
   const watchedUnitCost = useWatch({ control, name: "unitCost" });
+
+  useEffect(() => {
+    if (preselectedProductId) {
+      setValue("productId", String(preselectedProductId));
+      const prod = products?.find((p) => String(p.id) === String(preselectedProductId));
+      if (prod?.costPrice !== undefined) {
+        setValue("unitCost", prod.costPrice);
+      }
+    } else if (!watchedProductId && products && products.length > 0) {
+      const firstId = String(products[0].id);
+      setValue("productId", firstId);
+      if (products[0]?.costPrice !== undefined) {
+        setValue("unitCost", products[0].costPrice);
+      }
+    }
+  }, [preselectedProductId, products, watchedProductId, setValue]);
 
   const selectedProduct = products?.find((p) => String(p.id) === String(watchedProductId));
 

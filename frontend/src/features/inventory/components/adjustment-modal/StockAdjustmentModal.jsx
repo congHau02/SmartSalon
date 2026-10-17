@@ -30,7 +30,6 @@ function StockAdjustmentInner({
     errors,
     availableOptions,
     selectedItem,
-    watchedProductId,
     watchedIsCustomReason,
     volumeDelta,
     onProductChange,
@@ -101,10 +100,11 @@ function StockAdjustmentInner({
           </label>
           <select
             id="adj-product"
-            value={watchedProductId}
+            {...register("productId", {
+              onChange: (e) => onProductChange(e.target.value),
+            })}
             aria-invalid={Boolean(errors.productId)}
             aria-describedby={errors.productId ? "adj-product-error" : undefined}
-            onChange={(e) => onProductChange(e.target.value)}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 cursor-pointer transition-all"
           >
             <option value="">-- Chọn sản phẩm kiểm kê --</option>

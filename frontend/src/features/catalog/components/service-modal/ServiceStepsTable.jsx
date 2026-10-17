@@ -71,7 +71,7 @@ export function ServiceStepsTable({
       {/* Quick Preset Buttons */}
       <div className="space-y-1.5">
         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-          Mẫu quy trình phân bổ nhanh:
+          Mẫu bước kỹ thuật phân bổ nhanh:
         </span>
         <div className="flex flex-wrap gap-2">
           {STEP_TEMPLATES.map((tpl) => (
@@ -79,7 +79,7 @@ export function ServiceStepsTable({
               key={tpl.name}
               type="button"
               onClick={() => handleApplyTemplate(tpl)}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-pink-50 hover:text-pink-700 hover:border-pink-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-all cursor-pointer min-h-[36px]"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-pink-50 hover:text-pink-700 hover:border-pink-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-all cursor-pointer min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
             >
               {tpl.name}
             </button>

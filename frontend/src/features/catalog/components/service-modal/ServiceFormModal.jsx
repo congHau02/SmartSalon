@@ -64,7 +64,7 @@ function ServiceFormInner({
           </div>
           <div>
             <h2 id={titleId} className="text-lg font-bold text-slate-900 leading-tight">
-              {isEditMode ? "Chỉnh sửa Dịch vụ & Công thức BOM" : "Thêm Dịch vụ Mới vào Danh mục"}
+              {isEditMode ? "Chỉnh sửa Dịch vụ & Định mức BOM" : "Thêm Dịch vụ Mới vào Danh mục"}
             </h2>
             <p className="text-xs text-slate-500">
               Thiết lập định lượng hoá chất tiêu hao và tỷ lệ chia hoa hồng cho từng thợ
@@ -137,7 +137,7 @@ function ServiceFormInner({
         >
           <Layers className="w-4 h-4" />
           <span>
-            Quy trình & Hoa hồng ({stepFields.length} bước - {totalCommission}%)
+            Bước kỹ thuật & Hoa hồng ({stepFields.length} bước - {totalCommission}%)
           </span>
           {(isCommissionExceeded || hasStepErrors) && (
             <span className="w-2 h-2 rounded-full bg-rose-500" />

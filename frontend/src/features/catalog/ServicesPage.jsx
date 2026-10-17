@@ -212,7 +212,7 @@ export function ServicesPage() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Quản lý bảng giá chuẩn, công thức trừ kho hoá chất tự động (BOM) và cơ chế chia hoa hồng thợ
+            Quản lý bảng giá chuẩn, định mức trừ kho hoá chất tự động (BOM) và cơ chế chia hoa hồng thợ
           </p>
         </div>
 
