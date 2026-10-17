@@ -41,3 +41,12 @@ app:
     refresh-expiration-ms: 604800000 # 7 ngày
   cors:
     allowed-origins: "http://localhost:5173"
+  payos:
+    client-id: ${PAYOS_CLIENT_ID:}
+    api-key: ${PAYOS_API_KEY:}
+    checksum-key: ${PAYOS_CHECKSUM_KEY:}
+    bank-id: ${PAYOS_BANK_ID:MB}
+    account-no: ${PAYOS_ACCOUNT_NO:0988888888}
+    account-name: ${PAYOS_ACCOUNT_NAME:SMART SALON VIETNAM}
+    return-url: ${PAYOS_RETURN_URL:http://localhost:5173/customer/booking?step=4}
+    cancel-url: ${PAYOS_CANCEL_URL:http://localhost:5173/customer/booking?step=4}

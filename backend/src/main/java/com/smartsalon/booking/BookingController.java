@@ -9,6 +9,8 @@ import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.service.BookingService;
 import com.smartsalon.booking.service.SlotCalculationService;
 import com.smartsalon.common.ApiResponse;
+import com.smartsalon.payment.dto.PaymentQrInfo;
+import com.smartsalon.payment.service.PayOSService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,6 +32,7 @@ public class BookingController {
 
     private final SlotCalculationService slotCalculationService;
     private final BookingService bookingService;
+    private final PayOSService payOSService;
 
     @GetMapping("/stylists")
     @Operation(summary = "Lấy danh sách Stylist đang hoạt động theo chi nhánh")
@@ -61,6 +64,13 @@ public class BookingController {
     public ResponseEntity<ApiResponse<BookingResponse>> getBookingByCode(@PathVariable String code) {
         BookingResponse response = bookingService.getBookingByCode(code);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin lịch hẹn thành công", response));
+    }
+
+    @GetMapping("/{code}/payment-info")
+    @Operation(summary = "Lấy thông tin VietQR và link thanh toán cọc PayOS cho lịch hẹn")
+    public ResponseEntity<ApiResponse<PaymentQrInfo>> getPaymentInfo(@PathVariable String code) {
+        PaymentQrInfo info = payOSService.generateDepositPaymentInfo(code);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin thanh toán thành công", info));
     }
 
     @GetMapping("/lookup")

@@ -1,0 +1,392 @@
+package com.smartsalon.payment.service.impl;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartsalon.booking.BookingMapper;
+import com.smartsalon.booking.dto.BookingResponse;
+import com.smartsalon.booking.entity.BookingEntity;
+import com.smartsalon.booking.entity.BookingStatus;
+import com.smartsalon.booking.entity.DepositStatus;
+import com.smartsalon.booking.repository.BookingRepository;
+import com.smartsalon.booking.service.RedisLockService;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.payment.dto.PayOSWebhookPayload;
+import com.smartsalon.payment.dto.PaymentQrInfo;
+import com.smartsalon.payment.entity.PaymentTransactionEntity;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
+import com.smartsalon.payment.service.PayOSService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Slf4j
+@Service
+public class PayOSServiceImpl implements PayOSService {
+
+    private static final Pattern BOOKING_CODE_PATTERN = Pattern.compile("BK-\\d{8}-[A-Za-z0-9]{4}");
+
+    private final BookingRepository bookingRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final RedisLockService redisLockService;
+    private final BookingMapper bookingMapper;
+    private final ObjectMapper objectMapper;
+    private final RestClient restClient;
+
+    @Value("${app.payos.client-id:}")
+    private String clientId;
+
+    @Value("${app.payos.api-key:}")
+    private String apiKey;
+
+    @Value("${app.payos.checksum-key:}")
+    private String checksumKey;
+
+    @Value("${app.payos.bank-id:MB}")
+    private String bankId;
+
+    @Value("${app.payos.account-no:0988888888}")
+    private String accountNo;
+
+    @Value("${app.payos.account-name:SMART SALON VIETNAM}")
+    private String accountName;
+
+    @Value("${app.payos.return-url:http://localhost:5173/customer/booking?step=4}")
+    private String returnUrl;
+
+    @Value("${app.payos.cancel-url:http://localhost:5173/customer/booking?step=4}")
+    private String cancelUrl;
+
+    public PayOSServiceImpl(
+            BookingRepository bookingRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            RedisLockService redisLockService,
+            BookingMapper bookingMapper
+    ) {
+        this.bookingRepository = bookingRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.redisLockService = redisLockService;
+        this.bookingMapper = bookingMapper;
+        this.objectMapper = new ObjectMapper().findAndRegisterModules();
+        this.restClient = RestClient.builder()
+                .baseUrl("https://api-merchant.payos.vn")
+                .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PaymentQrInfo generateDepositPaymentInfo(String bookingCode) {
+        BookingEntity booking = bookingRepository.findByBookingCodeAndIsDeletedFalse(bookingCode)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.getStatus() == BookingStatus.EXPIRED || booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
+        }
+
+        if (booking.getStatus() == BookingStatus.PENDING_PAYMENT
+                && booking.getSlotLockExpiresAt() != null
+                && booking.getSlotLockExpiresAt().isBefore(LocalDateTime.now())) {
+            booking.setStatus(BookingStatus.EXPIRED);
+            bookingRepository.save(booking);
+            if (booking.getStaff() != null) {
+                redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
+            }
+            throw new AppException(ErrorCode.BOOKING_EXPIRED);
+        }
+
+        BigDecimal depositAmount = booking.getDepositAmount();
+        String description = booking.getBookingCode();
+        String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
+        String vietQrUrl = String.format(
+                "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
+                bankId,
+                accountNo,
+                depositAmount.longValue(),
+                description,
+                encodedAccountName
+        );
+
+        String paymentUrl = vietQrUrl;
+        String qrCodeUrl = vietQrUrl;
+
+        // Attempt PayOS payment link creation if live credentials configured
+        if (StringUtils.hasText(clientId) && StringUtils.hasText(apiKey) && StringUtils.hasText(checksumKey)) {
+            try {
+                long orderCode = Math.abs(booking.getBookingCode().hashCode()) + (System.currentTimeMillis() % 1000000L);
+                Map<String, Object> reqData = new HashMap<>();
+                reqData.put("orderCode", orderCode);
+                reqData.put("amount", depositAmount.longValue());
+                reqData.put("description", description);
+                reqData.put("cancelUrl", cancelUrl);
+                reqData.put("returnUrl", returnUrl);
+
+                String signData = String.format(
+                        "amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
+                        depositAmount.longValue(), cancelUrl, description, orderCode, returnUrl
+                );
+                String signature = hmacSha256(signData, checksumKey);
+                reqData.put("signature", signature);
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restClient.post()
+                        .uri("/v2/payment-requests")
+                        .header("x-client-id", clientId)
+                        .header("x-api-key", apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(reqData)
+                        .retrieve()
+                        .body(Map.class);
+
+                if (response != null && "00".equals(response.get("code"))) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) response.get("data");
+                    if (data != null) {
+                        if (data.get("checkoutUrl") != null) {
+                            paymentUrl = (String) data.get("checkoutUrl");
+                        }
+                        if (data.get("qrCode") != null) {
+                            qrCodeUrl = (String) data.get("qrCode");
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("PayOS payment link creation request failed ({}), falling back to VietQR standard QR: {}",
+                        ex.getClass().getSimpleName(), ex.getMessage());
+            }
+        }
+
+        // Persist PENDING transaction if not exists
+        paymentTransactionRepository.findFirstByBookingIdAndStatus(booking.getId(), "PENDING")
+                .orElseGet(() -> paymentTransactionRepository.save(PaymentTransactionEntity.builder()
+                        .booking(booking)
+                        .orderId(null)
+                        .paymentMethod("PAYOS")
+                        .transactionCode("TX-" + booking.getBookingCode() + "-" + System.currentTimeMillis())
+                        .amount(depositAmount)
+                        .status("PENDING")
+                        .build()));
+
+        return new PaymentQrInfo(
+                booking.getBookingCode(),
+                depositAmount,
+                bankId,
+                accountNo,
+                accountName,
+                qrCodeUrl,
+                paymentUrl,
+                description,
+                booking.getSlotLockExpiresAt()
+        );
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BookingResponse processPayOSWebhook(PayOSWebhookPayload payload) {
+        if (payload == null || payload.data() == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        // Verify signature if checksumKey is configured
+        if (StringUtils.hasText(checksumKey)) {
+            boolean valid = verifyWebhookSignature(payload, checksumKey);
+            if (!valid) {
+                log.error("PayOS webhook signature verification failed for payload: {}", payload);
+                throw new AppException(ErrorCode.INVALID_PAYMENT_SIGNATURE);
+            }
+        } else {
+            log.warn("PayOS checksum-key not configured. Webhook signature verification bypassed for local/dev.");
+        }
+
+        String bookingCode = extractBookingCode(payload.data().description());
+        BookingEntity booking = null;
+
+        if (bookingCode != null) {
+            booking = bookingRepository.findByBookingCodeAndIsDeletedFalse(bookingCode).orElse(null);
+        }
+
+        if (booking == null && payload.data().orderCode() != null) {
+            Optional<PaymentTransactionEntity> tx = paymentTransactionRepository.findByTransactionCode("TX-" + payload.data().orderCode());
+            if (tx.isPresent()) {
+                booking = tx.get().getBooking();
+            }
+        }
+
+        if (booking == null) {
+            log.error("PayOS webhook cannot match booking for payload description: {}", payload.data().description());
+            throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+
+        // Idempotency: if already confirmed, return current state
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            log.info("Booking {} already CONFIRMED. Skipping duplicate PayOS webhook execution.", booking.getBookingCode());
+            return bookingMapper.toResponse(booking);
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
+        }
+
+        // Transition booking to CONFIRMED and deposit to PAID
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setDepositStatus(DepositStatus.PAID);
+        booking.setSlotLockExpiresAt(null);
+        final BookingEntity confirmedBooking = bookingRepository.save(booking);
+
+        // Unlock temporary Redis multi-bucket lock: DB now securely holds the confirmed slot
+        if (confirmedBooking.getStaff() != null) {
+            redisLockService.unlockSlots(confirmedBooking.getStaff().getId(), confirmedBooking.getBookingTime(), confirmedBooking.getEndTime());
+        }
+
+        // Record or update transaction audit log
+        PaymentTransactionEntity transaction = paymentTransactionRepository
+                .findFirstByBookingIdAndStatus(confirmedBooking.getId(), "PENDING")
+                .orElseGet(() -> PaymentTransactionEntity.builder()
+                        .booking(confirmedBooking)
+                        .orderId(null)
+                        .paymentMethod("PAYOS")
+                        .amount(confirmedBooking.getDepositAmount())
+                        .build());
+
+        transaction.setStatus("SUCCESS");
+        if (payload.data().reference() != null) {
+            transaction.setTransactionCode("PAYOS-" + payload.data().reference());
+        } else if (transaction.getTransactionCode() == null) {
+            transaction.setTransactionCode("TX-" + confirmedBooking.getBookingCode() + "-" + System.currentTimeMillis());
+        }
+
+        try {
+            transaction.setPayloadWebhook(objectMapper.writeValueAsString(payload));
+        } catch (Exception ex) {
+            log.warn("Failed to serialize webhook payload: {}", ex.getMessage());
+            transaction.setPayloadWebhook("{}");
+        }
+        paymentTransactionRepository.save(transaction);
+
+        log.info("Booking {} successfully CONFIRMED via PayOS webhook. Deposit: {}", confirmedBooking.getBookingCode(), confirmedBooking.getDepositAmount());
+        return bookingMapper.toResponse(confirmedBooking);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BookingResponse simulatePaymentSuccess(String bookingCode) {
+        BookingEntity booking = bookingRepository.findByBookingCodeAndIsDeletedFalse(bookingCode)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            log.info("Booking {} already CONFIRMED. Skipping duplicate simulation.", bookingCode);
+            return bookingMapper.toResponse(booking);
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
+        }
+
+        if (booking.getSlotLockExpiresAt() != null && booking.getSlotLockExpiresAt().isBefore(LocalDateTime.now())) {
+            booking.setStatus(BookingStatus.EXPIRED);
+            bookingRepository.save(booking);
+            if (booking.getStaff() != null) {
+                redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
+            }
+            throw new AppException(ErrorCode.BOOKING_EXPIRED);
+        }
+
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setDepositStatus(DepositStatus.PAID);
+        booking.setSlotLockExpiresAt(null);
+        final BookingEntity confirmedBooking = bookingRepository.save(booking);
+
+        if (confirmedBooking.getStaff() != null) {
+            redisLockService.unlockSlots(confirmedBooking.getStaff().getId(), confirmedBooking.getBookingTime(), confirmedBooking.getEndTime());
+        }
+
+        PaymentTransactionEntity transaction = paymentTransactionRepository
+                .findFirstByBookingIdAndStatus(confirmedBooking.getId(), "PENDING")
+                .orElseGet(() -> PaymentTransactionEntity.builder()
+                        .booking(confirmedBooking)
+                        .amount(confirmedBooking.getDepositAmount())
+                        .build());
+
+        transaction.setPaymentMethod("PAYOS_SIMULATED");
+        transaction.setStatus("SUCCESS");
+        transaction.setTransactionCode("SIM-" + confirmedBooking.getBookingCode() + "-" + System.currentTimeMillis());
+        transaction.setPayloadWebhook("{\"simulated\":true,\"bookingCode\":\"" + bookingCode + "\",\"timestamp\":\"" + LocalDateTime.now() + "\"}");
+        paymentTransactionRepository.save(transaction);
+
+        log.info("Booking {} successfully CONFIRMED via Sandbox one-click simulation.", bookingCode);
+        return bookingMapper.toResponse(confirmedBooking);
+    }
+
+    public boolean verifyWebhookSignature(PayOSWebhookPayload payload, String key) {
+        if (payload == null || payload.data() == null || payload.signature() == null) {
+            return false;
+        }
+        String dataSorted = buildDataSortedString(payload.data());
+        String expectedSignature = hmacSha256(dataSorted, key);
+        return expectedSignature.equalsIgnoreCase(payload.signature());
+    }
+
+    public String buildDataSortedString(PayOSWebhookPayload.PayOSWebhookData data) {
+        Map<String, Object> map = new TreeMap<>();
+        if (data.amount() != null) map.put("amount", data.amount());
+        if (data.description() != null) map.put("description", data.description());
+        if (data.orderCode() != null) map.put("orderCode", data.orderCode());
+        if (data.reference() != null) map.put("reference", data.reference());
+        if (data.transactionDateTime() != null) map.put("transactionDateTime", data.transactionDateTime());
+        if (data.currency() != null) map.put("currency", data.currency());
+        if (data.paymentLinkId() != null) map.put("paymentLinkId", data.paymentLinkId());
+        if (data.code() != null) map.put("code", data.code());
+        if (data.desc() != null) map.put("desc", data.desc());
+        if (data.accountNumber() != null) map.put("accountNumber", data.accountNumber());
+
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getValue() != null && !entry.getValue().toString().isEmpty()) {
+                if (!sb.isEmpty()) {
+                    sb.append("&");
+                }
+                sb.append(entry.getKey()).append("=").append(entry.getValue());
+            }
+        }
+        return sb.toString();
+    }
+
+    public static String hmacSha256(String data, String key) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKey);
+            byte[] rawHmac = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(2 * rawHmac.length);
+            for (byte b : rawHmac) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to compute HMAC-SHA256", e);
+        }
+    }
+
+    private String extractBookingCode(String description) {
+        if (!StringUtils.hasText(description)) {
+            return null;
+        }
+        Matcher matcher = BOOKING_CODE_PATTERN.matcher(description);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return description.trim();
+    }
+}

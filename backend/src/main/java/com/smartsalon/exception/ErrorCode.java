@@ -25,6 +25,8 @@ public enum ErrorCode {
     BOOKING_NOT_FOUND(2005, "Không tìm thấy lịch hẹn yêu cầu", HttpStatus.NOT_FOUND),
     BOOKING_EXPIRED(2006, "Thời gian giữ chỗ của lịch hẹn đã hết hạn", HttpStatus.BAD_REQUEST),
     SLOT_NOT_AVAILABLE(2007, "Khung giờ đã chọn không còn khả dụng", HttpStatus.CONFLICT),
+    INVALID_BOOKING_STATUS(2008, "Trạng thái lịch hẹn không hợp lệ cho thao tác này", HttpStatus.BAD_REQUEST),
+    INVALID_PAYMENT_SIGNATURE(2009, "Chữ ký xác thực thanh toán không hợp lệ", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_STOCK(3001, "Tồn kho vật tư (ml/gram) không đủ để xuất", HttpStatus.BAD_REQUEST),
     PRODUCT_NOT_FOUND(3002, "Không tìm thấy sản phẩm hoặc vật tư yêu cầu", HttpStatus.NOT_FOUND),
     PRODUCT_ALREADY_EXISTS(3003, "Mã SKU sản phẩm đã tồn tại trong hệ thống", HttpStatus.CONFLICT);
