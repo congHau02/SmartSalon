@@ -28,16 +28,16 @@ Perform comprehensive end-to-end integration testing and verification of Phase 2
 
 ### 1. Backend Automated Verification (`./mvnw.cmd test`)
 - Total tests executed: **35**, Failures: **0**, Errors: **0**, Skipped: **0**.
-- **FlywayMigrationTest**: Validated clean migration execution for V1 and V2 schema and seed data (admin role, services, master products, branch inventories, BOM formulations).
+- **FlywayMigrationTest**: Validated clean migration execution for V1 and V2 schema and seed data (admin role, services, master products, branch inventories, BOMs).
 - **AuthIntegrationTest**: Validated login with username and phone (dual-identifier), password rejection (401), registration, token refresh with rotation, logout revocation, and RBAC endpoint guards (403).
-- **ServiceCatalogIntegrationTest**: Validated public service listing, admin service creation with BOM formulation and default commission split steps, duplicate name conflict handling, and pagination/filtering.
+- **ServiceCatalogIntegrationTest**: Validated public service listing, admin service creation with BOM and default service steps, duplicate name conflict handling, and pagination/filtering.
 - **InventoryIntegrationTest**: Validated master product CRUD, duplicate SKU detection (409), branch stock-in, physical adjustment, audit logging, and customer forbidden access (403).
 - **InventoryServiceTest**: Unit test coverage for the Auto-Unseal Engine:
-  - When in-use volume is sufficient: decrements current in-use volume without unsealing commercial units.
-  - When in-use volume is insufficient: automatically decrements 1 sealed commercial unit, replenishes container volume, records an `AUTO_UNSEAL` transaction, and completes `SERVICE_CONSUMPTION`.
+  - When opened volume is sufficient: decrements current opened volume without unsealing commercial units.
+  - When opened volume is insufficient: automatically decrements 1 sealed commercial unit, replenishes container volume, records an `AUTO_UNSEAL` transaction, and completes `SERVICE_CONSUMPTION`.
   - Rejection with `INSUFFICIENT_STOCK` (ErrorCode 3004) when total available volume is exceeded.
 
-### 2. Frontend Production Build & Linting
+### 2. Frontend Production Build & UI Smoke Testing
 - **Vite Build**: `npm run build` completed cleanly, transformed 2,072 modules, generated gzip-optimized client bundle (`dist/`).
 - **Oxlint**: `npx oxlint` passed with **0 warnings and 0 errors** across all 44 frontend files.
 - **`ui-ux-pro-max` Compliance**:
@@ -45,12 +45,19 @@ Perform comprehensive end-to-end integration testing and verification of Phase 2
   - Explicit `aria-invalid` and `aria-describedby` pairing for accessible error-placement.
   - Keyed inner modal forms to prevent cascading re-renders.
   - Currency localized to VND (`vi-VN`) and dates formatted cleanly.
+- **End-to-End UI Smoke Test Flow**:
+  1. *Authentication*: Logged in as Super Admin (`admin` / `Admin@123`), receiving JWT access token and Redis-backed refresh token.
+  2. *Branch Switch*: Selected active branch `Chi nhánh Quận 1 (Flagship)` via header dropdown; branch ID dynamically bound across all API requests.
+  3. *Service Catalog*: Opened `/services`, created service with BOM items (Oxy 6%, Thuốc Nhuộm Inoa) and Service Steps (Tẩy nền, Pha màu, Khóa màu).
+  4. *Inventory*: Navigated to `/inventory`, viewed master product catalog and branch-specific dual-level inventory (Sealed Units + Opened Volume).
+  5. *Stock Operations*: Tested Stock-In modal (+10 units) and Physical Count Adjustment modal (-1 unit, updated opened volume). Verified live table and modal data synchronization.
+  6. *Logout*: Dispatched logout action, clearing local tokens and invalidating Redis refresh token session.
 
 ---
 
 ### 3. Key Phase 2 API Endpoints & Response Envelopes
 
-#### A. Authentication: Super Admin Login
+#### A.1 Authentication: Super Admin Login
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -82,7 +89,52 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 }
 ```
 
-#### B. Service Catalog: Create Service with BOM & Technical Step Splits
+#### A.2 Authentication: Refresh Token Rotation
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "7c1b528e-5b1b-48ce-b248-18e4ff819dd5"
+  }'
+```
+**Response Envelope (200 OK):**
+```json
+{
+  "code": 1000,
+  "message": "Làm mới token thành công",
+  "result": {
+    "accessToken": "eyJhbGciOiJIUzI1NiJ9.new...",
+    "refreshToken": "e4f8d120-1a2b-4c3d-8e4f-56789abcdef0",
+    "tokenType": "Bearer",
+    "expiresIn": 86400,
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "roles": ["ADMIN"]
+    }
+  }
+}
+```
+
+#### A.3 Authentication: Logout & Revocation
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/logout \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "e4f8d120-1a2b-4c3d-8e4f-56789abcdef0"
+  }'
+```
+**Response Envelope (200 OK):**
+```json
+{
+  "code": 1000,
+  "message": "Đăng xuất thành công",
+  "result": null
+}
+```
+
+#### B. Service Catalog: Create Service with BOM & Service Steps
 ```bash
 curl -X POST http://localhost:8080/api/v1/services \
   -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
