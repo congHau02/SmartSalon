@@ -12,6 +12,7 @@ import { AdminLayout } from "./components/layout/AdminLayout";
 import { PosLayout } from "./components/layout/PosLayout";
 import { CustomerLayout } from "./components/layout/CustomerLayout";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { ServicesPage } from "./features/catalog/ServicesPage";
 
 function PosPlaceholder() {
   return (
@@ -30,21 +31,6 @@ function CustomerBookingPlaceholder() {
       <h3 className="text-xl font-bold text-pink-700 mb-2">Cổng Đặt lịch Khách Hàng (Smart Booking)</h3>
       <p className="text-slate-500 text-sm">
         Tính năng xử lý giữ slot tạm thời (5 phút) và thanh toán đặt cọc VietQR.
-      </p>
-    </div>
-  );
-}
-
-function ServicesPlaceholder() {
-  const { selectedBranch } = useBranch();
-  return (
-    <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
-        Chi nhánh: {selectedBranch?.name || "Hệ thống chung"}
-      </div>
-      <h3 className="text-xl font-bold text-slate-800">Quản lý Dịch vụ & Định mức BOM</h3>
-      <p className="text-slate-500 text-sm max-w-lg mx-auto">
-        Đang xây dựng: Thiết lập danh mục dịch vụ, định mức BOM trừ vật tư tiêu hao (ml/gram) và tỷ lệ hoa hồng theo từng bước dịch vụ.
       </p>
     </div>
   );
@@ -118,7 +104,7 @@ export default function App() {
                 <Route path="/" element={<Navigate to="/admin" replace />} />
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<DashboardPage />} />
-                  <Route path="services" element={<ServicesPlaceholder />} />
+                  <Route path="services" element={<ServicesPage />} />
                   <Route path="products" element={<ProductsPlaceholder />} />
                   <Route path="inventory" element={<InventoryPlaceholder />} />
                   <Route path="inventory/transactions" element={<TransactionsPlaceholder />} />

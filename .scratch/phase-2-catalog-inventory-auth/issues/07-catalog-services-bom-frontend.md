@@ -1,6 +1,6 @@
 # Issue 07: Services Catalog UI with Category Tabs, Service Modal, BOM Chemical Formula Builder & Step Editor
 
-Status: ready-for-agent
+Status: ready-for-human
 
 ## Description
 
@@ -15,11 +15,17 @@ Implement the Service Catalog management frontend at `/admin/services` complying
 
 ## Tasks
 
-- [ ] Create `src/features/catalog/ServicesPage.jsx`.
-- [ ] Implement category filter pills and live search box.
-- [ ] Implement `ServiceFormModal.jsx` with tabs or stacked sections for Basic Info, BOM Formulations, and Step Splits.
-- [ ] Connect TanStack Query hooks (`useServices`, `useCreateService`, `useUpdateService`, `useDeleteService`).
-- [ ] Add toast alerts for success/error operations.
-- [ ] Format currency in VND and durations in minutes with Vietnamese localization.
+- [x] Create `src/features/catalog/ServicesPage.jsx`.
+- [x] Implement category filter pills and live search box.
+- [x] Implement `ServiceFormModal.jsx` with tabs or stacked sections for Basic Info, BOM Formulations, and Step Splits.
+- [x] Connect TanStack Query hooks (`useServices`, `useCreateService`, `useUpdateService`, `useDeleteService`).
+- [x] Add toast alerts for success/error operations.
+- [x] Format currency in VND and durations in minutes with Vietnamese localization.
 
 ## Comments
+
+- Implemented `catalogApi.js` and TanStack Query hooks (`useServices`, `useCreateService`, `useUpdateService`, `useDeleteService`, `useMasterProducts`).
+- Implemented `ServicesPage.jsx` with summary stats cards, category filter pills (Tất cả, Cắt tóc & Tạo kiểu, Uốn - Nhuộm, Gội dưỡng sinh & Spa, Phục hồi), live search box, active-only toggle, responsive service table, inline active switch toggle, and delete confirmation modal.
+- Implemented `ServiceFormModal.jsx` with 3 accessible tabs: Basic Information, BOM Formula Builder (with master product selector, volume/weight per bottle, and dosage), and Step Editor (with dynamic commission sum, real-time warning on >100%, and quick template presets).
+- Added proxy in `vite.config.js` for seamless `/api` communication with Spring Boot backend at `http://localhost:8080`.
+- Verified clean build with `npm run build` and zero lint warnings with `npx oxlint`.

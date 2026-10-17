@@ -29,7 +29,7 @@ export function BranchProvider({ children }) {
       setIsLoadingBranches(true);
       setError(null);
       try {
-        const response = await axiosClient.get("/api/v1/branches");
+        const response = await axiosClient.get("/branches");
         if (ignore) return;
 
         // Backend ApiResponse wraps payload in `result` (or unwrapped in data)
