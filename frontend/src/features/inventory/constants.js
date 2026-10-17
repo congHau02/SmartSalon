@@ -1,3 +1,10 @@
+import {
+  ArrowDownToLine,
+  Scale,
+  PackageOpen,
+  FlaskConical,
+} from "lucide-react";
+
 // Packaging units for commercial salon products
 export const PACKAGING_UNITS = [
   "Chai",
@@ -30,26 +37,26 @@ export const ADJUSTMENT_REASONS = [
   "Lý do khác...",
 ];
 
-// Transaction types visual badge configuration
+// Transaction types visual badge and icon configuration
 export const TRANSACTION_TYPE_CONFIG = {
   STOCK_IN: {
     label: "Nhập kho mới",
     badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200/80",
-    iconName: "ArrowDownToLine",
+    icon: ArrowDownToLine,
   },
   STOCK_ADJUSTMENT: {
     label: "Kiểm kê / Cân đối",
     badgeClass: "bg-amber-50 text-amber-800 border-amber-200/80",
-    iconName: "Scale",
+    icon: Scale,
   },
   AUTO_UNSEAL: {
     label: "Tự động khui nắp (Unseal)",
     badgeClass: "bg-purple-50 text-purple-800 border-purple-200/80",
-    iconName: "PackageOpen",
+    icon: PackageOpen,
   },
   SERVICE_CONSUMPTION: {
     label: "Xuất dùng dịch vụ (BOM)",
     badgeClass: "bg-pink-50 text-pink-800 border-pink-200/80",
-    iconName: "FlaskConical",
+    icon: FlaskConical,
   },
 };

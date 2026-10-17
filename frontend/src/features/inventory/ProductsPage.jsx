@@ -191,7 +191,7 @@ export function ProductsPage() {
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="p-1 hover:bg-black/5 rounded-lg ml-2 cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 hover:bg-black/5 rounded-xl ml-2 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400"
             aria-label="Đóng thông báo"
           >
             <X className="w-4 h-4" aria-hidden="true" />

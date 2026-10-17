@@ -5,36 +5,20 @@ import {
   Building2,
   Search,
   X,
-  ArrowDownToLine,
-  Scale,
-  PackageOpen,
-  FlaskConical,
   Filter,
   RefreshCw,
   Loader2,
   AlertCircle,
   ArrowLeft,
   User,
+  ArrowDownToLine,
+  Scale,
+  FlaskConical,
 } from "lucide-react";
 import { useBranch } from "../branch/useBranch";
 import { useInventoryTransactions, useProducts } from "./useInventory";
 import { TRANSACTION_TYPE_CONFIG } from "./constants";
 import { formatDate } from "../../lib/utils";
-
-function renderTransactionIcon(type) {
-  switch (type) {
-    case "STOCK_IN":
-      return <ArrowDownToLine className="w-3.5 h-3.5" aria-hidden="true" />;
-    case "STOCK_ADJUSTMENT":
-      return <Scale className="w-3.5 h-3.5" aria-hidden="true" />;
-    case "AUTO_UNSEAL":
-      return <PackageOpen className="w-3.5 h-3.5" aria-hidden="true" />;
-    case "SERVICE_CONSUMPTION":
-      return <FlaskConical className="w-3.5 h-3.5" aria-hidden="true" />;
-    default:
-      return <History className="w-3.5 h-3.5" aria-hidden="true" />;
-  }
-}
 
 export function InventoryTransactionsPage() {
   const { selectedBranch, isLoadingBranches } = useBranch();
@@ -296,7 +280,7 @@ export function InventoryTransactionsPage() {
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              {renderTransactionIcon(key)}
+              {config.icon && <config.icon className="w-3.5 h-3.5" aria-hidden="true" />}
               <span>{config.label}</span>
             </button>
           ))}
@@ -428,7 +412,11 @@ export function InventoryTransactionsPage() {
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border ${typeConfig.badgeClass}`}
                         >
-                          {renderTransactionIcon(tx.transactionType)}
+                          {typeConfig.icon ? (
+                            <typeConfig.icon className="w-3.5 h-3.5" aria-hidden="true" />
+                          ) : (
+                            <History className="w-3.5 h-3.5" aria-hidden="true" />
+                          )}
                           <span>{typeConfig.label}</span>
                         </span>
                       </td>

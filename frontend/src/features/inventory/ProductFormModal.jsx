@@ -148,6 +148,8 @@ function ProductFormInner({
             id="product-name"
             type="text"
             value={name}
+            aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? "product-name-error" : undefined}
             onChange={(e) => {
               setName(e.target.value);
               if (errors.name) setErrors((prev) => ({ ...prev, name: null }));
@@ -159,7 +161,7 @@ function ProductFormInner({
                 : "border-slate-200 focus:border-pink-500 focus:ring-pink-500/20"
             }`}
           />
-          {errors.name && <p className="mt-1 text-xs text-rose-600 font-medium">{errors.name}</p>}
+          {errors.name && <p id="product-name-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.name}</p>}
         </div>
 
         {/* SKU & Barcode Grid */}
@@ -175,6 +177,8 @@ function ProductFormInner({
               id="product-sku"
               type="text"
               value={sku}
+              aria-invalid={Boolean(errors.sku)}
+              aria-describedby={errors.sku ? "product-sku-error" : undefined}
               onChange={(e) => {
                 setSku(e.target.value);
                 if (errors.sku) setErrors((prev) => ({ ...prev, sku: null }));
@@ -186,7 +190,7 @@ function ProductFormInner({
                   : "border-slate-200 focus:border-pink-500 focus:ring-pink-500/20"
               }`}
             />
-            {errors.sku && <p className="mt-1 text-xs text-rose-600 font-medium">{errors.sku}</p>}
+            {errors.sku && <p id="product-sku-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.sku}</p>}
           </div>
 
           <div>
@@ -251,6 +255,8 @@ function ProductFormInner({
                 min="0.01"
                 step="1"
                 value={volumeOrWeightPerUnit}
+                aria-invalid={Boolean(errors.volumeOrWeightPerUnit)}
+                aria-describedby={errors.volumeOrWeightPerUnit ? "product-volume-error" : undefined}
                 onChange={(e) => {
                   setVolumeOrWeightPerUnit(e.target.value);
                   if (errors.volumeOrWeightPerUnit)
@@ -262,7 +268,7 @@ function ProductFormInner({
                 }`}
               />
               {errors.volumeOrWeightPerUnit && (
-                <p className="mt-1 text-[11px] text-rose-600 font-medium">
+                <p id="product-volume-error" className="mt-1 text-[11px] text-rose-600 font-medium">
                   {errors.volumeOrWeightPerUnit}
                 </p>
               )}
@@ -310,12 +316,17 @@ function ProductFormInner({
               min="0"
               step="5000"
               value={costPrice}
+              aria-invalid={Boolean(errors.costPrice)}
+              aria-describedby={errors.costPrice ? "product-cost-error" : undefined}
               onChange={(e) => {
                 setCostPrice(e.target.value);
                 if (errors.costPrice) setErrors((prev) => ({ ...prev, costPrice: null }));
               }}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
             />
+            {errors.costPrice && (
+              <p id="product-cost-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.costPrice}</p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500 font-medium">
               {formatCurrency(Number(costPrice) || 0)}
             </p>
@@ -334,12 +345,17 @@ function ProductFormInner({
               min="0"
               step="5000"
               value={retailPrice}
+              aria-invalid={Boolean(errors.retailPrice)}
+              aria-describedby={errors.retailPrice ? "product-retail-error" : undefined}
               onChange={(e) => {
                 setRetailPrice(e.target.value);
                 if (errors.retailPrice) setErrors((prev) => ({ ...prev, retailPrice: null }));
               }}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
             />
+            {errors.retailPrice && (
+              <p id="product-retail-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.retailPrice}</p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500 font-medium">
               {formatCurrency(Number(retailPrice) || 0)}
             </p>
@@ -357,6 +373,8 @@ function ProductFormInner({
               type="number"
               min="0"
               value={minStockAlertUnits}
+              aria-invalid={Boolean(errors.minStockAlertUnits)}
+              aria-describedby={errors.minStockAlertUnits ? "product-min-stock-error" : undefined}
               onChange={(e) => {
                 setMinStockAlertUnits(e.target.value);
                 if (errors.minStockAlertUnits)
@@ -364,6 +382,9 @@ function ProductFormInner({
               }}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
             />
+            {errors.minStockAlertUnits && (
+              <p id="product-min-stock-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.minStockAlertUnits}</p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500 font-medium">
               Báo động khi kho ≤ {minStockAlertUnits} {unit}
             </p>

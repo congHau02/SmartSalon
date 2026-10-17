@@ -136,6 +136,8 @@ function StockInInner({
             <select
               id="stock-product"
               value={productId}
+              aria-invalid={Boolean(errors.productId)}
+              aria-describedby={errors.productId ? "stock-product-error" : undefined}
               onChange={(e) => {
                 const newId = e.target.value;
                 setProductId(newId);
@@ -157,7 +159,7 @@ function StockInInner({
             </select>
           )}
           {errors.productId && (
-            <p className="mt-1 text-xs text-rose-600 font-medium">{errors.productId}</p>
+            <p id="stock-product-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.productId}</p>
           )}
         </div>
 
@@ -196,6 +198,8 @@ function StockInInner({
                 min="1"
                 step="1"
                 value={quantityUnits}
+                aria-invalid={Boolean(errors.quantityUnits)}
+                aria-describedby={errors.quantityUnits ? "stock-quantity-error" : undefined}
                 onChange={(e) => {
                   setQuantityUnits(e.target.value);
                   if (errors.quantityUnits)
@@ -212,7 +216,7 @@ function StockInInner({
               </div>
             </div>
             {errors.quantityUnits && (
-              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.quantityUnits}</p>
+              <p id="stock-quantity-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.quantityUnits}</p>
             )}
           </div>
 
@@ -231,6 +235,8 @@ function StockInInner({
                 min="0"
                 step="1000"
                 value={effectiveUnitCost}
+                aria-invalid={Boolean(errors.unitCost)}
+                aria-describedby={errors.unitCost ? "stock-unit-cost-error" : undefined}
                 onChange={(e) => {
                   setCustomUnitCost(e.target.value);
                   if (errors.unitCost) setErrors((prev) => ({ ...prev, unitCost: null }));
@@ -242,6 +248,9 @@ function StockInInner({
                 VNĐ
               </div>
             </div>
+            {errors.unitCost && (
+              <p id="stock-unit-cost-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.unitCost}</p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500 font-medium">
               Thành tiền: {formatCurrency(totalCostEstimate)}
             </p>

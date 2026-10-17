@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId } from "react";
+import React, { useState, useEffect, useId, useMemo } from "react";
 import {
   X,
   Scale,
@@ -9,6 +9,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { useProducts } from "./useInventory";
 import { ADJUSTMENT_REASONS } from "./constants";
 
 function StockAdjustmentInner({
@@ -20,12 +21,48 @@ function StockAdjustmentInner({
   isSubmitting,
   titleId,
 }) {
+  const { data: allCatalogProducts = [] } = useProducts({ activeOnly: true });
+
+  const availableOptions = useMemo(() => {
+    if (!allCatalogProducts.length && inventoryItems.length) {
+      return inventoryItems.map((item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        productSku: item.productSku,
+        packagingUnit: item.packagingUnit,
+        volumeOrWeightPerUnit: item.volumeOrWeightPerUnit,
+        volumeUnit: item.volumeUnit,
+        stockUnits: item.stockUnits ?? 0,
+        currentVolume: item.currentVolume ?? 0,
+        totalAvailableVolume: item.totalAvailableVolume ?? 0,
+        isExistingInBranch: true,
+      }));
+    }
+
+    return allCatalogProducts.map((p) => {
+      const existing = inventoryItems.find((inv) => String(inv.productId) === String(p.id));
+      return {
+        productId: p.id,
+        productName: p.name,
+        productSku: p.sku,
+        packagingUnit: p.unit,
+        volumeOrWeightPerUnit: p.volumeOrWeightPerUnit,
+        volumeUnit: p.volumeUnit,
+        stockUnits: existing ? existing.stockUnits ?? 0 : 0,
+        currentVolume: existing ? existing.currentVolume ?? 0 : 0,
+        totalAvailableVolume: existing ? existing.totalAvailableVolume ?? 0 : 0,
+        isExistingInBranch: Boolean(existing),
+      };
+    });
+  }, [allCatalogProducts, inventoryItems]);
+
   const [productId, setProductId] = useState(() => {
     if (preselectedProductId) return String(preselectedProductId);
-    return inventoryItems[0]?.productId ? String(inventoryItems[0].productId) : "";
+    if (inventoryItems[0]?.productId) return String(inventoryItems[0].productId);
+    return allCatalogProducts[0]?.id ? String(allCatalogProducts[0].id) : "";
   });
 
-  const selectedItem = inventoryItems.find((item) => String(item.productId) === String(productId));
+  const selectedItem = availableOptions.find((item) => String(item.productId) === String(productId));
 
   const [actualStockUnits, setActualStockUnits] = useState(() =>
     selectedItem ? selectedItem.stockUnits ?? 0 : 0
@@ -140,10 +177,12 @@ function StockAdjustmentInner({
           <select
             id="adj-product"
             value={productId}
+            aria-invalid={Boolean(errors.productId)}
+            aria-describedby={errors.productId ? "adj-product-error" : undefined}
             onChange={(e) => {
               const newId = e.target.value;
               setProductId(newId);
-              const found = inventoryItems.find((item) => String(item.productId) === String(newId));
+              const found = availableOptions.find((item) => String(item.productId) === String(newId));
               if (found) {
                 setActualStockUnits(found.stockUnits ?? 0);
                 setActualVolume(found.currentVolume ?? 0);
@@ -152,15 +191,15 @@ function StockAdjustmentInner({
             }}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 cursor-pointer transition-all"
           >
-            <option value="">-- Chọn sản phẩm trong kho chi nhánh --</option>
-            {inventoryItems.map((item) => (
+            <option value="">-- Chọn sản phẩm kiểm kê --</option>
+            {availableOptions.map((item) => (
               <option key={item.productId} value={item.productId}>
-                {item.productName} ({item.productSku}) - Hiện có: {item.stockUnits} {item.packagingUnit} + {item.currentVolume}{item.volumeUnit}
+                {item.productName} ({item.productSku}) {item.isExistingInBranch ? `- Kho có: ${item.stockUnits} ${item.packagingUnit} + ${item.currentVolume}${item.volumeUnit}` : "(Chưa có tồn tại chi nhánh)"}
               </option>
             ))}
           </select>
           {errors.productId && (
-            <p className="mt-1 text-xs text-rose-600 font-medium">{errors.productId}</p>
+            <p id="adj-product-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.productId}</p>
           )}
         </div>
 
@@ -170,7 +209,11 @@ function StockAdjustmentInner({
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-amber-900">Số liệu hệ thống đang ghi nhận:</span>
               <span className="font-extrabold text-slate-800">
-                {selectedItem.stockUnits} {selectedItem.packagingUnit} nguyên seal + {selectedItem.currentVolume} {selectedItem.volumeUnit} dở dang
+                {selectedItem.isExistingInBranch ? (
+                  `${selectedItem.stockUnits} ${selectedItem.packagingUnit} nguyên seal + ${selectedItem.currentVolume} ${selectedItem.volumeUnit} dở dang`
+                ) : (
+                  `Chưa có tồn kho (0 ${selectedItem.packagingUnit} nguyên seal + 0 ${selectedItem.volumeUnit} dở)`
+                )}
               </span>
             </div>
 
@@ -190,6 +233,8 @@ function StockAdjustmentInner({
                     min="0"
                     step="1"
                     value={actualStockUnits}
+                    aria-invalid={Boolean(errors.actualStockUnits)}
+                    aria-describedby={errors.actualStockUnits ? "adj-actual-units-error" : undefined}
                     onChange={(e) => {
                       setActualStockUnits(e.target.value);
                       if (errors.actualStockUnits)
@@ -204,7 +249,7 @@ function StockAdjustmentInner({
                   </div>
                 </div>
                 {errors.actualStockUnits && (
-                  <p className="mt-1 text-[11px] text-rose-600 font-medium">
+                  <p id="adj-actual-units-error" className="mt-1 text-[11px] text-rose-600 font-medium">
                     {errors.actualStockUnits}
                   </p>
                 )}
@@ -225,6 +270,8 @@ function StockAdjustmentInner({
                     min="0"
                     step="1"
                     value={actualVolume}
+                    aria-invalid={Boolean(errors.actualVolume)}
+                    aria-describedby={errors.actualVolume ? "adj-actual-volume-error" : undefined}
                     onChange={(e) => {
                       setActualVolume(e.target.value);
                       if (errors.actualVolume)
@@ -239,7 +286,7 @@ function StockAdjustmentInner({
                   </div>
                 </div>
                 {errors.actualVolume && (
-                  <p className="mt-1 text-[11px] text-rose-600 font-medium">
+                  <p id="adj-actual-volume-error" className="mt-1 text-[11px] text-rose-600 font-medium">
                     {errors.actualVolume}
                   </p>
                 )}
@@ -280,6 +327,8 @@ function StockAdjustmentInner({
             <select
               id="adj-reason"
               value={isCustomReason ? "__custom__" : reason}
+              aria-invalid={Boolean(errors.reason)}
+              aria-describedby={errors.reason ? "adj-reason-error" : undefined}
               onChange={(e) => {
                 if (e.target.value === "__custom__") {
                   setIsCustomReason(true);
@@ -303,6 +352,8 @@ function StockAdjustmentInner({
               <textarea
                 rows={2}
                 value={customReason}
+                aria-invalid={Boolean(errors.reason)}
+                aria-describedby={errors.reason ? "adj-reason-error" : undefined}
                 onChange={(e) => {
                   setCustomReason(e.target.value);
                   if (errors.reason) setErrors((prev) => ({ ...prev, reason: null }));
@@ -313,7 +364,7 @@ function StockAdjustmentInner({
             )}
           </div>
           {errors.reason && (
-            <p className="mt-1 text-xs text-rose-600 font-medium">{errors.reason}</p>
+            <p id="adj-reason-error" className="mt-1 text-xs text-rose-600 font-medium">{errors.reason}</p>
           )}
         </div>
       </form>

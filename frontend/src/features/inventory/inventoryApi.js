@@ -38,11 +38,6 @@ export const inventoryApi = {
     return response?.result ?? response ?? [];
   },
 
-  getBranchInventoryByProductId: async (branchId, productId) => {
-    const response = await axiosClient.get(`/branches/${branchId}/inventory/${productId}`);
-    return response?.result ?? response;
-  },
-
   stockIn: async (branchId, data) => {
     const response = await axiosClient.post(`/branches/${branchId}/inventory/stock-in`, data);
     return response?.result ?? response;
