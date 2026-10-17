@@ -70,6 +70,9 @@ public class PayOSServiceImpl implements PayOSService {
     @Value("${app.payos.cancel-url:http://localhost:5173/customer/booking?step=4}")
     private String cancelUrl;
 
+    @Value("${app.payos.simulation-enabled:true}")
+    private boolean simulationEnabled;
+
     public PayOSServiceImpl(
             BookingRepository bookingRepository,
             PaymentTransactionRepository paymentTransactionRepository,
@@ -121,11 +124,11 @@ public class PayOSServiceImpl implements PayOSService {
 
         String paymentUrl = vietQrUrl;
         String qrCodeUrl = vietQrUrl;
+        long orderCode = Math.abs(booking.getBookingCode().hashCode()) + (System.currentTimeMillis() % 1000000L);
 
         // Attempt PayOS payment link creation if live credentials configured
         if (StringUtils.hasText(clientId) && StringUtils.hasText(apiKey) && StringUtils.hasText(checksumKey)) {
             try {
-                long orderCode = Math.abs(booking.getBookingCode().hashCode()) + (System.currentTimeMillis() % 1000000L);
                 Map<String, Object> reqData = new HashMap<>();
                 reqData.put("orderCode", orderCode);
                 reqData.put("amount", depositAmount.longValue());
@@ -168,16 +171,17 @@ public class PayOSServiceImpl implements PayOSService {
             }
         }
 
-        // Persist PENDING transaction if not exists
-        paymentTransactionRepository.findFirstByBookingIdAndStatus(booking.getId(), "PENDING")
-                .orElseGet(() -> paymentTransactionRepository.save(PaymentTransactionEntity.builder()
+        // Ensure PENDING transaction exists with orderCode matching transactionCode
+        PaymentTransactionEntity tx = paymentTransactionRepository.findFirstByBookingIdAndStatus(booking.getId(), PaymentTransactionEntity.STATUS_PENDING)
+                .orElseGet(() -> PaymentTransactionEntity.builder()
                         .booking(booking)
                         .orderId(null)
-                        .paymentMethod("PAYOS")
-                        .transactionCode("TX-" + booking.getBookingCode() + "-" + System.currentTimeMillis())
                         .amount(depositAmount)
-                        .status("PENDING")
-                        .build()));
+                        .status(PaymentTransactionEntity.STATUS_PENDING)
+                        .build());
+        tx.setPaymentMethod(PaymentTransactionEntity.METHOD_PAYOS_VIETQR);
+        tx.setTransactionCode("TX-" + orderCode);
+        paymentTransactionRepository.save(tx);
 
         return new PaymentQrInfo(
                 booking.getBookingCode(),
@@ -199,13 +203,22 @@ public class PayOSServiceImpl implements PayOSService {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
-        // Verify signature if checksumKey is configured
+        // 1. Verify PayOS transaction success code "00"
+        if (payload.code() != null && !"00".equals(payload.code())) {
+            log.warn("PayOS webhook reported non-success code: {}. Payload: {}", payload.code(), payload);
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        // 2. Verify signature if checksumKey is configured, or check simulation allowance
         if (StringUtils.hasText(checksumKey)) {
             boolean valid = verifyWebhookSignature(payload, checksumKey);
             if (!valid) {
                 log.error("PayOS webhook signature verification failed for payload: {}", payload);
                 throw new AppException(ErrorCode.INVALID_PAYMENT_SIGNATURE);
             }
+        } else if (!simulationEnabled) {
+            log.error("PayOS checksum-key not configured in non-simulation environment");
+            throw new AppException(ErrorCode.INVALID_PAYMENT_SIGNATURE);
         } else {
             log.warn("PayOS checksum-key not configured. Webhook signature verification bypassed for local/dev.");
         }
@@ -218,9 +231,9 @@ public class PayOSServiceImpl implements PayOSService {
         }
 
         if (booking == null && payload.data().orderCode() != null) {
-            Optional<PaymentTransactionEntity> tx = paymentTransactionRepository.findByTransactionCode("TX-" + payload.data().orderCode());
-            if (tx.isPresent()) {
-                booking = tx.get().getBooking();
+            Optional<PaymentTransactionEntity> matchedTx = paymentTransactionRepository.findByTransactionCode("TX-" + payload.data().orderCode());
+            if (matchedTx.isPresent()) {
+                booking = matchedTx.get().getBooking();
             }
         }
 
@@ -239,28 +252,28 @@ public class PayOSServiceImpl implements PayOSService {
             throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
         }
 
-        // Transition booking to CONFIRMED and deposit to PAID
-        booking.setStatus(BookingStatus.CONFIRMED);
-        booking.setDepositStatus(DepositStatus.PAID);
-        booking.setSlotLockExpiresAt(null);
-        final BookingEntity confirmedBooking = bookingRepository.save(booking);
-
-        // Unlock temporary Redis multi-bucket lock: DB now securely holds the confirmed slot
-        if (confirmedBooking.getStaff() != null) {
-            redisLockService.unlockSlots(confirmedBooking.getStaff().getId(), confirmedBooking.getBookingTime(), confirmedBooking.getEndTime());
+        // 3. Verify payment amount covers required deposit
+        if (payload.data().amount() != null
+                && BigDecimal.valueOf(payload.data().amount()).compareTo(booking.getDepositAmount()) < 0) {
+            log.error("PayOS webhook payment amount {} is less than required deposit {}",
+                    payload.data().amount(), booking.getDepositAmount());
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
+
+        // Transition booking to CONFIRMED and release Redis slot lock
+        final BookingEntity confirmedBooking = confirmBookingAndReleaseLock(booking);
 
         // Record or update transaction audit log
         PaymentTransactionEntity transaction = paymentTransactionRepository
-                .findFirstByBookingIdAndStatus(confirmedBooking.getId(), "PENDING")
+                .findFirstByBookingIdAndStatus(confirmedBooking.getId(), PaymentTransactionEntity.STATUS_PENDING)
                 .orElseGet(() -> PaymentTransactionEntity.builder()
                         .booking(confirmedBooking)
                         .orderId(null)
-                        .paymentMethod("PAYOS")
+                        .paymentMethod(PaymentTransactionEntity.METHOD_PAYOS_VIETQR)
                         .amount(confirmedBooking.getDepositAmount())
                         .build());
 
-        transaction.setStatus("SUCCESS");
+        transaction.setStatus(PaymentTransactionEntity.STATUS_SUCCESS);
         if (payload.data().reference() != null) {
             transaction.setTransactionCode("PAYOS-" + payload.data().reference());
         } else if (transaction.getTransactionCode() == null) {
@@ -303,30 +316,35 @@ public class PayOSServiceImpl implements PayOSService {
             throw new AppException(ErrorCode.BOOKING_EXPIRED);
         }
 
-        booking.setStatus(BookingStatus.CONFIRMED);
-        booking.setDepositStatus(DepositStatus.PAID);
-        booking.setSlotLockExpiresAt(null);
-        final BookingEntity confirmedBooking = bookingRepository.save(booking);
-
-        if (confirmedBooking.getStaff() != null) {
-            redisLockService.unlockSlots(confirmedBooking.getStaff().getId(), confirmedBooking.getBookingTime(), confirmedBooking.getEndTime());
-        }
+        final BookingEntity confirmedBooking = confirmBookingAndReleaseLock(booking);
 
         PaymentTransactionEntity transaction = paymentTransactionRepository
-                .findFirstByBookingIdAndStatus(confirmedBooking.getId(), "PENDING")
+                .findFirstByBookingIdAndStatus(confirmedBooking.getId(), PaymentTransactionEntity.STATUS_PENDING)
                 .orElseGet(() -> PaymentTransactionEntity.builder()
                         .booking(confirmedBooking)
                         .amount(confirmedBooking.getDepositAmount())
                         .build());
 
-        transaction.setPaymentMethod("PAYOS_SIMULATED");
-        transaction.setStatus("SUCCESS");
+        transaction.setPaymentMethod(PaymentTransactionEntity.METHOD_PAYOS_SIMULATED);
+        transaction.setStatus(PaymentTransactionEntity.STATUS_SUCCESS);
         transaction.setTransactionCode("SIM-" + confirmedBooking.getBookingCode() + "-" + System.currentTimeMillis());
         transaction.setPayloadWebhook("{\"simulated\":true,\"bookingCode\":\"" + bookingCode + "\",\"timestamp\":\"" + LocalDateTime.now() + "\"}");
         paymentTransactionRepository.save(transaction);
 
         log.info("Booking {} successfully CONFIRMED via Sandbox one-click simulation.", bookingCode);
         return bookingMapper.toResponse(confirmedBooking);
+    }
+
+    private BookingEntity confirmBookingAndReleaseLock(BookingEntity booking) {
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setDepositStatus(DepositStatus.PAID);
+        booking.setSlotLockExpiresAt(null);
+        BookingEntity confirmed = bookingRepository.save(booking);
+
+        if (confirmed.getStaff() != null) {
+            redisLockService.unlockSlots(confirmed.getStaff().getId(), confirmed.getBookingTime(), confirmed.getEndTime());
+        }
+        return confirmed;
     }
 
     public boolean verifyWebhookSignature(PayOSWebhookPayload payload, String key) {

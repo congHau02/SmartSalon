@@ -45,7 +45,7 @@ export function BookingStepIndicator({ currentStep = 1, onStepClick }) {
               </div>
 
               <div className="hidden sm:block min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Bước {s.step}
                 </div>
                 <div

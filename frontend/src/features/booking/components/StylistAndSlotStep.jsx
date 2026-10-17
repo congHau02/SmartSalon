@@ -117,7 +117,7 @@ export function StylistAndSlotStep({
               </div>
               <div className="min-w-0">
                 <div className="font-bold text-sm text-slate-900 truncate">Bất kỳ Stylist nào</div>
-                <div className="text-[11px] text-pink-600 font-medium">Tự động phân bổ lịch trống</div>
+                <div className="text-xs text-pink-600 font-medium">Tự động phân bổ lịch trống</div>
               </div>
             </div>
 
@@ -153,7 +153,7 @@ export function StylistAndSlotStep({
                   </div>
                   <div className="min-w-0">
                     <div className="font-bold text-sm text-slate-900 truncate">{st.fullName}</div>
-                    <div className="text-[11px] text-slate-500 truncate">
+                    <div className="text-xs text-slate-500 truncate">
                       {st.phone ? `KTV • ${st.phone.slice(-4)}` : "Chuyên viên"}
                     </div>
                   </div>
@@ -191,11 +191,11 @@ export function StylistAndSlotStep({
                     : "bg-white border-slate-200 text-slate-700 hover:border-pink-300"
                 }`}
               >
-                <span className={`text-[11px] font-semibold ${isSelected ? "text-pink-100" : "text-slate-400"}`}>
+                <span className={`text-xs font-semibold ${isSelected ? "text-pink-100" : "text-slate-400"}`}>
                   {d.label}
                 </span>
                 <span className="text-lg font-extrabold tracking-tight">{d.dayNum}</span>
-                <span className={`text-[10px] ${isSelected ? "text-pink-200" : "text-slate-400"}`}>
+                <span className={`text-xs ${isSelected ? "text-pink-200" : "text-slate-400"}`}>
                   Thg {d.monthNum}
                 </span>
               </button>

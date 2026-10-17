@@ -19,12 +19,15 @@ import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.RoleRepository;
 import com.smartsalon.user.repository.UserRepository;
+import com.smartsalon.payment.entity.PaymentTransactionEntity;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -62,6 +65,12 @@ class BookingServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Spy
+    private BookingMapper bookingMapper = new BookingMapper();
 
     @InjectMocks
     private BookingServiceImpl bookingService;
@@ -155,6 +164,7 @@ class BookingServiceTest {
         assertThat(response.items().get(0).serviceName()).isEqualTo("Cắt Tóc VIP & Gội Massage");
 
         verify(redisLockService, times(1)).tryLockSlots(eq(20L), eq(bookingTime), eq(bookingTime.plusMinutes(60)), anyString());
+        verify(paymentTransactionRepository, times(1)).save(any(PaymentTransactionEntity.class));
     }
 
     @Test
@@ -292,6 +302,33 @@ class BookingServiceTest {
         BookingResponse res = bookingService.updateBookingStatus(700L, req);
 
         assertThat(res.status()).isEqualTo(BookingStatus.CANCELLED);
+        verify(redisLockService, times(1)).unlockSlots(eq(20L), eq(bookingTime), eq(bookingTime.plusMinutes(60)));
+    }
+
+    @Test
+    @DisplayName("Chuyển trạng thái sang CONFIRMED từ PENDING_PAYMENT phải mở khóa Redis và đặt cọc PAID")
+    void updateBookingStatus_pendingToConfirmed_unlocksRedisAndSetsDepositPaid() {
+        LocalDateTime bookingTime = LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(14, 0));
+        BookingEntity booking = BookingEntity.builder()
+                .branch(branch)
+                .staff(stylist)
+                .bookingTime(bookingTime)
+                .endTime(bookingTime.plusMinutes(60))
+                .status(BookingStatus.PENDING_PAYMENT)
+                .depositStatus(DepositStatus.UNPAID)
+                .slotLockExpiresAt(LocalDateTime.now().plusMinutes(5))
+                .build();
+        booking.setId(750L);
+
+        when(bookingRepository.findById(750L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any(BookingEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateBookingStatusRequest req = new UpdateBookingStatusRequest(BookingStatus.CONFIRMED, "Admin xác nhận cọc tiền mặt");
+        BookingResponse res = bookingService.updateBookingStatus(750L, req);
+
+        assertThat(res.status()).isEqualTo(BookingStatus.CONFIRMED);
+        assertThat(res.depositStatus()).isEqualTo(DepositStatus.PAID);
+        assertThat(res.slotLockExpiresAt()).isNull();
         verify(redisLockService, times(1)).unlockSlots(eq(20L), eq(bookingTime), eq(bookingTime.plusMinutes(60)));
     }
 

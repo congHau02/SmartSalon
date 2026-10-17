@@ -12,7 +12,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useBookingDetail, usePaymentInfo, useSimulateDepositWebhook } from "../useBooking";
-import { ConfirmedTicket } from "./ConfirmedTicket";
+import { ConfirmedBookingView } from "./ConfirmedBookingView";
 import { formatCurrency } from "../../../lib/utils";
 
 export function DepositQrStep({ bookingCode, onRestartBooking }) {
@@ -90,9 +90,9 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
     );
   }
 
-  // If Confirmed, show Ticket
+  // If Confirmed, show Confirmation Card
   if (booking?.status === "CONFIRMED" || booking?.depositStatus === "PAID") {
-    return <ConfirmedTicket booking={booking} onNewBooking={onRestartBooking} />;
+    return <ConfirmedBookingView booking={booking} onNewBooking={onRestartBooking} />;
   }
 
   // If Expired, show Retry
@@ -160,7 +160,7 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
       <div className="grid md:grid-cols-12 gap-6 items-start">
         {/* Left: VietQR Image */}
         <div className="md:col-span-5 bg-white p-6 rounded-3xl border border-pink-200 shadow-sm text-center space-y-4">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-pink-50 text-pink-700">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-pink-50 text-pink-700">
             <QrCode className="w-3.5 h-3.5" />
             <span>VietQR Thanh Toán Tự Động</span>
           </div>
@@ -182,7 +182,7 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
             )}
           </div>
 
-          <p className="text-[11px] text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-400 leading-relaxed">
             Mở App ngân hàng bất kỳ (Vietcombank, MB, Techcombank, Momo, v.v.) và quét mã trên để thanh toán tức thì.
           </p>
 
@@ -224,8 +224,9 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
                 <button
                   type="button"
                   onClick={() => handleCopy(paymentInfo?.accountNo || "0988888888", "accountNo")}
-                  className="p-1 text-slate-400 hover:text-pink-600 rounded transition-colors"
+                  aria-label="Sao chép số tài khoản"
                   title="Sao chép số tài khoản"
+                  className="p-1 text-slate-400 hover:text-pink-600 rounded transition-colors"
                 >
                   {copiedField === "accountNo" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
@@ -248,8 +249,9 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
                 <button
                   type="button"
                   onClick={() => handleCopy(paymentInfo?.amount || booking?.depositAmount || 0, "amount")}
-                  className="p-1 text-pink-400 hover:text-pink-700 rounded transition-colors"
+                  aria-label="Sao chép số tiền"
                   title="Sao chép số tiền"
+                  className="p-1 text-pink-400 hover:text-pink-700 rounded transition-colors"
                 >
                   {copiedField === "amount" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
@@ -260,7 +262,7 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-pink-50/70 border border-pink-200">
               <div>
                 <span className="text-pink-800 font-bold block">Nội dung chuyển khoản (bắt buộc):</span>
-                <span className="text-[10px] text-pink-600">Giữ nguyên mã để hệ thống đối soát tự động</span>
+                <span className="text-xs text-pink-600">Giữ nguyên mã để hệ thống đối soát tự động</span>
               </div>
               <div className="flex items-center gap-2">
                 <strong className="text-pink-900 font-mono text-sm bg-white px-2 py-0.5 rounded border border-pink-300">
@@ -269,8 +271,9 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
                 <button
                   type="button"
                   onClick={() => handleCopy(bookingCode, "bookingCode")}
-                  className="p-1 text-pink-400 hover:text-pink-700 rounded transition-colors"
+                  aria-label="Sao chép nội dung chuyển khoản"
                   title="Sao chép nội dung chuyển khoản"
+                  className="p-1 text-pink-400 hover:text-pink-700 rounded transition-colors"
                 >
                   {copiedField === "bookingCode" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
@@ -294,7 +297,7 @@ export function DepositQrStep({ bookingCode, onRestartBooking }) {
               ) : (
                 <>
                   <Zap className="w-4 h-4 text-amber-600 fill-amber-600" />
-                  <span>⚡ Giả lập thanh toán thành công (Sandbox 1-Click)</span>
+                  <span>Giả lập thanh toán thành công (Sandbox 1-Click)</span>
                 </>
               )}
             </button>

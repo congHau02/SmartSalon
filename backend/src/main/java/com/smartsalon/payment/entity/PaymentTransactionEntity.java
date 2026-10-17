@@ -31,6 +31,13 @@ public class PaymentTransactionEntity {
     @JoinColumn(name = "booking_id")
     private BookingEntity booking;
 
+    public static final String METHOD_PAYOS_VIETQR = "PAYOS_VIETQR";
+    public static final String METHOD_PAYOS_SIMULATED = "PAYOS_SIMULATED";
+    public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_SUCCESS = "SUCCESS";
+    public static final String STATUS_FAILED = "FAILED";
+    public static final String STATUS_CANCELLED = "CANCELLED";
+
     @Column(name = "payment_method", nullable = false, length = 30)
     private String paymentMethod;
 
@@ -43,7 +50,7 @@ public class PaymentTransactionEntity {
 
     @Column(name = "status", nullable = false, length = 30)
     @Builder.Default
-    private String status = "PENDING";
+    private String status = STATUS_PENDING;
 
     @Column(name = "payload_webhook", columnDefinition = "JSON")
     private String payloadWebhook;

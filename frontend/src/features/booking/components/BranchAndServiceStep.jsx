@@ -182,7 +182,7 @@ export function BranchAndServiceStep({
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                      <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                         {svc.category || "Dịch vụ"}
                       </span>
                       {isSelected ? (

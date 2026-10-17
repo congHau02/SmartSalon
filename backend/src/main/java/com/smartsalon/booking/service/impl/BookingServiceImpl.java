@@ -29,6 +29,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.smartsalon.booking.BookingMapper;
+import com.smartsalon.payment.entity.PaymentTransactionEntity;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -52,6 +56,8 @@ public class BookingServiceImpl implements BookingService {
     private final RoleRepository roleRepository;
     private final RedisLockService redisLockService;
     private final PasswordEncoder passwordEncoder;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final BookingMapper bookingMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -239,13 +245,23 @@ public class BookingServiceImpl implements BookingService {
 
         try {
             booking = bookingRepository.save(booking);
+
+            // Persist PENDING PaymentTransactionEntity immediately upon booking creation (spec.md L27 & L96)
+            PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
+                    .booking(booking)
+                    .paymentMethod(PaymentTransactionEntity.METHOD_PAYOS_VIETQR)
+                    .transactionCode("TX-" + bookingCode + "-" + System.currentTimeMillis())
+                    .amount(depositAmount)
+                    .status(PaymentTransactionEntity.STATUS_PENDING)
+                    .build();
+            paymentTransactionRepository.save(transaction);
         } catch (Exception ex) {
             log.error("Failed to save booking, releasing Redis lock: {}", ex.getMessage());
             redisLockService.unlockSlots(assignedStylist.getId(), startTime, endTime);
             throw ex;
         }
 
-        return toResponse(booking);
+        return bookingMapper.toResponse(booking);
     }
 
     @Override
@@ -253,7 +269,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse getBookingByCode(String code) {
         BookingEntity booking = bookingRepository.findByBookingCodeAndIsDeletedFalse(code)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
-        return toResponse(booking);
+        return bookingMapper.toResponse(booking);
     }
 
     @Override
@@ -263,7 +279,7 @@ public class BookingServiceImpl implements BookingService {
             return List.of();
         }
         return bookingRepository.findByCustomerPhoneAndIsDeletedFalseOrderByBookingTimeDesc(phone.trim()).stream()
-                .map(this::toResponse)
+                .map(bookingMapper::toResponse)
                 .toList();
     }
 
@@ -279,7 +295,7 @@ public class BookingServiceImpl implements BookingService {
         String searchKeyword = (search != null && !search.isBlank()) ? search.trim() : null;
 
         return bookingRepository.searchBookings(branchId, status, startDate, endDate, searchKeyword).stream()
-                .map(this::toResponse)
+                .map(bookingMapper::toResponse)
                 .toList();
     }
 
@@ -303,6 +319,12 @@ public class BookingServiceImpl implements BookingService {
             }
         } else if (newStatus == BookingStatus.CONFIRMED) {
             booking.setSlotLockExpiresAt(null);
+            if (oldStatus == BookingStatus.PENDING_PAYMENT) {
+                booking.setDepositStatus(DepositStatus.PAID);
+                if (booking.getStaff() != null) {
+                    redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
+                }
+            }
         }
 
         booking.setStatus(newStatus);
@@ -311,7 +333,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
         booking = bookingRepository.save(booking);
-        return toResponse(booking);
+        return bookingMapper.toResponse(booking);
     }
 
     private boolean isValidStatusTransition(BookingStatus from, BookingStatus to) {
@@ -323,40 +345,5 @@ public class BookingServiceImpl implements BookingService {
             case IN_PROGRESS -> to == BookingStatus.COMPLETED;
             case COMPLETED, CANCELLED, EXPIRED, NO_SHOW -> false;
         };
-    }
-
-    private BookingResponse toResponse(BookingEntity entity) {
-        List<BookingServiceItemDto> items = entity.getItems().stream()
-                .map(item -> new BookingServiceItemDto(
-                        item.getId(),
-                        item.getService() != null ? item.getService().getId() : null,
-                        item.getService() != null ? item.getService().getName() : "",
-                        item.getPrice(),
-                        item.getDurationMinutes()
-                ))
-                .toList();
-
-        return new BookingResponse(
-                entity.getId(),
-                entity.getBookingCode(),
-                entity.getBranch().getId(),
-                entity.getBranch().getName(),
-                entity.getCustomer() != null ? entity.getCustomer().getId() : null,
-                entity.getCustomerName() != null ? entity.getCustomerName() : (entity.getCustomer() != null ? entity.getCustomer().getFullName() : ""),
-                entity.getCustomerPhone() != null ? entity.getCustomerPhone() : (entity.getCustomer() != null ? entity.getCustomer().getPhone() : ""),
-                entity.getStaff() != null ? entity.getStaff().getId() : null,
-                entity.getStaff() != null ? entity.getStaff().getFullName() : null,
-                entity.getBookingTime(),
-                entity.getEndTime(),
-                entity.getTotalDurationMinutes(),
-                entity.getTotalPrice(),
-                entity.getDepositAmount(),
-                entity.getDepositStatus(),
-                entity.getStatus(),
-                entity.getSlotLockExpiresAt(),
-                entity.getNotes(),
-                items,
-                entity.getCreatedAt()
-        );
     }
 }

@@ -90,7 +90,7 @@ export function SlotPicker({
                       }`}
                     >
                       <span className="text-sm tracking-tight">{s.startTime}</span>
-                      <span className="text-[10px] font-medium opacity-80">
+                      <span className="text-xs font-medium opacity-80">
                         {isSelected ? "Đã chọn" : "Còn chỗ"}
                       </span>
                     </button>
@@ -105,7 +105,7 @@ export function SlotPicker({
                       className="py-3 px-2 rounded-xl text-xs font-semibold bg-amber-50/70 border border-amber-200 text-amber-700 opacity-80 flex flex-col items-center justify-center gap-1 cursor-not-allowed"
                     >
                       <span className="text-sm line-through opacity-75">{s.startTime}</span>
-                      <span className="text-[10px] font-medium flex items-center gap-0.5">
+                      <span className="text-xs font-medium flex items-center gap-0.5">
                         <Lock className="w-2.5 h-2.5" /> Giữ 5p
                       </span>
                     </div>
@@ -118,7 +118,7 @@ export function SlotPicker({
                     className="py-3 px-2 rounded-xl text-xs font-medium bg-slate-100 border border-slate-200 text-slate-400 flex flex-col items-center justify-center gap-1 cursor-not-allowed select-none"
                   >
                     <span className="text-sm opacity-60">{s.startTime}</span>
-                    <span className="text-[10px] opacity-75">{isPast ? "Đã qua" : "Đã kín"}</span>
+                    <span className="text-xs opacity-75">{isPast ? "Đã qua" : "Đã kín"}</span>
                   </div>
                 );
               })}

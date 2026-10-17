@@ -67,11 +67,3 @@ SELECT u.id, r.id FROM users u, roles r
 WHERE u.username = 'staff.le' AND r.name = 'STAFF'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 
--- C. Khởi tạo Tồn kho ban đầu cho Chi nhánh 2 (Luxury - Quận 3)
-INSERT INTO branch_inventories (id, branch_id, product_id, stock_units, current_volume, min_stock_alert_units, created_by)
-VALUES
-    (5, 2, 1, 15, 0.00, 5, 'SYSTEM'),
-    (6, 2, 2, 8, 300.00, 3, 'SYSTEM'),
-    (7, 2, 3, 6, 500.00, 2, 'SYSTEM'),
-    (8, 2, 4, 4, 150.00, 2, 'SYSTEM')
-ON DUPLICATE KEY UPDATE stock_units = VALUES(stock_units), current_volume = VALUES(current_volume);

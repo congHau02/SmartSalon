@@ -154,7 +154,7 @@ export function CustomerConfirmStep({
                       }`}
                     />
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Dùng để tra cứu lịch hẹn và tự động tạo tài khoản khách hàng nếu chưa có.
                   </p>
                   {errors.customerPhone && (

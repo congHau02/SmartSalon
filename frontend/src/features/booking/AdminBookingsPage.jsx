@@ -31,7 +31,7 @@ import {
 import { axiosClient } from "../../api/axiosClient";
 import { useAdminBookings, useUpdateBookingStatus, useSimulateDepositWebhook } from "./useBooking";
 import { formatCurrency, formatDate } from "../../lib/utils";
-import { ConfirmedTicket } from "./components/ConfirmedTicket";
+import { ConfirmedBookingView } from "./components/ConfirmedBookingView";
 
 const STATUS_CONFIG = {
   ALL: { label: "Tất cả trạng thái", color: "text-slate-600 bg-slate-100" },
@@ -164,7 +164,7 @@ export function AdminBookingsPage() {
   const handleSimulateDeposit = async (bookingCode) => {
     try {
       await simulateMutation.mutateAsync(bookingCode);
-      showToast(`⚡ Đã giả lập thanh toán PayOS thành công cho ${bookingCode}!`);
+      showToast(`Đã giả lập thanh toán PayOS thành công cho ${bookingCode}!`);
       refetch();
     } catch (err) {
       showToast(err?.response?.data?.message || "Giả lập thất bại", "error");
@@ -224,7 +224,7 @@ export function AdminBookingsPage() {
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <div className="text-xs font-semibold text-slate-500">Tổng lịch hẹn</div>
           <div className="text-2xl font-black text-slate-900 mt-1">{metrics.total}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Trong bộ lọc hiện tại</div>
+          <div className="text-xs text-slate-400 mt-0.5">Trong bộ lọc hiện tại</div>
         </div>
 
         {/* Pending Deposit */}
@@ -234,7 +234,7 @@ export function AdminBookingsPage() {
             <span>Giữ chỗ 5 phút</span>
           </div>
           <div className="text-2xl font-black text-amber-900 mt-1">{metrics.pending}</div>
-          <div className="text-[11px] text-amber-600 mt-0.5">Chờ thanh toán cọc 20%</div>
+          <div className="text-xs text-amber-600 mt-0.5">Chờ thanh toán cọc 20%</div>
         </div>
 
         {/* Confirmed */}
@@ -244,7 +244,7 @@ export function AdminBookingsPage() {
             <span>Đã cọc & Xác nhận</span>
           </div>
           <div className="text-2xl font-black text-emerald-900 mt-1">{metrics.confirmed}</div>
-          <div className="text-[11px] text-emerald-600 mt-0.5">Sẵn sàng tiếp đón</div>
+          <div className="text-xs text-emerald-600 mt-0.5">Sẵn sàng tiếp đón</div>
         </div>
 
         {/* In Progress */}
@@ -254,7 +254,7 @@ export function AdminBookingsPage() {
             <span>Đang phục vụ / Check-in</span>
           </div>
           <div className="text-2xl font-black text-indigo-900 mt-1">{metrics.inProgress}</div>
-          <div className="text-[11px] text-indigo-600 mt-0.5">Tại salon hiện tại</div>
+          <div className="text-xs text-indigo-600 mt-0.5">Tại salon hiện tại</div>
         </div>
 
         {/* Completed */}
@@ -264,7 +264,7 @@ export function AdminBookingsPage() {
             <span>Hoàn thành / Kết thúc</span>
           </div>
           <div className="text-2xl font-black text-slate-900 mt-1">{metrics.completed}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Đã thu đủ 100%</div>
+          <div className="text-xs text-slate-400 mt-0.5">Đã thu đủ 100%</div>
         </div>
       </div>
 
@@ -273,7 +273,7 @@ export function AdminBookingsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Branch */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Chi nhánh</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Chi nhánh</label>
             <select
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
@@ -290,7 +290,7 @@ export function AdminBookingsPage() {
 
           {/* Status */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Trạng thái</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Trạng thái</label>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -309,7 +309,7 @@ export function AdminBookingsPage() {
 
           {/* Date */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Ngày hẹn</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Ngày hẹn</label>
             <input
               type="date"
               value={selectedDate}
@@ -321,7 +321,7 @@ export function AdminBookingsPage() {
 
           {/* Search */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Tìm kiếm</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Tìm kiếm</label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
@@ -346,7 +346,7 @@ export function AdminBookingsPage() {
                 setSelectedDate("");
                 setSearchQuery("");
               }}
-              className="text-[11px] font-bold text-pink-600 hover:text-pink-700 cursor-pointer flex items-center gap-1"
+              className="text-xs font-bold text-pink-600 hover:text-pink-700 cursor-pointer flex items-center gap-1"
             >
               <X className="w-3 h-3" />
               <span>Xóa bộ lọc</span>
@@ -374,7 +374,7 @@ export function AdminBookingsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-xs">
                   <th className="py-3 px-4 font-bold">Mã & Giờ hẹn</th>
                   <th className="py-3 px-4 font-bold">Khách hàng</th>
                   <th className="py-3 px-4 font-bold">Chi nhánh & Stylist</th>
@@ -396,11 +396,11 @@ export function AdminBookingsPage() {
                       {/* Code & Time */}
                       <td className="py-3 px-4">
                         <span className="font-mono font-bold text-slate-900 block">{b.bookingCode}</span>
-                        <span className="text-[11px] font-semibold text-pink-700 flex items-center gap-1 mt-0.5">
+                        <span className="text-xs font-semibold text-pink-700 flex items-center gap-1 mt-0.5">
                           <Clock className="w-3 h-3" />
                           <span>{formatDate(b.bookingTime)}</span>
                         </span>
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                        <span className="text-xs text-slate-400 block mt-0.5">
                           Thời lượng: {b.totalDurationMinutes} phút
                         </span>
                       </td>
@@ -408,7 +408,7 @@ export function AdminBookingsPage() {
                       {/* Customer */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{b.customerName}</div>
-                        <div className="text-slate-500 font-mono text-[11px] flex items-center gap-1 mt-0.5">
+                        <div className="text-slate-500 font-mono text-xs flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-slate-400" />
                           <span>{b.customerPhone}</span>
                         </div>
@@ -420,7 +420,7 @@ export function AdminBookingsPage() {
                           <MapPin className="w-3 h-3 text-pink-500 shrink-0" />
                           <span className="truncate max-w-[150px]">{b.branchName}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                        <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                           <Scissors className="w-3 h-3 text-slate-400 shrink-0" />
                           <span>{b.staffName || "Tự động phân bổ"}</span>
                         </div>
@@ -432,7 +432,7 @@ export function AdminBookingsPage() {
                           {b.items?.map((item) => (
                             <span
                               key={item.id}
-                              className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[10px]"
+                              className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-xs"
                             >
                               {item.serviceName}
                             </span>
@@ -445,7 +445,7 @@ export function AdminBookingsPage() {
                         <div className="font-bold text-slate-900">{formatCurrency(b.totalPrice)}</div>
                         <div className="mt-0.5 flex items-center gap-1">
                           <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            className={`px-1.5 py-0.2 rounded text-xs font-bold ${
                               b.depositStatus === "PAID"
                                 ? "bg-emerald-100 text-emerald-800"
                                 : b.depositStatus === "REFUNDED"
@@ -455,7 +455,7 @@ export function AdminBookingsPage() {
                           >
                             {b.depositStatus === "PAID" ? "Đã cọc 20%" : "Chưa cọc"}
                           </span>
-                          <span className="text-[11px] text-slate-500 font-mono">
+                          <span className="text-xs text-slate-500 font-mono">
                             {formatCurrency(b.depositAmount)}
                           </span>
                         </div>
@@ -464,7 +464,7 @@ export function AdminBookingsPage() {
                       {/* Status */}
                       <td className="py-3 px-4">
                         <span
-                          className={`px-2.5 py-1 rounded-full font-bold text-[10px] border inline-flex items-center gap-1 ${statusCfg.color}`}
+                          className={`px-2.5 py-1 rounded-full font-bold text-xs border inline-flex items-center gap-1 ${statusCfg.color}`}
                         >
                           {statusCfg.label}
                         </span>
@@ -479,6 +479,7 @@ export function AdminBookingsPage() {
                               type="button"
                               onClick={() => handleSimulateDeposit(b.bookingCode)}
                               disabled={simulateMutation.isPending}
+                              aria-label="Giả lập thanh toán cọc PayOS"
                               title="Giả lập thanh toán cọc PayOS"
                               className="p-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 cursor-pointer transition-colors"
                             >
@@ -493,7 +494,7 @@ export function AdminBookingsPage() {
                               onClick={() => handleQuickStatusUpdate(b, "CHECKED_IN")}
                               disabled={updateStatusMutation.isPending}
                               title="Check-in khách đến salon"
-                              className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                              className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <UserCheck className="w-3 h-3" />
                               <span>Check-in</span>
@@ -507,7 +508,7 @@ export function AdminBookingsPage() {
                               onClick={() => handleQuickStatusUpdate(b, "IN_PROGRESS")}
                               disabled={updateStatusMutation.isPending}
                               title="Bắt đầu phục vụ"
-                              className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                              className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <Play className="w-3 h-3" />
                               <span>Bắt đầu</span>
@@ -521,7 +522,7 @@ export function AdminBookingsPage() {
                               onClick={() => handleQuickStatusUpdate(b, "COMPLETED")}
                               disabled={updateStatusMutation.isPending}
                               title="Hoàn thành dịch vụ"
-                              className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                              className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <Check className="w-3 h-3" />
                               <span>Xong</span>
@@ -536,6 +537,7 @@ export function AdminBookingsPage() {
                               setNewStatus(b.status);
                               setStatusNote(b.notes || "");
                             }}
+                            aria-label="Đổi trạng thái chi tiết"
                             className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors"
                             title="Đổi trạng thái chi tiết"
                           >
@@ -546,8 +548,9 @@ export function AdminBookingsPage() {
                           <button
                             type="button"
                             onClick={() => setDetailBooking(b)}
+                            aria-label="Xem chi tiết & In phiếu xác nhận"
                             className="p-1.5 rounded-lg text-pink-600 hover:text-pink-700 hover:bg-pink-50 cursor-pointer transition-colors"
-                            title="Xem chi tiết & In vé"
+                            title="Xem chi tiết & In phiếu xác nhận"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
@@ -562,26 +565,27 @@ export function AdminBookingsPage() {
         )}
       </div>
 
-      {/* Modal 1: Booking Detail & Ticket Modal */}
+      {/* Modal 1: Booking Detail & Confirmation Card Modal */}
       {detailBooking && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Chi tiết phiếu đặt hẹn</h3>
+                <h3 className="font-bold text-slate-900 text-base">Chi tiết phiếu xác nhận đặt hẹn</h3>
                 <p className="text-xs text-slate-500">Mã lịch hẹn: {detailBooking.bookingCode}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setDetailBooking(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                aria-label="Đóng cửa sổ chi tiết"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Render confirmed ticket layout */}
-            <ConfirmedTicket
+            {/* Render confirmed booking card layout */}
+            <ConfirmedBookingView
               booking={detailBooking}
               onNewBooking={() => setDetailBooking(null)}
             />
@@ -601,7 +605,8 @@ export function AdminBookingsPage() {
               <button
                 type="button"
                 onClick={() => setStatusModalBooking(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                aria-label="Đóng cửa sổ cập nhật trạng thái"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

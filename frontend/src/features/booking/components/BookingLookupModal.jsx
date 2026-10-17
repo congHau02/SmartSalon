@@ -80,6 +80,7 @@ export function BookingLookupModal({ isOpen, onClose, onSelectBooking }) {
           <button
             type="button"
             onClick={onClose}
+            aria-label="Đóng cửa sổ tra cứu"
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -138,7 +139,7 @@ export function BookingLookupModal({ isOpen, onClose, onSelectBooking }) {
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-slate-900 text-sm">{b.bookingCode}</span>
-                    <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${badge.bg}`}>
+                    <span className={`px-2 py-0.5 rounded-md font-bold text-xs border ${badge.bg}`}>
                       {badge.label}
                     </span>
                   </div>
@@ -176,7 +177,7 @@ export function BookingLookupModal({ isOpen, onClose, onSelectBooking }) {
                     }}
                     className="mt-1.5 font-bold text-xs text-pink-600 hover:text-pink-700 flex items-center gap-1 sm:justify-end cursor-pointer"
                   >
-                    <span>{b.status === "CONFIRMED" ? "Xem vé hẹn" : "Xem chi tiết"}</span>
+                    <span>{b.status === "CONFIRMED" ? "Xem phiếu xác nhận" : "Xem chi tiết"}</span>
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>

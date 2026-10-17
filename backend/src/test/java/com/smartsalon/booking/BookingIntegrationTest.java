@@ -11,6 +11,7 @@ import com.smartsalon.branch.repository.BranchRepository;
 import com.smartsalon.catalog.entity.ServiceEntity;
 import com.smartsalon.catalog.repository.ServiceRepository;
 import com.smartsalon.config.TestAuthConfig;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,9 @@ class BookingIntegrationTest {
 
     @Autowired
     private BookingRepository bookingRepository;
+
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
 
     @Autowired
     private RedisLockService redisLockService;
@@ -152,6 +156,8 @@ class BookingIntegrationTest {
                 .andExpect(jsonPath("$.result[0].bookingCode").value(bookingCode));
 
         // Clean up
+        paymentTransactionRepository.findByBookingIdOrderByCreatedAtDesc(bookingId)
+                .forEach(paymentTransactionRepository::delete);
         bookingRepository.deleteById(bookingId);
     }
 

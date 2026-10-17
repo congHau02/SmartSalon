@@ -45,7 +45,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/auth/**",
-                                "/api/v1/webhooks/**",
+                                "/api/v1/webhooks/payos",
+                                "/api/v1/webhooks/payos/simulate/**",
                                 "/api/v1/public/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
@@ -57,7 +58,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/stylists/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/available-slots").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/stylists").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/code/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/code/**", "/api/v1/bookings/BK-*").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/*/payment-info").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/lookup").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/bookings").permitAll()

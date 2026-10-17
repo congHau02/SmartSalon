@@ -59,7 +59,7 @@ public class BookingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Giữ chỗ thành công trong 5 phút", response));
     }
 
-    @GetMapping("/code/{code}")
+    @GetMapping({"/code/{code}", "/{code:BK-[A-Za-z0-9_-]+}"})
     @Operation(summary = "Tra cứu thông tin chi tiết lịch hẹn bằng mã đặt hẹn")
     public ResponseEntity<ApiResponse<BookingResponse>> getBookingByCode(@PathVariable String code) {
         BookingResponse response = bookingService.getBookingByCode(code);
