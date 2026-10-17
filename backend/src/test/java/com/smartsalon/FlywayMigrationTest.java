@@ -32,7 +32,7 @@ class FlywayMigrationTest {
         flyway.clean();
         var result = flyway.migrate();
         System.out.println("Flyway migrations applied: " + result.migrationsExecuted);
-        assertTrue(result.migrationsExecuted >= 2, "Expected at least 2 migrations (V1 and V2)");
+        assertTrue(result.migrationsExecuted >= 3, "Expected at least 3 migrations (V1, V2, and V3)");
 
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
 
@@ -71,5 +71,28 @@ class FlywayMigrationTest {
         Integer bomCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM service_bom", Integer.class);
         assertTrue(bomCount != null && bomCount >= 5, "Expected at least 5 service BOM records");
+
+        // 6. Verify V3 Bookings Columns & Table booking_services
+        Integer bookingServiceCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM booking_services", Integer.class);
+        assertNotNull(bookingServiceCount, "Table booking_services must exist and be queryable");
+
+        // Assert new columns exist on bookings by selecting them
+        jdbcTemplate.execute("SELECT booking_code, end_time, total_duration_minutes, total_price, customer_name, customer_phone FROM bookings WHERE 1=0");
+
+        // 7. Verify V3 Seed Data: Branch 2, Stylists & Staff
+        Integer branchCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM branches WHERE id = 2", Integer.class);
+        assertEquals(1, branchCount, "Branch 2 (SmartSalon Luxury - Quận 3) must be seeded");
+
+        Integer stylistCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_roles ur " +
+                "JOIN roles r ON ur.role_id = r.id " +
+                "WHERE r.name = 'STYLIST'", Integer.class);
+        assertTrue(stylistCount != null && stylistCount >= 4, "Expected at least 4 seeded stylists");
+
+        Integer staffCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE username = 'staff.le'", Integer.class);
+        assertEquals(1, staffCount, "Receptionist staff.le must be seeded");
     }
 }

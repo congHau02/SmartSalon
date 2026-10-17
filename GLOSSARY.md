@@ -5,12 +5,28 @@ Core domain language and context boundaries for the SmartSalon Booking, POS & Op
 ## Language
 
 **Booking**:
-A reservation requested by a customer for one or more salon services at a specific branch and scheduled time.
+A reservation requested by a customer for one or more salon services at a specific branch and scheduled time window.
 _Avoid_: Appointment, ticket, reservation
 
+**Booking Service Item**:
+A snapshot of a selected catalog service (recording price and duration at booking time) attached to a Booking.
+_Avoid_: Booking line, cart item, selected treatment
+
 **Slot**:
-A discrete time window assigned to a stylist, chair, or bed that can be locked temporarily during checkout.
+A discrete 30-minute time bucket assigned to a stylist within branch operating hours that can be evaluated for availability or locked during checkout.
 _Avoid_: Time range, session, shift
+
+**Slot Lock**:
+A temporary 5-minute reservation hold across one or more consecutive Slots for a specific stylist while awaiting deposit confirmation.
+_Avoid_: Temp booking, cart hold, session lock
+
+**Deposit**:
+An upfront partial payment (20% of the total Booking service value) required to transition a Booking from pending hold to confirmed status.
+_Avoid_: Prepayment, down payment, booking fee
+
+**Payment Transaction**:
+An immutable financial audit record capturing a deposit or order payment attempt, QR reference code, and gateway webhook payload.
+_Avoid_: Receipt, payment log, invoice record
 
 **BOM (Bill of Materials)**:
 The standard quantitative recipe of consumable materials or chemicals (measured in ml or grams) deducted per service.
