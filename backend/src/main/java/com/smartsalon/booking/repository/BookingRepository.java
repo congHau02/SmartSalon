@@ -1,6 +1,7 @@
 package com.smartsalon.booking.repository;
 
 import com.smartsalon.booking.entity.BookingEntity;
+import com.smartsalon.booking.entity.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -51,4 +52,20 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
 
     @Query("SELECT b FROM BookingEntity b WHERE b.status = 'PENDING_PAYMENT' AND b.slotLockExpiresAt <= :now AND b.isDeleted = false")
     List<BookingEntity> findExpiredHoldBookings(@Param("now") LocalDateTime now);
+
+    @Query("SELECT b FROM BookingEntity b WHERE b.isDeleted = false " +
+           "AND (:branchId IS NULL OR b.branch.id = :branchId) " +
+           "AND (:status IS NULL OR b.status = :status) " +
+           "AND (:startDate IS NULL OR b.bookingTime >= :startDate) " +
+           "AND (:endDate IS NULL OR b.bookingTime < :endDate) " +
+           "AND (:search IS NULL OR LOWER(b.customerName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR b.customerPhone LIKE CONCAT('%', :search, '%') " +
+           "     OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "ORDER BY b.bookingTime DESC")
+    List<BookingEntity> searchBookings(
+            @Param("branchId") Long branchId,
+            @Param("status") BookingStatus status,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("search") String search);
 }
