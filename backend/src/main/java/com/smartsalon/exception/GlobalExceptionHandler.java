@@ -31,6 +31,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.getCode(), details));
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
+        return ResponseEntity
+                .status(ErrorCode.FORBIDDEN.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.FORBIDDEN.getCode(), ErrorCode.FORBIDDEN.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneralException(Exception ex) {
         return ResponseEntity

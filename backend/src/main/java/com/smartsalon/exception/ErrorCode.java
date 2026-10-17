@@ -12,6 +12,12 @@ public enum ErrorCode {
     VALIDATION_ERROR(1001, "Dữ liệu đầu vào không hợp lệ", HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(1002, "Chưa xác thực hoặc Token không hợp lệ", HttpStatus.UNAUTHORIZED),
     FORBIDDEN(1003, "Bạn không có quyền truy cập tài nguyên này", HttpStatus.FORBIDDEN),
+    USER_NOT_FOUND(1004, "Không tìm thấy thông tin người dùng", HttpStatus.NOT_FOUND),
+    USER_ALREADY_EXISTS(1005, "Tên đăng nhập, số điện thoại hoặc email đã được sử dụng", HttpStatus.CONFLICT),
+    INVALID_CREDENTIALS(1006, "Tên đăng nhập hoặc mật khẩu không chính xác", HttpStatus.UNAUTHORIZED),
+    REFRESH_TOKEN_EXPIRED(1007, "Phiên đăng nhập đã hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại", HttpStatus.UNAUTHORIZED),
+    BRANCH_NOT_FOUND(1008, "Không tìm thấy chi nhánh yêu cầu", HttpStatus.NOT_FOUND),
+    ROLE_NOT_FOUND(1009, "Không tìm thấy vai trò người dùng trong hệ thống", HttpStatus.NOT_FOUND),
     SLOT_ALREADY_LOCKED(2001, "Khung giờ này vừa có khách khác giữ chỗ", HttpStatus.CONFLICT),
     INSUFFICIENT_STOCK(3001, "Tồn kho vật tư (ml/gram) không đủ để xuất", HttpStatus.BAD_REQUEST);
 

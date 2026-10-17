@@ -26,8 +26,10 @@ class FlywayMigrationTest {
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
+                .cleanDisabled(false)
                 .baselineOnMigrate(true)
                 .load();
+        flyway.clean();
         var result = flyway.migrate();
         System.out.println("Flyway migrations applied: " + result.migrationsExecuted);
         assertTrue(result.migrationsExecuted >= 2, "Expected at least 2 migrations (V1 and V2)");

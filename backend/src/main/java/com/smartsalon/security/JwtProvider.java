@@ -26,14 +26,30 @@ public class JwtProvider {
     }
 
     public String generateAccessToken(String username, List<String> roles) {
+        return generateAccessToken(null, username, roles, null);
+    }
+
+    public String generateAccessToken(Long userId, String username, List<String> roles, Long branchId) {
         Date now = new Date();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(username)
                 .claim("roles", roles)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + accessExpirationMs))
-                .signWith(getSigningKey())
-                .compact();
+                .signWith(getSigningKey());
+
+        if (userId != null) {
+            builder.claim("userId", userId);
+        }
+        if (branchId != null) {
+            builder.claim("branchId", branchId);
+        }
+
+        return builder.compact();
+    }
+
+    public long getAccessExpirationMs() {
+        return accessExpirationMs;
     }
 
     public Claims parseClaims(String token) {
