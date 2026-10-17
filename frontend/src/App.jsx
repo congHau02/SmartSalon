@@ -15,6 +15,8 @@ import { ServicesPage } from "./features/catalog/ServicesPage";
 import { ProductsPage } from "./features/inventory/ProductsPage";
 import { BranchInventoryPage } from "./features/inventory/BranchInventoryPage";
 import { InventoryTransactionsPage } from "./features/inventory/InventoryTransactionsPage";
+import { BookingWizardPage } from "./features/booking/BookingWizardPage";
+import { CustomerServicesPage } from "./features/catalog/CustomerServicesPage";
 
 function PosPlaceholder() {
   return (
@@ -22,17 +24,6 @@ function PosPlaceholder() {
       <h3 className="text-xl font-bold mb-2">Bảng điều phối Ghế / Giường (Kanban & Timeline)</h3>
       <p className="text-slate-400 text-sm">
         Tính năng thuộc POS & Điều phối tại quầy. Sẽ tích hợp WebSocket STOMP thời gian thực.
-      </p>
-    </div>
-  );
-}
-
-function CustomerBookingPlaceholder() {
-  return (
-    <div className="p-8 text-center bg-white rounded-xl border border-pink-200 shadow-sm">
-      <h3 className="text-xl font-bold text-pink-700 mb-2">Cổng Đặt lịch Khách Hàng (Smart Booking)</h3>
-      <p className="text-slate-500 text-sm">
-        Tính năng xử lý giữ slot tạm thời (5 phút) và thanh toán đặt cọc VietQR.
       </p>
     </div>
   );
@@ -49,11 +40,14 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
+            {/* Public Shortcut Booking Routes */}
+            <Route path="/booking" element={<Navigate to="/customer/booking" replace />} />
+
             {/* Customer Portal (Public / Semi-Public) */}
             <Route path="/customer" element={<CustomerLayout />}>
-              <Route index element={<CustomerBookingPlaceholder />} />
-              <Route path="booking" element={<CustomerBookingPlaceholder />} />
-              <Route path="services" element={<div className="p-6 bg-white rounded-xl border">Bảng giá dịch vụ</div>} />
+              <Route index element={<Navigate to="booking" replace />} />
+              <Route path="booking" element={<BookingWizardPage />} />
+              <Route path="services" element={<CustomerServicesPage />} />
             </Route>
 
             {/* Protected Admin Portal */}
@@ -85,8 +79,8 @@ export default function App() {
                   <div className="text-center">
                     <h1 className="text-4xl font-bold mb-2">404</h1>
                     <p className="mb-4">Trang không tồn tại</p>
-                    <a href="/" className="text-pink-600 hover:underline text-sm font-medium">
-                      Trở về trang chủ
+                    <a href="/customer/booking" className="text-pink-600 hover:underline text-sm font-medium">
+                      Trở về trang đặt lịch
                     </a>
                   </div>
                 </div>
