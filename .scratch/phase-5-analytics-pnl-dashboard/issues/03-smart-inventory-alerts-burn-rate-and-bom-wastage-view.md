@@ -4,9 +4,9 @@
 
 **Blocked by:** 01: Realized Profit & Loss (P&L) Engine, Cost Snapshots & Executive Command Center Dashboard (Tab 1)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] The Smart Inventory Alerts & `BOM Wastage` endpoint evaluates all branch inventory records to compute `totalAvailableVolume` (`Sealed Units × Volume Per Unit + Opened Volume`), average daily consumption volume, `estimatedDaysRemaining`, and 3-tier alert classification (`OUT_OF_STOCK`, `LOW_STOCK`, `NEAR_THRESHOLD`, `HEALTHY`).
-- [ ] For each consumable product in the period, the endpoint computes `standardBomVolume` (sum of standard `BOM` across `PAID` service items), `serviceConsumptionVolume` ($|\sum \text{SERVICE\_CONSUMPTION}|$), `adjustmentLossVolume` ($|\sum \text{negative STOCK\_ADJUSTMENT}|$), `actualTotalVolume`, `wastageVolume`, `wastagePercentage`, and `wastageCostAmount` (VND).
-- [ ] **Tab 3 (Cảnh báo Kho thông minh & Hao hụt BOM)** on the Executive Dashboard renders 3-tier stock alert cards and table with estimated depletion days, a one-click **"Nhập kho ngay"** button wired to the `Stock In` modal, and the `BOM Wastage` comparison table highlighting chemical over-usage and VND loss.
-- [ ] Automated backend integration tests verify 3-tier alert classification, burn-rate depletion estimation, and combined `BOM Wastage` calculations, and the frontend compiles cleanly.
+- [x] The Smart Inventory Alerts & `BOM Wastage` endpoint evaluates all branch inventory records to compute `totalAvailableVolume` (`Sealed Units × Volume Per Unit + Opened Volume`), average daily consumption volume, `estimatedDaysRemaining`, and 3-tier alert classification (`OUT_OF_STOCK`, `LOW_STOCK`, `NEAR_THRESHOLD`, `HEALTHY`).
+- [x] For each consumable product in the period, the endpoint computes `standardBomVolume` (sum of standard `BOM` across `PAID` service items), `serviceConsumptionVolume` ($|\sum \text{SERVICE\_CONSUMPTION}|$), `adjustmentLossVolume` ($|\sum \text{negative STOCK\_ADJUSTMENT}|$), `actualTotalVolume`, `wastageVolume`, `wastagePercentage`, and `wastageCostAmount` (VND).
+- [x] **Tab 3 (Cảnh báo Kho thông minh & Hao hụt BOM)** on the Executive Dashboard renders 3-tier stock alert cards and table with estimated depletion days, a one-click **"Nhập kho ngay"** button wired to the `Stock In` modal, and the `BOM Wastage` comparison table highlighting chemical over-usage and VND loss.
+- [x] Automated backend integration tests verify 3-tier alert classification, burn-rate depletion estimation, and combined `BOM Wastage` calculations, and the frontend compiles cleanly.

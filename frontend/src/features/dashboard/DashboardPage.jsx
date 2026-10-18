@@ -6,6 +6,7 @@ import { analyticsApi } from "../../api/analyticsApi";
 import { ExecutiveHeader } from "./components/ExecutiveHeader";
 import { PnlDashboardTab } from "./components/PnlDashboardTab";
 import { StaffPayrollTab } from "./components/StaffPayrollTab";
+import { InventoryAlertsTab } from "./components/InventoryAlertsTab";
 import { 
   Users, 
   AlertTriangle, 
@@ -106,6 +107,20 @@ export function DashboardPage() {
     staleTime: 60000,
   });
 
+  // TanStack Query for Smart Inventory Alerts & BOM Wastage Report (Tab 3)
+  const {
+    data: inventoryAlertsData,
+    isLoading: isInventoryAlertsLoading,
+    isError: isInventoryAlertsError,
+    error: inventoryAlertsError,
+    refetch: refetchInventoryAlerts,
+  } = useQuery({
+    queryKey: ["analytics-inventory-alerts", selectedBranch?.id, startDate, endDate],
+    queryFn: () => analyticsApi.getInventoryAlertsReport(selectedBranch?.id, startDate, endDate),
+    enabled: activeTab === "inventory",
+    staleTime: 60000,
+  });
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Executive Command Center Header */}
@@ -144,34 +159,18 @@ export function DashboardPage() {
         />
       )}
 
-      {/* Tab 3: Cảnh báo Kho & Hao hụt BOM Placeholder (Phase 5 Ticket 03) */}
+      {/* Tab 3: Cảnh báo Kho thông minh & Hao hụt BOM (Smart Inventory & BOM Wastage) */}
       {activeTab === "inventory" && (
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-8 shadow-xs text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
-            <AlertTriangle className="w-7 h-7" />
-          </div>
-          <div className="max-w-lg mx-auto space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200/60">
-              <Sparkles className="w-3.5 h-3.5" /> Phase 5 - Ticket 03 Đang chuẩn bị kích hoạt
-            </div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">
-              Tab 3: Cảnh báo Tồn kho & Hao hụt Định mức BOM (Inventory & Wastage Watchdog)
-            </h2>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Cảnh báo mặt hàng dưới ngưỡng tối thiểu (safety_stock), bóc tách chênh lệch giữa BOM lý thuyết 
-              và lượng hóa chất thực tế nhân viên ghi nhận tại Visual Technical Log, cùng giá trị tồn kho theo giá vốn snapshot.
-            </p>
-          </div>
-          <div className="pt-2">
-            <Button
-              variant="outline"
-              onClick={() => handleTabChange("pnl")}
-              className="text-xs font-bold gap-2 text-slate-700 hover:text-pink-600"
-            >
-              Quay lại Báo cáo Lãi/Lỗ P&L <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
+        <InventoryAlertsTab
+          data={inventoryAlertsData}
+          isLoading={isInventoryAlertsLoading}
+          isError={isInventoryAlertsError}
+          error={inventoryAlertsError}
+          onRefetch={refetchInventoryAlerts}
+          selectedBranch={selectedBranch}
+          startDate={startDate}
+          endDate={endDate}
+        />
       )}
 
       {/* Quick Launch & System Navigation Shortcuts */}
