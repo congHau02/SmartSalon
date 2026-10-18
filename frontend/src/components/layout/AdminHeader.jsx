@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../../features/auth/useAuth";
 import { useBranch } from "../../features/branch/useBranch";
 import { getBreadcrumbTrail } from "../../lib/navigation";
+import { NotificationBell, WebSocketStatusBadge } from "../../features/realtime";
 
 export function AdminHeader({ onToggleSidebar }) {
   const { user, logout } = useAuth();
@@ -123,8 +124,11 @@ export function AdminHeader({ onToggleSidebar }) {
         </nav>
       </div>
 
-      {/* Right Section: Branch Selector & User Profile Menu */}
+      {/* Right Section: STOMP Badge, Notification Bell, Branch Selector & User Profile Menu */}
       <div className="flex items-center gap-2.5 sm:gap-3.5">
+        <WebSocketStatusBadge />
+        <NotificationBell />
+
         {/* Branch Selector (Interactive dropdown for ADMIN/MANAGER, fixed badge for STAFF) */}
         {canSwitchBranch ? (
           <div className="relative" ref={branchMenuRef}>

@@ -18,6 +18,7 @@ import { InventoryTransactionsPage } from "./features/inventory/InventoryTransac
 import { BookingWizardPage } from "./features/booking/BookingWizardPage";
 import { AdminBookingsPage } from "./features/booking/AdminBookingsPage";
 import { CustomerServicesPage } from "./features/catalog/CustomerServicesPage";
+import { RealtimeProvider, RealtimeToastContainer } from "./features/realtime";
 
 function PosPlaceholder() {
   return (
@@ -35,7 +36,9 @@ export default function App() {
     <AuthProvider>
       <BranchProvider>
         <BrowserRouter>
-          <Routes>
+          <RealtimeProvider>
+            <RealtimeToastContainer />
+            <Routes>
             {/* Public Auth Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -89,6 +92,7 @@ export default function App() {
               }
             />
           </Routes>
+          </RealtimeProvider>
         </BrowserRouter>
       </BranchProvider>
     </AuthProvider>

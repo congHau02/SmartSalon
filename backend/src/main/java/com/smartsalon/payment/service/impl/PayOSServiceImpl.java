@@ -45,6 +45,7 @@ public class PayOSServiceImpl implements PayOSService {
     private final BookingMapper bookingMapper;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
+    private final com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService;
 
     @Value("${app.payos.client-id:}")
     private String clientId;
@@ -79,10 +80,22 @@ public class PayOSServiceImpl implements PayOSService {
             RedisLockService redisLockService,
             BookingMapper bookingMapper
     ) {
+        this(bookingRepository, paymentTransactionRepository, redisLockService, bookingMapper, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PayOSServiceImpl(
+            BookingRepository bookingRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            RedisLockService redisLockService,
+            BookingMapper bookingMapper,
+            com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService
+    ) {
         this.bookingRepository = bookingRepository;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.redisLockService = redisLockService;
         this.bookingMapper = bookingMapper;
+        this.realtimeNotificationService = realtimeNotificationService;
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
         this.restClient = RestClient.builder()
                 .baseUrl("https://api-merchant.payos.vn")
@@ -289,6 +302,9 @@ public class PayOSServiceImpl implements PayOSService {
         paymentTransactionRepository.save(transaction);
 
         log.info("Booking {} successfully CONFIRMED via PayOS webhook. Deposit: {}", confirmedBooking.getBookingCode(), confirmedBooking.getDepositAmount());
+        if (realtimeNotificationService != null) {
+            realtimeNotificationService.notifyBookingConfirmed(confirmedBooking);
+        }
         return bookingMapper.toResponse(confirmedBooking);
     }
 
@@ -332,6 +348,9 @@ public class PayOSServiceImpl implements PayOSService {
         paymentTransactionRepository.save(transaction);
 
         log.info("Booking {} successfully CONFIRMED via Sandbox one-click simulation.", bookingCode);
+        if (realtimeNotificationService != null) {
+            realtimeNotificationService.notifyBookingConfirmed(confirmedBooking);
+        }
         return bookingMapper.toResponse(confirmedBooking);
     }
 

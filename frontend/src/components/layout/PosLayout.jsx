@@ -1,6 +1,7 @@
 import React from "react";
 import { Outlet, Link } from "react-router-dom";
 import { Scissors, ArrowLeft } from "lucide-react";
+import { WebSocketStatusBadge, NotificationBell } from "../../features/realtime";
 
 export function PosLayout() {
   return (
@@ -15,6 +16,10 @@ export function PosLayout() {
             <Scissors className="w-4 h-4 text-pink-400" />
             <span>POS & Điều phối Ghế Thời Gian Thực</span>
           </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <WebSocketStatusBadge />
+          <NotificationBell />
         </div>
       </header>
       <main className="flex-1 p-6">

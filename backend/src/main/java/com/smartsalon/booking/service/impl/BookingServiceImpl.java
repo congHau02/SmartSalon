@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.smartsalon.booking.BookingMapper;
 import com.smartsalon.payment.entity.PaymentTransactionEntity;
 import com.smartsalon.payment.repository.PaymentTransactionRepository;
+import com.smartsalon.realtime.service.RealtimeNotificationService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -58,6 +59,7 @@ public class BookingServiceImpl implements BookingService {
     private final PasswordEncoder passwordEncoder;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final BookingMapper bookingMapper;
+    private final RealtimeNotificationService realtimeNotificationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -255,6 +257,9 @@ public class BookingServiceImpl implements BookingService {
                     .status(PaymentTransactionEntity.STATUS_PENDING)
                     .build();
             paymentTransactionRepository.save(transaction);
+            if (realtimeNotificationService != null) {
+                realtimeNotificationService.notifyBookingCreated(booking);
+            }
         } catch (Exception ex) {
             log.error("Failed to save booking, releasing Redis lock: {}", ex.getMessage());
             redisLockService.unlockSlots(assignedStylist.getId(), startTime, endTime);
@@ -333,6 +338,9 @@ public class BookingServiceImpl implements BookingService {
         }
 
         booking = bookingRepository.save(booking);
+        if (realtimeNotificationService != null) {
+            realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, newStatus);
+        }
         return bookingMapper.toResponse(booking);
     }
 

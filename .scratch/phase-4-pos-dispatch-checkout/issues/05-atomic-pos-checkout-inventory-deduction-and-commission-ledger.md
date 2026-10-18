@@ -1,0 +1,16 @@
+# 05: Atomic POS Checkout, BOM/Retail Inventory Deduction & Commission Ledger
+
+**What to build:** Inside the POS Order Drawer on **Tab 3 (Thanh toán & Chốt hóa đơn — `Checkout`)**, cashiers can review the full bill breakdown (`Subtotal`, `Discount`, automatic 20% `Deposit` deduction, and `Final Amount` due), preview the staff commission split and chemical stock deductions, select a payment method (`CASH`, `VIETQR` displaying a dynamic scannable QR code for the exact `Final Amount`, or `CARD`), and complete checkout with one click. Completing checkout executes a single atomic transaction that deducts consumable `BOM` volumes (`actual_bom_json` override if saved in `Visual Log`, otherwise standard service `BOM`) from `Opened Volume` (auto-unsealing `Sealed Units` if needed), deducts `Sealed Units` for retail `Master Product` items, generates immutable `Commission Ledger` entries for all assigned staff, records the `Payment Transaction`, and transitions the `Order` to `PAID` and the linked `Booking` to `COMPLETED`. Managers and receptionists can also open the **Sổ cái Hoa hồng (`Commission Ledger`)** modal on the `Dispatch Board` to inspect daily staff commission payouts and calculation breakdowns.
+
+**Blocked by:** 03: POS Order Cart, Multi-Staff Service Step Assignment & Progress Tracking, 04: Visual Log (Technical Log), Actual BOM Override & Hybrid Cloudinary Photo Upload
+
+**Status:** ready-for-agent
+
+- [ ] Selecting `VIETQR` in the Checkout tab renders a dynamic VietQR code and transfer reference for the order's remaining `final_amount` (`max(0, subtotal - discount_amount - deposit_deducted)`).
+- [ ] Executing POS Checkout runs atomically inside a single transaction:
+  - Deducts consumable chemical volumes from `Branch Inventory` (`Opened Volume` with automatic `Sealed Unit` unsealing and `AUTO_UNSEAL` / `SERVICE_CONSUMPTION` `Inventory Transactions`) using `Visual Log` `actual_bom_json` quantities when present, or aggregated standard service `BOM` quantities otherwise.
+  - Deducts `Sealed Units` (`stock_units`) from `Branch Inventory` for all retail `PRODUCT` items on the `Order` and records `RETAIL_SALE` `Inventory Transactions`.
+  - Marks all `Step Assignments` on the `Order` as `COMPLETED`, calculates each step's payout via the two-tier `Service Commission Pool` formula, and writes immutable `Commission Ledger` records (`status = 'EARNED'`) with human-readable `calculation_notes`.
+  - Records a `SUCCESS` `Payment Transaction` (`CASH`, `VIETQR`, or `CARD`), transitions the `Order` to `PAID`, transitions any linked `Booking` to `COMPLETED`, and broadcasts an `ORDER_CHECKED_OUT` WebSocket event.
+- [ ] The POS Order Drawer renders a printable receipt summary once an `Order` is `PAID`, and the `Dispatch Board` provides a **Sổ cái Hoa hồng (`Commission Ledger`)** modal showing per-staff commission totals and itemized step calculation notes for the branch and date.
+- [ ] Full end-to-end integration tests verify atomic checkout (overridden and default `BOM` deduction with auto-unseal, retail unit deduction, `Deposit` subtraction, `Commission Ledger` creation, and `Order`/`Booking` settlement), and both `mvn test`, `npm run lint`, and `npm run build` pass with zero errors.

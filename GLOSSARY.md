@@ -80,3 +80,16 @@ _Avoid_: Restock, inward, receive
 A corrective transaction reconciling recorded inventory volume against physical counts due to spillage, evaporation, breakage, or expiry.
 _Avoid_: Stock change, write-off, count fix
 
+**Dispatch Board**:
+The real-time operational floor view (in Kanban and Timeline modes) tracking a branch's daily arrivals, active Orders, Service Step progress, and stylist availability.
+_Avoid_: POS screen, receptionist dashboard, schedule grid
+
+**Walk-in Order**:
+An Order initiated directly at the POS counter for an unscheduled customer visit without a prior Booking.
+_Avoid_: Direct bill, quick ticket, unbooked appointment
+
+**Service Commission Pool**:
+The percentage of a service item's price allocated as the total commission budget to be split across that service's Step Assignments according to their step weights.
+_Avoid_: Staff fee, bonus pool, service cut
+
+

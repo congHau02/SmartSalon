@@ -315,8 +315,7 @@ export function AdminBookingsPage() {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 bg-white"
-            >
-            </input>
+            />
           </div>
 
           {/* Search */}
