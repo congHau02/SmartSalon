@@ -140,4 +140,29 @@ public class PosController {
         MediaUploadResponse response = mediaStorageService.uploadVisualLogImage(file);
         return ResponseEntity.ok(ApiResponse.success("Tải tệp ảnh thành công", response));
     }
+
+    @PostMapping("/orders/{orderId}/checkout")
+    @Operation(summary = "Thanh toán POS, trừ tồn kho hóa chất/bán lẻ và ghi nhận Sổ cái Hoa hồng")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> checkoutOrder(
+            @PathVariable Long orderId,
+            @Valid @RequestBody CheckoutRequest request) {
+        PosOrderResponse response = posOrderService.checkoutOrder(orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Thanh toán đơn hàng thành công", response));
+    }
+
+    @GetMapping("/orders/{orderId}/vietqr")
+    @Operation(summary = "Lấy mã VietQR động và thông tin chuyển khoản cho số tiền còn lại của đơn hàng")
+    public ResponseEntity<ApiResponse<PosVietQrResponse>> getPosVietQr(@PathVariable Long orderId) {
+        PosVietQrResponse response = posOrderService.getPosVietQr(orderId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin VietQR thanh toán thành công", response));
+    }
+
+    @GetMapping("/commission-ledger")
+    @Operation(summary = "Lấy dữ liệu Sổ cái Hoa hồng (tổng hợp theo thợ và chi tiết từng công đoạn theo ngày/cơ sở)")
+    public ResponseEntity<ApiResponse<CommissionLedgerSummaryResponse>> getCommissionLedger(
+            @RequestParam Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        CommissionLedgerSummaryResponse response = posOrderService.getCommissionLedger(branchId, date);
+        return ResponseEntity.ok(ApiResponse.success("Lấy dữ liệu Sổ cái Hoa hồng thành công", response));
+    }
 }

@@ -4,5 +4,6 @@ public enum InventoryTransactionType {
     STOCK_IN,
     STOCK_ADJUSTMENT,
     AUTO_UNSEAL,
-    SERVICE_CONSUMPTION
+    SERVICE_CONSUMPTION,
+    RETAIL_SALE
 }

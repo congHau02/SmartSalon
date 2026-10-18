@@ -63,6 +63,15 @@ import com.smartsalon.pos.entity.StepAssignmentStatus;
 import com.smartsalon.pos.entity.TechnicalLogEntity;
 import com.smartsalon.pos.repository.OrderStepAssignmentRepository;
 import com.smartsalon.pos.repository.TechnicalLogRepository;
+import com.smartsalon.inventory.entity.BranchInventoryEntity;
+import com.smartsalon.inventory.entity.InventoryTransactionEntity;
+import com.smartsalon.inventory.entity.InventoryTransactionType;
+import com.smartsalon.inventory.repository.BranchInventoryRepository;
+import com.smartsalon.inventory.repository.InventoryTransactionRepository;
+import com.smartsalon.payment.entity.PaymentTransactionEntity;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
+import com.smartsalon.pos.entity.CommissionLedgerEntity;
+import com.smartsalon.pos.repository.CommissionLedgerRepository;
 
 @SpringBootTest
 @Import(TestAuthConfig.class)
@@ -104,6 +113,18 @@ class PosControllerIntegrationTest {
 
     @Autowired
     private TechnicalLogRepository technicalLogRepository;
+
+    @Autowired
+    private CommissionLedgerRepository commissionLedgerRepository;
+
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired
+    private BranchInventoryRepository branchInventoryRepository;
+
+    @Autowired
+    private InventoryTransactionRepository inventoryTransactionRepository;
 
     private BranchEntity branch;
     private UserEntity customer;
@@ -766,5 +787,364 @@ class PosControllerIntegrationTest {
 
         mockMvc.perform(multipart("/api/v1/pos/media/upload").file(file))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Ticket 05: Should checkout order with standard BOM deduction, step completion, commission ledger, and booking settlement")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldCheckoutOrderWithStandardBomSuccessfully() throws Exception {
+        // 1. Setup inventory chemical product & branch inventory
+        ProductEntity chemicalProduct = productRepository.save(ProductEntity.builder()
+                .name("Dung dịch uốn phục hồi Goldwell")
+                .sku("CHEM-GOLD-" + System.currentTimeMillis())
+                .unit("chai")
+                .volumeOrWeightPerUnit(new BigDecimal("500.00"))
+                .volumeUnit("ml")
+                .minStockAlertUnits(2)
+                .costPrice(new BigDecimal("200000.00"))
+                .retailPrice(new BigDecimal("350000.00"))
+                .isActive(true)
+                .build());
+
+        BranchInventoryEntity branchInventory = branchInventoryRepository.save(BranchInventoryEntity.builder()
+                .branch(branch)
+                .product(chemicalProduct)
+                .stockUnits(5)
+                .currentVolume(new BigDecimal("200.00"))
+                .minStockAlertUnits(2)
+                .build());
+
+        // Attach standard BOM to service (50ml)
+        serviceBomRepository.save(ServiceBomEntity.builder()
+                .service(service)
+                .product(chemicalProduct)
+                .standardAmount(new BigDecimal("50.00"))
+                .unit("ml")
+                .build());
+
+        // 2. Create a confirmed booking with deposit paid (50,000 VND)
+        BookingEntity booking = bookingRepository.save(BookingEntity.builder()
+                .branch(branch)
+                .customer(customer)
+                .staff(stylist)
+                .bookingCode("BK-CK-" + System.currentTimeMillis())
+                .bookingTime(LocalDateTime.now())
+                .endTime(LocalDateTime.now().plusMinutes(45))
+                .totalDurationMinutes(45)
+                .totalPrice(new BigDecimal("250000.00"))
+                .depositAmount(new BigDecimal("50000.00"))
+                .depositStatus(DepositStatus.PAID)
+                .status(BookingStatus.CONFIRMED)
+                .build());
+
+        booking.getItems().add(BookingServiceItemEntity.builder()
+                .booking(booking)
+                .service(service)
+                .price(new BigDecimal("250000.00"))
+                .build());
+        booking = bookingRepository.save(booking);
+
+        // Check-in booking into Order
+        String checkInResult = mockMvc.perform(post("/api/v1/pos/bookings/" + booking.getId() + "/check-in"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse orderResp = objectMapper.readTree(checkInResult).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        assertEquals(0, new BigDecimal("50000.00").compareTo(orderResp.getDepositDeducted()));
+        assertEquals(0, new BigDecimal("200000.00").compareTo(orderResp.getFinalAmount())); // 250k - 50k deposit
+
+        // 3. Execute Checkout with CASH
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .paymentMethod("CASH")
+                .discountAmount(BigDecimal.ZERO)
+                .notes("Thanh toán tiền mặt đủ")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/orders/" + orderResp.getId() + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status", is("PAID")))
+                .andExpect(jsonPath("$.result.paymentMethod", is("CASH")))
+                .andExpect(jsonPath("$.result.finalAmount", is(200000.00)));
+
+        // 4. Verify chemical inventory deducted 50ml from Opened Volume (200 - 50 = 150ml)
+        BranchInventoryEntity updatedInv = branchInventoryRepository.findByBranchIdAndProductId(branch.getId(), chemicalProduct.getId()).orElseThrow();
+        assertEquals(5, updatedInv.getStockUnits());
+        assertEquals(0, new BigDecimal("150.00").compareTo(updatedInv.getCurrentVolume()));
+
+        // 5. Verify Step Assignments are marked COMPLETED
+        List<OrderStepAssignmentEntity> steps = stepAssignmentRepository.findByOrderId(orderResp.getId());
+        assertEquals(2, steps.size());
+        for (OrderStepAssignmentEntity s : steps) {
+            assertEquals(StepAssignmentStatus.COMPLETED, s.getStatus());
+            assertNotNull(s.getStartedAt());
+            assertNotNull(s.getCompletedAt());
+            assertTrue(s.getCommissionAmount().compareTo(BigDecimal.ZERO) > 0);
+        }
+
+        // 6. Verify Commission Ledger rows generated
+        List<CommissionLedgerEntity> ledgers = commissionLedgerRepository.findByOrderId(orderResp.getId());
+        assertEquals(2, ledgers.size());
+        // Service price = 250k, pool rate = 20% -> Pool = 50k
+        // Step 1: 30% -> 15k
+        // Step 2: 70% -> 35k
+        BigDecimal totalCommission = ledgers.stream().map(CommissionLedgerEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(0, new BigDecimal("50000").compareTo(totalCommission));
+        for (CommissionLedgerEntity cl : ledgers) {
+            assertEquals("EARNED", cl.getStatus());
+            assertNotNull(cl.getCalculationNotes());
+            assertTrue(cl.getCalculationNotes().contains("Pool 20.0%"));
+        }
+
+        // 7. Verify Payment Transaction created
+        List<PaymentTransactionEntity> txs = paymentTransactionRepository.findByBookingIdOrderByCreatedAtDesc(booking.getId());
+        assertFalse(txs.isEmpty());
+        PaymentTransactionEntity checkoutTx = txs.stream()
+                .filter(t -> "CASH".equals(t.getPaymentMethod()))
+                .findFirst().orElseThrow();
+        assertEquals(0, new BigDecimal("200000.00").compareTo(checkoutTx.getAmount()));
+        assertEquals(PaymentTransactionEntity.STATUS_SUCCESS, checkoutTx.getStatus());
+
+        // 8. Verify Order status is PAID and linked Booking is COMPLETED
+        OrderEntity dbOrder = orderRepository.findById(orderResp.getId()).orElseThrow();
+        assertEquals(OrderStatus.PAID, dbOrder.getStatus());
+        assertEquals("CASH", dbOrder.getPaymentMethod());
+
+        BookingEntity dbBooking = bookingRepository.findById(booking.getId()).orElseThrow();
+        assertEquals(BookingStatus.COMPLETED, dbBooking.getStatus());
+    }
+
+    @Test
+    @DisplayName("Ticket 05: Should checkout order with Visual Log actual BOM override and retail product deduction")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldCheckoutOrderWithVisualLogActualBomOverrideAndRetailProductSuccessfully() throws Exception {
+        // Setup Chemical Product (100ml per unit, stockUnits = 2, currentVolume = 30ml)
+        ProductEntity dyeProduct = productRepository.save(ProductEntity.builder()
+                .name("Thuốc nhuộm Wella Koleston")
+                .sku("DYE-WEL-" + System.currentTimeMillis())
+                .unit("tuýp")
+                .volumeOrWeightPerUnit(new BigDecimal("100.00"))
+                .volumeUnit("ml")
+                .minStockAlertUnits(1)
+                .costPrice(new BigDecimal("80000.00"))
+                .retailPrice(new BigDecimal("150000.00"))
+                .isActive(true)
+                .build());
+
+        branchInventoryRepository.save(BranchInventoryEntity.builder()
+                .branch(branch)
+                .product(dyeProduct)
+                .stockUnits(2)
+                .currentVolume(new BigDecimal("30.00"))
+                .minStockAlertUnits(1)
+                .build());
+
+        // Setup Retail Product (stockUnits = 10)
+        ProductEntity retailWax = productRepository.save(ProductEntity.builder()
+                .name("Sáp tạo phồng Reuzel Clay")
+                .sku("WAX-REU-" + System.currentTimeMillis())
+                .unit("hộp")
+                .volumeOrWeightPerUnit(new BigDecimal("100.00"))
+                .volumeUnit("g")
+                .minStockAlertUnits(2)
+                .costPrice(new BigDecimal("180000.00"))
+                .retailPrice(new BigDecimal("320000.00"))
+                .isActive(true)
+                .build());
+
+        branchInventoryRepository.save(BranchInventoryEntity.builder()
+                .branch(branch)
+                .product(retailWax)
+                .stockUnits(10)
+                .currentVolume(BigDecimal.ZERO)
+                .minStockAlertUnits(2)
+                .build());
+
+        // Create Walk-in order with Service + Retail Wax (quantity = 2)
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .customerName("Đặng Văn Lâm")
+                .customerPhone("0944556677")
+                .stylistId(stylist.getId())
+                .serviceIds(List.of(service.getId()))
+                .productItems(List.of(
+                        ProductItemRequest.builder()
+                                .productId(retailWax.getId())
+                                .quantity(2)
+                                .build()
+                ))
+                .build();
+
+        String walkInRes = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInRes).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        // Subtotal = 250k (service) + 640k (2 wax @ 320k) = 890,000 VND
+        assertEquals(0, new BigDecimal("890000.00").compareTo(createdOrder.getSubtotal()));
+
+        // Save Visual Log with overridden chemical volume = 85ml (deficit = 85 - 30 = 55ml, unseals 1 unit)
+        SaveTechnicalLogRequest saveLogReq = SaveTechnicalLogRequest.builder()
+                .formulaNotes("Công thức nhuộm tóc dày")
+                .bomItems(List.of(
+                        ActualBomItemDto.builder()
+                                .productId(dyeProduct.getId())
+                                .productName(dyeProduct.getName())
+                                .standardAmount(new BigDecimal("60.00"))
+                                .actualAmount(new BigDecimal("85.00"))
+                                .unit("ml")
+                                .build()
+                ))
+                .build();
+
+        mockMvc.perform(put("/api/v1/pos/orders/" + createdOrder.getId() + "/visual-log")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(saveLogReq)))
+                .andExpect(status().isOk());
+
+        // Checkout with CARD and 40,000 VND discount -> final = 850,000 VND
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .paymentMethod("CARD")
+                .discountAmount(new BigDecimal("40000.00"))
+                .notes("Thanh toán thẻ quẹt POS")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/orders/" + createdOrder.getId() + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status", is("PAID")))
+                .andExpect(jsonPath("$.result.paymentMethod", is("CARD")))
+                .andExpect(jsonPath("$.result.discountAmount", is(40000.00)))
+                .andExpect(jsonPath("$.result.finalAmount", is(850000.00)));
+
+        // Verify chemical stock auto-unsealed 1 unit: stockUnits: 2 -> 1, volume: (30 + 100 - 85) = 45ml
+        BranchInventoryEntity updatedDyeInv = branchInventoryRepository.findByBranchIdAndProductId(branch.getId(), dyeProduct.getId()).orElseThrow();
+        assertEquals(1, updatedDyeInv.getStockUnits());
+        assertEquals(0, new BigDecimal("45.00").compareTo(updatedDyeInv.getCurrentVolume()));
+
+        // Verify retail product stock deducted 2 units: stockUnits: 10 -> 8
+        BranchInventoryEntity updatedWaxInv = branchInventoryRepository.findByBranchIdAndProductId(branch.getId(), retailWax.getId()).orElseThrow();
+        assertEquals(8, updatedWaxInv.getStockUnits());
+
+        // Verify RETAIL_SALE transaction logged
+        List<InventoryTransactionEntity> retailTxs = inventoryTransactionRepository.findAllByBranchIdAndProductIdOrderByCreatedAtDesc(branch.getId(), retailWax.getId());
+        assertFalse(retailTxs.isEmpty());
+        assertEquals(InventoryTransactionType.RETAIL_SALE, retailTxs.get(0).getTransactionType());
+        assertEquals(-2, retailTxs.get(0).getQuantityUnits());
+
+        // Verify Commission Ledger entries
+        List<CommissionLedgerEntity> ledgers = commissionLedgerRepository.findByOrderId(createdOrder.getId());
+        assertEquals(2, ledgers.size());
+    }
+
+    @Test
+    @DisplayName("Ticket 05: Should reject checkout on already PAID order")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldRejectCheckoutOnAlreadyPaidOrder() throws Exception {
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .customerName("Lê Văn C")
+                .customerPhone("0911223344")
+                .serviceIds(List.of(service.getId()))
+                .build();
+
+        String walkInRes = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInRes).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .paymentMethod("CASH")
+                .build();
+
+        // 1st checkout -> Success
+        mockMvc.perform(post("/api/v1/pos/orders/" + createdOrder.getId() + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isOk());
+
+        // 2nd checkout -> 400 Bad Request
+        mockMvc.perform(post("/api/v1/pos/orders/" + createdOrder.getId() + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Ticket 05: Should get VietQR info for active order")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldGetPosVietQrSuccessfully() throws Exception {
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .customerName("Phan Hoàng")
+                .customerPhone("0977665544")
+                .serviceIds(List.of(service.getId()))
+                .build();
+
+        String walkInRes = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInRes).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        mockMvc.perform(get("/api/v1/pos/orders/" + createdOrder.getId() + "/vietqr"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.orderId", is(createdOrder.getId().intValue())))
+                .andExpect(jsonPath("$.result.orderCode", is(createdOrder.getOrderCode())))
+                .andExpect(jsonPath("$.result.finalAmount", is(250000.00)))
+                .andExpect(jsonPath("$.result.qrCodeUrl", containsString("vietqr.io")));
+    }
+
+    @Test
+    @DisplayName("Ticket 05: Should get Commission Ledger summary for branch and date")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldGetCommissionLedgerSummarySuccessfully() throws Exception {
+        // Create walk-in order, assign steps, and checkout to earn commission
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .customerName("Trương Mỹ")
+                .customerPhone("0988112233")
+                .stylistId(stylist.getId())
+                .serviceIds(List.of(service.getId()))
+                .build();
+
+        String walkInRes = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInRes).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .paymentMethod("VIETQR")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/orders/" + createdOrder.getId() + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isOk());
+
+        // Query Commission Ledger
+        mockMvc.perform(get("/api/v1/pos/commission-ledger")
+                        .param("branchId", branch.getId().toString())
+                        .param("date", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.branchId", is(branch.getId().intValue())))
+                .andExpect(jsonPath("$.result.totalCommissionAmount", notNullValue()))
+                .andExpect(jsonPath("$.result.staffSummaries", not(empty())))
+                .andExpect(jsonPath("$.result.entries", not(empty())))
+                .andExpect(jsonPath("$.result.entries[0].status", is("EARNED")));
     }
 }

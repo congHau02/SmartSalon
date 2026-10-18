@@ -287,4 +287,32 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
 
         sendDispatchEvent(branchId, event);
     }
+
+    @Override
+    public void notifyOrderCheckedOut(com.smartsalon.pos.entity.OrderEntity order) {
+        if (order == null || order.getBranch() == null) {
+            return;
+        }
+        Long branchId = order.getBranch().getId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("orderId", order.getId());
+        data.put("orderCode", order.getOrderCode());
+        data.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+        data.put("finalAmount", order.getFinalAmount());
+        data.put("paymentMethod", order.getPaymentMethod());
+        data.put("branchId", branchId);
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("ORDER_CHECKED_OUT")
+                .branchId(branchId)
+                .referenceId(order.getId())
+                .code(order.getOrderCode())
+                .title("Thanh toán thành công: " + order.getOrderCode())
+                .message(String.format("Đơn hàng %s đã được thanh toán thành công", order.getOrderCode()))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendDispatchEvent(branchId, event);
+    }
 }

@@ -86,4 +86,21 @@ export const posApi = {
     });
     return response?.result || response?.data || response;
   },
+
+  checkoutOrder: async (orderId, data) => {
+    const response = await axiosClient.post(`/pos/orders/${orderId}/checkout`, data);
+    return response?.result || response?.data || response;
+  },
+
+  getPosVietQr: async (orderId) => {
+    const response = await axiosClient.get(`/pos/orders/${orderId}/vietqr`);
+    return response?.result || response?.data || response;
+  },
+
+  getCommissionLedger: async (branchId, date) => {
+    const params = { branchId };
+    if (date) params.date = date;
+    const response = await axiosClient.get("/pos/commission-ledger", { params });
+    return response?.result || response?.data || response;
+  },
 };

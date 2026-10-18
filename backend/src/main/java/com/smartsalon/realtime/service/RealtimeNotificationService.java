@@ -24,4 +24,6 @@ public interface RealtimeNotificationService {
     void notifyOrderUpdated(OrderEntity order);
 
     void notifyVisualLogSaved(OrderEntity order);
+
+    void notifyOrderCheckedOut(OrderEntity order);
 }

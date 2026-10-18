@@ -29,4 +29,10 @@ public interface PosOrderService {
     TechnicalLogResponse getVisualLog(Long orderId);
 
     TechnicalLogResponse saveVisualLog(Long orderId, SaveTechnicalLogRequest request);
+
+    PosOrderResponse checkoutOrder(Long orderId, CheckoutRequest request);
+
+    PosVietQrResponse getPosVietQr(Long orderId);
+
+    CommissionLedgerSummaryResponse getCommissionLedger(Long branchId, LocalDate date);
 }

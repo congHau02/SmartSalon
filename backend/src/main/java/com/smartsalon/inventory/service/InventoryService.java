@@ -332,6 +332,46 @@ public class InventoryService {
         return mapToBranchInventoryResponse(inventory);
     }
 
+    @Transactional
+    public BranchInventoryResponse deductRetailProduct(Long branchId, Long productId, int quantityUnits, Long referenceOrderId) {
+        if (quantityUnits <= 0) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        BranchEntity branch = validateBranchExists(branchId);
+        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(productId)
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        BranchInventoryEntity inventory = branchInventoryRepository.findByBranchIdAndProductIdForUpdate(branchId, productId)
+                .orElseThrow(() -> new AppException(ErrorCode.INSUFFICIENT_STOCK));
+
+        if (inventory.getStockUnits() < quantityUnits) {
+            throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
+        }
+
+        inventory.setStockUnits(inventory.getStockUnits() - quantityUnits);
+        inventory = branchInventoryRepository.save(inventory);
+
+        BigDecimal unitVolume = product.getVolumeOrWeightPerUnit() != null ? product.getVolumeOrWeightPerUnit() : BigDecimal.ZERO;
+        BigDecimal totalAvailable = BigDecimal.valueOf(inventory.getStockUnits())
+                .multiply(unitVolume)
+                .add(inventory.getCurrentVolume() != null ? inventory.getCurrentVolume() : BigDecimal.ZERO);
+
+        recordTransaction(
+                product,
+                branch,
+                InventoryTransactionType.RETAIL_SALE,
+                -quantityUnits,
+                BigDecimal.ZERO,
+                product.getUnit(),
+                totalAvailable,
+                referenceOrderId,
+                "Xuất kho bán lẻ sản phẩm tại POS (Đơn hàng #" + referenceOrderId + ")"
+        );
+
+        return mapToBranchInventoryResponse(inventory);
+    }
+
     @Transactional(readOnly = true)
     public List<InventoryTransactionResponse> getInventoryTransactions(Long branchId, Long productId) {
         validateBranchExists(branchId);

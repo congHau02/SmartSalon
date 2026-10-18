@@ -24,6 +24,7 @@ import {
 import { posApi } from "../../api/posApi";
 import { formatCurrency } from "../../lib/utils";
 import { VisualLogTab } from "./VisualLogTab";
+import { PosCheckoutTab } from "./PosCheckoutTab";
 
 export function PosOrderDrawer({
   isOpen,
@@ -778,20 +779,20 @@ export function PosOrderDrawer({
             />
           ) : (
             /* ==========================================
-               TAB 3: THANH TOÁN (Ticket 5 Preview)
+               TAB 3: THANH TOÁN & CHỐT HÓA ĐƠN (Ticket 05)
                ========================================== */
-            <div className="p-6 text-center border border-dashed border-slate-800 rounded-xl space-y-3">
-              <CreditCard className="w-10 h-10 text-emerald-400 mx-auto" />
-              <h4 className="text-sm font-bold text-white">
-                Tab 3: Thanh toán POS & Trừ tồn kho tự động
-              </h4>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Quy trình trừ tồn kho hóa chất (ml) + sản phẩm bán lẻ, thanh toán Tiền mặt / VietQR động / Thẻ, và chốt Sổ cái Hoa hồng thợ sẽ được hoàn thiện ở Ticket 05.
-              </p>
-              <div className="pt-2 text-sm font-bold font-mono text-emerald-400">
-                Cần thanh toán: {formatCurrency(order?.finalAmount)}
-              </div>
-            </div>
+            <PosCheckoutTab
+              orderId={orderId}
+              order={order}
+              branchId={branchId}
+              onNotice={(notice) => {
+                setActionNotice(notice);
+                setTimeout(() => setActionNotice(null), 4000);
+              }}
+              onCheckoutSuccess={() => {
+                invalidateAll("Thanh toán thành công! Hóa đơn đã hoàn tất.");
+              }}
+            />
           )}
         </div>
 

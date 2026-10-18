@@ -35,8 +35,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.smartsalon.inventory.service.InventoryService;
+import com.smartsalon.payment.entity.PaymentTransactionEntity;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
+import com.smartsalon.pos.repository.CommissionLedgerRepository;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -60,7 +68,19 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final RoleRepository roleRepository;
     private final TechnicalLogRepository technicalLogRepository;
     private final RealtimeNotificationService realtimeNotificationService;
+    private final InventoryService inventoryService;
+    private final CommissionLedgerRepository commissionLedgerRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+    @Value("${app.payos.bank-id:MB}")
+    private String bankId;
+
+    @Value("${app.payos.account-no:0988888888}")
+    private String accountNo;
+
+    @Value("${app.payos.account-name:SMART SALON VIETNAM}")
+    private String accountName;
 
     @Override
     @Transactional
@@ -1014,5 +1034,292 @@ public class PosOrderServiceImpl implements PosOrderService {
             }
         }
         return userRepository.findAllActiveStylists().stream().findFirst().orElse(null);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse checkoutOrder(Long orderId, CheckoutRequest request) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.isDeleted()) {
+            throw new AppException(ErrorCode.ORDER_NOT_FOUND);
+        }
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        long activeItemCount = order.getItems().stream().filter(i -> !i.isDeleted()).count();
+        if (activeItemCount == 0) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        if (request.getDiscountAmount() != null) {
+            if (request.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR);
+            }
+            order.setDiscountAmount(request.getDiscountAmount());
+        }
+
+        if (request.getNotes() != null) {
+            order.setNotes(request.getNotes());
+        }
+
+        recalculateOrderTotals(order);
+
+        String paymentMethod = StringUtils.hasText(request.getPaymentMethod())
+                ? request.getPaymentMethod().trim().toUpperCase()
+                : "CASH";
+        order.setPaymentMethod(paymentMethod);
+
+        // 1. Deduct chemical BOM consumables
+        deductChemicalConsumables(order);
+
+        // 2. Deduct retail product sealed units
+        deductRetailProducts(order);
+
+        // 3. Mark step assignments COMPLETED and record immutable Commission Ledger
+        completeStepsAndRecordCommission(order);
+
+        // 4. Record Payment Transaction
+        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
+                .orderId(order.getId())
+                .booking(order.getBooking())
+                .paymentMethod(paymentMethod)
+                .transactionCode("TX-POS-" + order.getOrderCode() + "-" + System.currentTimeMillis())
+                .amount(order.getFinalAmount())
+                .status(PaymentTransactionEntity.STATUS_SUCCESS)
+                .build();
+        paymentTransactionRepository.save(tx);
+
+        // 5. Update Order status to PAID and linked Booking to COMPLETED
+        order.setStatus(OrderStatus.PAID);
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        if (order.getBooking() != null) {
+            BookingEntity booking = order.getBooking();
+            booking.setStatus(BookingStatus.COMPLETED);
+            bookingRepository.save(booking);
+        }
+
+        // 6. Broadcast realtime WebSocket event
+        realtimeNotificationService.notifyOrderCheckedOut(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    private void deductChemicalConsumables(OrderEntity order) {
+        Long branchId = order.getBranch().getId();
+        Optional<TechnicalLogEntity> techLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(order.getId());
+        List<ActualBomItemDto> bomToDeduct = new ArrayList<>();
+
+        if (techLogOpt.isPresent() && StringUtils.hasText(techLogOpt.get().getActualBomJson())) {
+            try {
+                List<ActualBomItemDto> parsed = objectMapper.readValue(
+                        techLogOpt.get().getActualBomJson(),
+                        new TypeReference<List<ActualBomItemDto>>() {}
+                );
+                if (parsed != null && !parsed.isEmpty()) {
+                    bomToDeduct.addAll(parsed);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse actualBomJson for order {}: {}", order.getId(), e.getMessage());
+            }
+        }
+
+        if (!bomToDeduct.isEmpty()) {
+            for (ActualBomItemDto item : bomToDeduct) {
+                if (item.getProductId() != null && item.getActualAmount() != null && item.getActualAmount().compareTo(BigDecimal.ZERO) > 0) {
+                    inventoryService.deductConsumables(branchId, item.getProductId(), item.getActualAmount(), order.getId());
+                }
+            }
+        } else {
+            Map<Long, BigDecimal> aggregatedBom = new HashMap<>();
+            for (OrderItemEntity item : order.getItems()) {
+                if (!item.isDeleted() && item.getItemType() == OrderItemType.SERVICE && item.getService() != null) {
+                    List<ServiceBomEntity> standardBoms = serviceBomRepository.findAllByServiceIdAndIsDeletedFalse(item.getService().getId());
+                    for (ServiceBomEntity bom : standardBoms) {
+                        if (bom.getProduct() != null && bom.getStandardAmount() != null) {
+                            BigDecimal totalAmount = bom.getStandardAmount().multiply(BigDecimal.valueOf(item.getQuantity()));
+                            aggregatedBom.merge(bom.getProduct().getId(), totalAmount, BigDecimal::add);
+                        }
+                    }
+                }
+            }
+
+            for (Map.Entry<Long, BigDecimal> entry : aggregatedBom.entrySet()) {
+                if (entry.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                    inventoryService.deductConsumables(branchId, entry.getKey(), entry.getValue(), order.getId());
+                }
+            }
+        }
+    }
+
+    private void deductRetailProducts(OrderEntity order) {
+        Long branchId = order.getBranch().getId();
+        for (OrderItemEntity item : order.getItems()) {
+            if (!item.isDeleted() && item.getItemType() == OrderItemType.PRODUCT && item.getProduct() != null) {
+                inventoryService.deductRetailProduct(branchId, item.getProduct().getId(), item.getQuantity(), order.getId());
+            }
+        }
+    }
+
+    private void completeStepsAndRecordCommission(OrderEntity order) {
+        LocalDateTime now = LocalDateTime.now();
+        for (OrderItemEntity item : order.getItems()) {
+            if (item.isDeleted() || item.getItemType() != OrderItemType.SERVICE) {
+                continue;
+            }
+
+            ServiceEntity service = item.getService();
+            BigDecimal poolRate = (service != null && service.getCommissionPoolRate() != null)
+                    ? service.getCommissionPoolRate()
+                    : new BigDecimal("20.00");
+            BigDecimal itemPrice = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
+
+            for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                if (step.getStartedAt() == null) {
+                    step.setStartedAt(now);
+                }
+                if (step.getCompletedAt() == null) {
+                    step.setCompletedAt(now);
+                }
+                step.setStatus(StepAssignmentStatus.COMPLETED);
+
+                BigDecimal stepRate = step.getCommissionRate() != null ? step.getCommissionRate() : BigDecimal.ZERO;
+                BigDecimal commissionAmount = calculateCommissionAmount(itemPrice, poolRate, stepRate);
+                step.setCommissionAmount(commissionAmount);
+                stepAssignmentRepository.save(step);
+
+                UserEntity staff = step.getStaff() != null ? step.getStaff() : resolveOrderStaff(order);
+                String calculationNotes = String.format(
+                        "Hoa hồng bước '%s' - Dịch vụ '%s' (%s x Pool %.1f%% x Bước %.1f%%)",
+                        step.getStepName(),
+                        service != null ? service.getName() : "",
+                        itemPrice.stripTrailingZeros().toPlainString(),
+                        poolRate.doubleValue(),
+                        stepRate.doubleValue()
+                );
+
+                CommissionLedgerEntity ledger = CommissionLedgerEntity.builder()
+                        .staff(staff)
+                        .order(order)
+                        .stepAssignment(step)
+                        .amount(commissionAmount)
+                        .status("EARNED")
+                        .calculationNotes(calculationNotes)
+                        .build();
+                commissionLedgerRepository.save(ledger);
+            }
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PosVietQrResponse getPosVietQr(Long orderId) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.isDeleted()) {
+            throw new AppException(ErrorCode.ORDER_NOT_FOUND);
+        }
+
+        BigDecimal finalAmount = order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO;
+        String desc = order.getOrderCode();
+        String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
+        String encodedDesc = URLEncoder.encode(desc, StandardCharsets.UTF_8);
+
+        String qrCodeUrl = String.format(
+                "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
+                bankId,
+                accountNo,
+                finalAmount.longValue(),
+                encodedDesc,
+                encodedAccountName
+        );
+
+        return PosVietQrResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .finalAmount(finalAmount)
+                .bankId(bankId)
+                .accountNo(accountNo)
+                .accountName(accountName)
+                .qrCodeUrl(qrCodeUrl)
+                .description(desc)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CommissionLedgerSummaryResponse getCommissionLedger(Long branchId, LocalDate date) {
+        BranchEntity branch = branchRepository.findByIdAndIsDeletedFalse(branchId)
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+
+        LocalDate queryDate = date != null ? date : LocalDate.now();
+        Instant startDate = queryDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant endDate = queryDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        List<CommissionLedgerEntity> ledgers = commissionLedgerRepository.findByBranchAndDateRange(branchId, startDate, endDate);
+
+        BigDecimal totalCommission = BigDecimal.ZERO;
+        Map<Long, StaffCommissionSummaryDto> staffSummaryMap = new LinkedHashMap<>();
+        List<CommissionLedgerEntryDto> entryDtos = new ArrayList<>();
+
+        for (CommissionLedgerEntity ledger : ledgers) {
+            BigDecimal amt = ledger.getAmount() != null ? ledger.getAmount() : BigDecimal.ZERO;
+            totalCommission = totalCommission.add(amt);
+
+            UserEntity staff = ledger.getStaff();
+            if (staff != null) {
+                StaffCommissionSummaryDto summary = staffSummaryMap.computeIfAbsent(staff.getId(), k ->
+                        StaffCommissionSummaryDto.builder()
+                                .staffId(staff.getId())
+                                .staffName(staff.getFullName())
+                                .totalAmount(BigDecimal.ZERO)
+                                .stepCount(0)
+                                .build()
+                );
+                summary.setTotalAmount(summary.getTotalAmount().add(amt));
+                summary.setStepCount(summary.getStepCount() + 1);
+            }
+
+            OrderStepAssignmentEntity step = ledger.getStepAssignment();
+            String serviceName = null;
+            String stepName = null;
+            BigDecimal commissionRate = null;
+            if (step != null) {
+                stepName = step.getStepName();
+                commissionRate = step.getCommissionRate();
+                if (step.getOrderItem() != null && step.getOrderItem().getService() != null) {
+                    serviceName = step.getOrderItem().getService().getName();
+                }
+            }
+
+            entryDtos.add(CommissionLedgerEntryDto.builder()
+                    .id(ledger.getId())
+                    .staffId(staff != null ? staff.getId() : null)
+                    .staffName(staff != null ? staff.getFullName() : null)
+                    .orderId(ledger.getOrder() != null ? ledger.getOrder().getId() : null)
+                    .orderCode(ledger.getOrder() != null ? ledger.getOrder().getOrderCode() : null)
+                    .serviceName(serviceName)
+                    .stepName(stepName)
+                    .commissionRate(commissionRate)
+                    .amount(amt)
+                    .status(ledger.getStatus())
+                    .calculationNotes(ledger.getCalculationNotes())
+                    .createdAt(ledger.getCreatedAt())
+                    .build());
+        }
+
+        return CommissionLedgerSummaryResponse.builder()
+                .branchId(branch.getId())
+                .branchName(branch.getName())
+                .date(queryDate)
+                .totalCommissionAmount(totalCommission)
+                .staffSummaries(new ArrayList<>(staffSummaryMap.values()))
+                .entries(entryDtos)
+                .build();
     }
 }

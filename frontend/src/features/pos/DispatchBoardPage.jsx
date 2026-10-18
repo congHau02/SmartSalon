@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Scissors,
   CheckCircle2,
+  Coins,
 } from "lucide-react";
 import { useBranch } from "../branch/useBranch";
 import { posApi } from "../../api/posApi";
@@ -21,6 +22,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { TimelineBoard } from "./TimelineBoard";
 import { WalkInModal } from "./WalkInModal";
 import { PosOrderDrawer } from "./PosOrderDrawer";
+import { CommissionLedgerModal } from "./CommissionLedgerModal";
 import { formatCurrency } from "../../lib/utils";
 
 export function DispatchBoardPage() {
@@ -39,6 +41,7 @@ export function DispatchBoardPage() {
 
   // Modal state
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
+  const [isCommissionLedgerOpen, setIsCommissionLedgerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -262,6 +265,16 @@ export function DispatchBoardPage() {
             <RotateCw className={`w-4 h-4 ${isRefetching ? "animate-spin text-pink-400" : ""}`} />
           </button>
 
+          {/* Commission Ledger Button */}
+          <button
+            onClick={() => setIsCommissionLedgerOpen(true)}
+            title="Mở Sổ cái hoa hồng kỹ thuật viên"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 border border-amber-500/30 text-amber-300 hover:text-white hover:bg-amber-500/20 font-bold text-xs transition-colors cursor-pointer"
+          >
+            <Coins className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Sổ cái Hoa hồng</span>
+          </button>
+
           {/* Walk-In Order Button */}
           <button
             onClick={() => setIsWalkInOpen(true)}
@@ -334,6 +347,14 @@ export function DispatchBoardPage() {
         stylists={stylists}
         services={services}
         products={products}
+      />
+
+      {/* Commission Ledger Modal */}
+      <CommissionLedgerModal
+        isOpen={isCommissionLedgerOpen}
+        onClose={() => setIsCommissionLedgerOpen(false)}
+        branchId={selectedBranchId}
+        branchName={selectedBranch?.name}
       />
     </div>
   );
