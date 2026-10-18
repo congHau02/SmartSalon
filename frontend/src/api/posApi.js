@@ -92,8 +92,10 @@ export const posApi = {
     return response?.result || response?.data || response;
   },
 
-  getPosVietQr: async (orderId) => {
-    const response = await axiosClient.get(`/pos/orders/${orderId}/vietqr`);
+  getPosVietQr: async (orderId, discountAmount) => {
+    const response = await axiosClient.get(`/pos/orders/${orderId}/vietqr`, {
+      params: discountAmount !== undefined && discountAmount !== null ? { discountAmount } : undefined,
+    });
     return response?.result || response?.data || response;
   },
 

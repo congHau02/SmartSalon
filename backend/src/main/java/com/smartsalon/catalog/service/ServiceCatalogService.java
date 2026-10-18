@@ -66,6 +66,9 @@ public class ServiceCatalogService {
                 .category(request.getCategory().trim())
                 .basePrice(request.getBasePrice())
                 .durationMinutes(request.getDurationMinutes())
+                .commissionPoolRate(request.getCommissionPoolRate() != null
+                        ? request.getCommissionPoolRate()
+                        : new java.math.BigDecimal("20.00"))
                 .isActive(request.isActive())
                 .bomList(new ArrayList<>())
                 .defaultSteps(new ArrayList<>())
@@ -117,6 +120,9 @@ public class ServiceCatalogService {
         service.setCategory(request.getCategory().trim());
         service.setBasePrice(request.getBasePrice());
         service.setDurationMinutes(request.getDurationMinutes());
+        if (request.getCommissionPoolRate() != null) {
+            service.setCommissionPoolRate(request.getCommissionPoolRate());
+        }
         service.setActive(request.isActive());
 
         // Update BOM

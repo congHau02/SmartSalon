@@ -2,6 +2,7 @@ package com.smartsalon.catalog.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -35,6 +36,10 @@ public class ServiceUpdateRequest {
     @Min(value = 1, message = "Thời lượng dịch vụ phải tối thiểu 1 phút")
     @Builder.Default
     private Integer durationMinutes = 30;
+
+    @DecimalMin(value = "0.0", message = "Tỷ lệ quỹ hoa hồng không được âm")
+    @DecimalMax(value = "100.0", message = "Tỷ lệ quỹ hoa hồng không được vượt quá 100%")
+    private BigDecimal commissionPoolRate;
 
     @JsonProperty("isActive")
     @Builder.Default

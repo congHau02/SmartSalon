@@ -71,6 +71,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final InventoryService inventoryService;
     private final CommissionLedgerRepository commissionLedgerRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Value("${app.payos.bank-id:MB}")
@@ -350,16 +351,18 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // 2. Fetch orders for this branch
         List<OrderEntity> ordersInRange = orderRepository.findByBranchAndDateRange(branchId, startInstant, endInstant);
-        // Also include any active orders created earlier that haven't completed
-        List<OrderEntity> activeOrders = orderRepository.findByBranchIdAndStatusIn(
-                branchId, List.of(OrderStatus.CHECKED_IN, OrderStatus.IN_PROGRESS, OrderStatus.READY_FOR_CHECKOUT));
-
         Map<Long, OrderEntity> orderMap = new LinkedHashMap<>();
         for (OrderEntity o : ordersInRange) {
             orderMap.put(o.getId(), o);
         }
-        for (OrderEntity o : activeOrders) {
-            orderMap.put(o.getId(), o);
+        // Carry-over active orders created earlier only belong on today's live floor view,
+        // not on past/future audit dates.
+        if (targetDate.equals(LocalDate.now())) {
+            List<OrderEntity> activeOrders = orderRepository.findByBranchIdAndStatusIn(
+                    branchId, List.of(OrderStatus.CHECKED_IN, OrderStatus.IN_PROGRESS, OrderStatus.READY_FOR_CHECKOUT));
+            for (OrderEntity o : activeOrders) {
+                orderMap.put(o.getId(), o);
+            }
         }
 
         List<PosOrderResponse> checkedInOrders = new ArrayList<>();
@@ -596,7 +599,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         step.setCommissionAmount(commissionAmount);
 
         OrderStepAssignmentEntity savedStep = stepAssignmentRepository.save(step);
-        realtimeNotificationService.notifyOrderUpdated(order);
+        realtimeNotificationService.notifyStepUpdated(order);
 
         return mapToStepResponse(savedStep);
     }
@@ -647,7 +650,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         OrderStepAssignmentEntity savedStep = stepAssignmentRepository.save(step);
         OrderEntity savedOrder = orderRepository.save(order);
-        realtimeNotificationService.notifyOrderUpdated(savedOrder);
+        realtimeNotificationService.notifyStepUpdated(savedOrder);
 
         return mapToStepResponse(savedStep);
     }
@@ -720,7 +723,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         UserEntity user = UserEntity.builder()
                 .username("walkin.guest")
-                .passwordHash("$2a$10$DZJ6dkpX7yQ3qTx1TVzLOOCBc8qXRqkF5ji.FkPez./skNqXqxWTm")
+                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .fullName("Khách vãng lai (Walk-in)")
                 .phone("0000000000")
                 .email("walkin@smartsalon.vn")
@@ -738,7 +741,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         UserEntity user = UserEntity.builder()
                 .branch(branch)
                 .username("guest_" + phone)
-                .passwordHash("$2a$10$DZJ6dkpX7yQ3qTx1TVzLOOCBc8qXRqkF5ji.FkPez./skNqXqxWTm")
+                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .fullName(name)
                 .phone(phone)
                 .isActive(true)
@@ -1218,6 +1221,12 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional(readOnly = true)
     public PosVietQrResponse getPosVietQr(Long orderId) {
+        return getPosVietQr(orderId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PosVietQrResponse getPosVietQr(Long orderId, BigDecimal draftDiscountAmount) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
@@ -1226,6 +1235,12 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         BigDecimal finalAmount = order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO;
+        if (draftDiscountAmount != null) {
+            BigDecimal subtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
+            BigDecimal deposit = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
+            finalAmount = subtotal.subtract(draftDiscountAmount.max(BigDecimal.ZERO)).subtract(deposit)
+                    .max(BigDecimal.ZERO);
+        }
         String desc = order.getOrderCode();
         String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
         String encodedDesc = URLEncoder.encode(desc, StandardCharsets.UTF_8);

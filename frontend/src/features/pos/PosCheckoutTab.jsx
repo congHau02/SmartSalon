@@ -39,8 +39,8 @@ export function PosCheckoutTab({
 
   // 1. Fetch VietQR data when VIETQR is selected
   const { data: vietQrData, isLoading: isLoadingVietQr } = useQuery({
-    queryKey: ["pos-vietqr", orderId],
-    queryFn: () => posApi.getPosVietQr(orderId),
+    queryKey: ["pos-vietqr", orderId, parseFloat(discountInput) || 0],
+    queryFn: () => posApi.getPosVietQr(orderId, parseFloat(discountInput) || 0),
     enabled: paymentMethod === "VIETQR" && !!orderId && order?.status !== "PAID",
   });
 

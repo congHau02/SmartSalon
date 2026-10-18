@@ -161,8 +161,10 @@ export function DispatchBoardPage() {
             <span>{toastMessage.text}</span>
           </div>
           <button
+            type="button"
+            aria-label="Đóng thông báo"
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white"
+            className="w-11 h-11 -m-3 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
           >
             ×
           </button>
@@ -200,8 +202,9 @@ export function DispatchBoardPage() {
           <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700">
             <button
               onClick={handlePrevDay}
+              aria-label="Ngày trước"
               title="Hôm trước"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -213,8 +216,9 @@ export function DispatchBoardPage() {
             />
             <button
               onClick={handleNextDay}
+              aria-label="Ngày sau"
               title="Hôm sau"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -259,8 +263,9 @@ export function DispatchBoardPage() {
           <button
             onClick={() => refetch()}
             disabled={isRefetching}
+            aria-label="Làm mới bảng điều phối"
             title="Làm mới bảng điều phối"
-            className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <RotateCw className={`w-4 h-4 ${isRefetching ? "animate-spin text-pink-400" : ""}`} />
           </button>

@@ -74,7 +74,7 @@ export function VisualLogTab({
         (visualLogData.bomItems || []).map((item) => ({
           productId: item.productId,
           productName: item.productName || "Hóa chất",
-          productSku: item.productSku || "",
+          productSku: item.sku || item.productSku || "",
           standardAmount: item.standardAmount !== undefined && item.standardAmount !== null ? Number(item.standardAmount) : 0,
           actualAmount: item.actualAmount !== undefined && item.actualAmount !== null ? Number(item.actualAmount) : 0,
           unit: item.unit || "ml",
@@ -213,7 +213,7 @@ export function VisualLogTab({
       bomItems: bomItems.map((item) => ({
         productId: item.productId,
         productName: item.productName,
-        productSku: item.productSku,
+        sku: item.productSku,
         standardAmount: item.standardAmount,
         actualAmount: item.actualAmount,
         unit: item.unit,
@@ -642,6 +642,15 @@ export function VisualLogTab({
               </div>
             ) : (
               <div
+                role="button"
+                tabIndex={0}
+                aria-label="Tải ảnh sau lên"
+                onKeyDown={(e) => {
+                  if ((e.key === "Enter" || e.key === " ") && !isUploadingAfter) {
+                    e.preventDefault();
+                    afterFileInputRef.current?.click();
+                  }
+                }}
                 onClick={() => !isUploadingAfter && afterFileInputRef.current?.click()}
                 className="border-2 border-dashed border-slate-800 hover:border-pink-500/50 rounded-xl aspect-video flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-colors group"
               >
@@ -697,8 +706,10 @@ export function VisualLogTab({
         >
           <div className="relative max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden border border-slate-700 bg-slate-900">
             <button
+              type="button"
+              aria-label="Đóng ảnh xem trước"
               onClick={() => setPreviewImage(null)}
-              className="absolute top-3 right-3 p-2 rounded-full bg-slate-800/80 text-white hover:bg-slate-700 transition"
+              className="absolute top-3 right-3 w-11 h-11 flex items-center justify-center rounded-full bg-slate-800/80 text-white hover:bg-slate-700 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

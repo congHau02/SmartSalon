@@ -238,6 +238,15 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
 
     @Override
     public void notifyOrderUpdated(com.smartsalon.pos.entity.OrderEntity order) {
+        publishOrderEvent(order, "ORDER_UPDATED");
+    }
+
+    @Override
+    public void notifyStepUpdated(com.smartsalon.pos.entity.OrderEntity order) {
+        publishOrderEvent(order, "STEP_UPDATED");
+    }
+
+    private void publishOrderEvent(com.smartsalon.pos.entity.OrderEntity order, String eventType) {
         if (order == null || order.getBranch() == null) {
             return;
         }
@@ -249,7 +258,7 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
         data.put("branchId", branchId);
 
         RealtimeEventDto event = RealtimeEventDto.builder()
-                .eventType("ORDER_UPDATED")
+                .eventType(eventType)
                 .branchId(branchId)
                 .referenceId(order.getId())
                 .code(order.getOrderCode())

@@ -152,8 +152,10 @@ export function WalkInModal({
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Đóng"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="w-11 h-11 flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -271,6 +273,15 @@ export function WalkInModal({
                 return (
                   <div
                     key={svc.id}
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleService(svc.id);
+                      }
+                    }}
                     onClick={() => toggleService(svc.id)}
                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-center justify-between ${
                       isSelected
@@ -335,7 +346,8 @@ export function WalkInModal({
                             <button
                               type="button"
                               onClick={() => updateProductQuantity(prod.id, -1)}
-                              className="text-slate-400 hover:text-white"
+                              aria-label="Giảm số lượng"
+                              className="w-11 h-11 -my-3 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -343,7 +355,8 @@ export function WalkInModal({
                             <button
                               type="button"
                               onClick={() => updateProductQuantity(prod.id, 1)}
-                              className="text-slate-400 hover:text-white"
+                              aria-label="Tăng số lượng"
+                              className="w-11 h-11 -my-3 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
                             >
                               <Plus className="w-3 h-3" />
                             </button>

@@ -216,7 +216,15 @@ function OrderKanbanCard({ order, onSelect }) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onSelect?.();
+        }
+      }}
       className={`p-3.5 rounded-xl border transition-all shadow-sm space-y-3 cursor-pointer ${
         isPaid
           ? "bg-slate-800/60 border-slate-700/60 opacity-80 hover:opacity-100"

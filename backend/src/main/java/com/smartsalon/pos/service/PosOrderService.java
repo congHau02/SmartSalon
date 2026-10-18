@@ -34,5 +34,7 @@ public interface PosOrderService {
 
     PosVietQrResponse getPosVietQr(Long orderId);
 
+    PosVietQrResponse getPosVietQr(Long orderId, java.math.BigDecimal draftDiscountAmount);
+
     CommissionLedgerSummaryResponse getCommissionLedger(Long branchId, LocalDate date);
 }

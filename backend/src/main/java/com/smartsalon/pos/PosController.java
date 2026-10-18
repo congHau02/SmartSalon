@@ -152,8 +152,10 @@ public class PosController {
 
     @GetMapping("/orders/{orderId}/vietqr")
     @Operation(summary = "Lấy mã VietQR động và thông tin chuyển khoản cho số tiền còn lại của đơn hàng")
-    public ResponseEntity<ApiResponse<PosVietQrResponse>> getPosVietQr(@PathVariable Long orderId) {
-        PosVietQrResponse response = posOrderService.getPosVietQr(orderId);
+    public ResponseEntity<ApiResponse<PosVietQrResponse>> getPosVietQr(
+            @PathVariable Long orderId,
+            @RequestParam(required = false) java.math.BigDecimal discountAmount) {
+        PosVietQrResponse response = posOrderService.getPosVietQr(orderId, discountAmount);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin VietQR thanh toán thành công", response));
     }
 
