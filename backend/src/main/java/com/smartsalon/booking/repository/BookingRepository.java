@@ -68,4 +68,11 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             @Param("search") String search);
+
+    @Query("SELECT b FROM BookingEntity b WHERE b.branch.id = :branchId AND b.isDeleted = false " +
+           "AND b.bookingTime >= :dayStart AND b.bookingTime < :dayEnd ORDER BY b.bookingTime ASC")
+    List<BookingEntity> findBookingsByBranchAndDay(
+            @Param("branchId") Long branchId,
+            @Param("dayStart") LocalDateTime dayStart,
+            @Param("dayEnd") LocalDateTime dayEnd);
 }

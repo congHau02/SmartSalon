@@ -29,7 +29,11 @@ public enum ErrorCode {
     INVALID_PAYMENT_SIGNATURE(2009, "Chữ ký xác thực thanh toán không hợp lệ", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_STOCK(3001, "Tồn kho vật tư (ml/gram) không đủ để xuất", HttpStatus.BAD_REQUEST),
     PRODUCT_NOT_FOUND(3002, "Không tìm thấy sản phẩm hoặc vật tư yêu cầu", HttpStatus.NOT_FOUND),
-    PRODUCT_ALREADY_EXISTS(3003, "Mã SKU sản phẩm đã tồn tại trong hệ thống", HttpStatus.CONFLICT);
+    PRODUCT_ALREADY_EXISTS(3003, "Mã SKU sản phẩm đã tồn tại trong hệ thống", HttpStatus.CONFLICT),
+    ORDER_NOT_FOUND(4001, "Không tìm thấy đơn hàng yêu cầu", HttpStatus.NOT_FOUND),
+    ORDER_ALREADY_EXISTS_FOR_BOOKING(4002, "Lịch hẹn này đã được mở đơn hàng", HttpStatus.CONFLICT),
+    INVALID_ORDER_STATUS(4003, "Trạng thái đơn hàng không hợp lệ cho thao tác này", HttpStatus.BAD_REQUEST),
+    STEP_ASSIGNMENT_NOT_FOUND(4004, "Không tìm thấy bước kỹ thuật được phân công", HttpStatus.NOT_FOUND);
 
     private final int code;
     private final String message;

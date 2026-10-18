@@ -20,6 +20,7 @@ public class ServiceResponse {
     private String description;
     private String category;
     private BigDecimal basePrice;
+    private BigDecimal commissionPoolRate;
     private Integer durationMinutes;
     @JsonProperty("isActive")
     private Boolean isActive;

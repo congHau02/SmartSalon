@@ -208,6 +208,7 @@ public class ServiceCatalogService {
                 .description(service.getDescription())
                 .category(service.getCategory())
                 .basePrice(service.getBasePrice())
+                .commissionPoolRate(service.getCommissionPoolRate())
                 .durationMinutes(service.getDurationMinutes())
                 .isActive(service.isActive())
                 .bomList(bomDtos)

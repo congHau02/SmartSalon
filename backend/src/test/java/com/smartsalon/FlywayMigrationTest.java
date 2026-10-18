@@ -103,5 +103,22 @@ class FlywayMigrationTest {
         Integer staffCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM users WHERE username = 'staff.le'", Integer.class);
         assertEquals(1, staffCount, "Receptionist staff.le must be seeded");
+
+        // 8. Verify V4 Schema & Seeds: commission_pool_rate, orders snapshot cols, actual_bom_json, and walkin.guest
+        assertTrue(result.migrationsExecuted >= 4, "Expected at least 4 migrations (including V4)");
+        jdbcTemplate.execute("SELECT commission_pool_rate FROM services WHERE 1=0");
+        jdbcTemplate.execute("SELECT customer_name, customer_phone, payment_method, notes FROM orders WHERE 1=0");
+        jdbcTemplate.execute("SELECT actual_bom_json FROM technical_logs WHERE 1=0");
+
+        Integer walkinGuestCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE username = 'walkin.guest'", Integer.class);
+        assertEquals(1, walkinGuestCount, "walkin.guest user must be seeded");
+
+        Integer walkinRoleCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_roles ur " +
+                "JOIN users u ON ur.user_id = u.id " +
+                "JOIN roles r ON ur.role_id = r.id " +
+                "WHERE u.username = 'walkin.guest' AND r.name = 'CUSTOMER'", Integer.class);
+        assertEquals(1, walkinRoleCount, "walkin.guest user must have CUSTOMER role");
     }
 }

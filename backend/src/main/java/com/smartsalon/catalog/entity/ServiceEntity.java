@@ -39,6 +39,10 @@ public class ServiceEntity extends BaseEntity {
     @Builder.Default
     private boolean isActive = true;
 
+    @Column(name = "commission_pool_rate", nullable = false, precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal commissionPoolRate = new BigDecimal("20.00");
+
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ServiceBomEntity> bomList = new ArrayList<>();

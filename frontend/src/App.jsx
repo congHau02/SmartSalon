@@ -19,17 +19,7 @@ import { BookingWizardPage } from "./features/booking/BookingWizardPage";
 import { AdminBookingsPage } from "./features/booking/AdminBookingsPage";
 import { CustomerServicesPage } from "./features/catalog/CustomerServicesPage";
 import { RealtimeProvider, RealtimeToastContainer } from "./features/realtime";
-
-function PosPlaceholder() {
-  return (
-    <div className="p-8 text-center bg-slate-800 rounded-xl border border-slate-700">
-      <h3 className="text-xl font-bold mb-2">Bảng điều phối Ghế / Giường (Kanban & Timeline)</h3>
-      <p className="text-slate-400 text-sm">
-        Tính năng thuộc POS & Điều phối tại quầy. Sẽ tích hợp WebSocket STOMP thời gian thực.
-      </p>
-    </div>
-  );
-}
+import { DispatchBoardPage } from "./features/pos/DispatchBoardPage";
 
 export default function App() {
   return (
@@ -71,7 +61,7 @@ export default function App() {
               {/* Protected POS Dispatching */}
               <Route element={<RoleGuard allowedRoles={["ADMIN", "MANAGER", "STAFF", "STYLIST"]} />}>
                 <Route path="/pos" element={<PosLayout />}>
-                  <Route index element={<PosPlaceholder />} />
+                  <Route index element={<DispatchBoardPage />} />
                 </Route>
               </Route>
             </Route>

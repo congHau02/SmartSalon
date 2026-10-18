@@ -1,0 +1,537 @@
+package com.smartsalon.pos.service.impl;
+
+import com.smartsalon.booking.entity.BookingEntity;
+import com.smartsalon.booking.entity.BookingServiceItemEntity;
+import com.smartsalon.booking.entity.BookingStatus;
+import com.smartsalon.booking.entity.DepositStatus;
+import com.smartsalon.booking.repository.BookingRepository;
+import com.smartsalon.branch.entity.BranchEntity;
+import com.smartsalon.branch.repository.BranchRepository;
+import com.smartsalon.catalog.entity.ServiceDefaultStepEntity;
+import com.smartsalon.catalog.entity.ServiceEntity;
+import com.smartsalon.catalog.repository.ServiceRepository;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.inventory.entity.ProductEntity;
+import com.smartsalon.inventory.repository.ProductRepository;
+import com.smartsalon.pos.dto.*;
+import com.smartsalon.pos.entity.*;
+import com.smartsalon.pos.repository.OrderRepository;
+import com.smartsalon.pos.repository.OrderStepAssignmentRepository;
+import com.smartsalon.pos.service.PosOrderService;
+import com.smartsalon.realtime.service.RealtimeNotificationService;
+import com.smartsalon.user.entity.RoleEntity;
+import com.smartsalon.user.entity.UserEntity;
+import com.smartsalon.user.repository.RoleRepository;
+import com.smartsalon.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PosOrderServiceImpl implements PosOrderService {
+
+    private final OrderRepository orderRepository;
+    private final OrderStepAssignmentRepository stepAssignmentRepository;
+    private final BookingRepository bookingRepository;
+    private final BranchRepository branchRepository;
+    private final ServiceRepository serviceRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final RealtimeNotificationService realtimeNotificationService;
+
+    @Override
+    @Transactional
+    public PosOrderResponse checkInBooking(Long bookingId) {
+        BookingEntity booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.isDeleted()) {
+            throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+
+        if (orderRepository.existsByBookingIdAndStatusNotAndIsDeletedFalse(bookingId, OrderStatus.CANCELLED)) {
+            throw new AppException(ErrorCode.ORDER_ALREADY_EXISTS_FOR_BOOKING);
+        }
+
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
+        }
+
+        BookingStatus oldStatus = booking.getStatus();
+        booking.setStatus(BookingStatus.CHECKED_IN);
+        bookingRepository.save(booking);
+
+        String customerName = (booking.getCustomerName() != null && !booking.getCustomerName().isBlank())
+                ? booking.getCustomerName()
+                : (booking.getCustomer() != null ? booking.getCustomer().getFullName() : "Khách hàng");
+
+        String customerPhone = (booking.getCustomerPhone() != null && !booking.getCustomerPhone().isBlank())
+                ? booking.getCustomerPhone()
+                : (booking.getCustomer() != null ? booking.getCustomer().getPhone() : "");
+
+        BigDecimal depositDeducted = BigDecimal.ZERO;
+        if (booking.getDepositStatus() == DepositStatus.PAID && booking.getDepositAmount() != null) {
+            depositDeducted = booking.getDepositAmount();
+        }
+
+        String orderCode = generateOrderCode();
+
+        OrderEntity order = OrderEntity.builder()
+                .branch(booking.getBranch())
+                .customer(booking.getCustomer())
+                .booking(booking)
+                .orderCode(orderCode)
+                .status(OrderStatus.CHECKED_IN)
+                .customerName(customerName)
+                .customerPhone(customerPhone)
+                .depositDeducted(depositDeducted)
+                .notes(booking.getNotes())
+                .subtotal(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
+                .finalAmount(BigDecimal.ZERO)
+                .items(new ArrayList<>())
+                .build();
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+        UserEntity defaultStaff = booking.getStaff() != null ? booking.getStaff() : resolveDefaultStaff(booking.getBranch());
+
+        for (BookingServiceItemEntity item : booking.getItems()) {
+            ServiceEntity service = item.getService();
+            BigDecimal price = item.getPrice() != null ? item.getPrice() : service.getBasePrice();
+
+            OrderItemEntity orderItem = OrderItemEntity.builder()
+                    .itemType(OrderItemType.SERVICE)
+                    .service(service)
+                    .quantity(1)
+                    .unitPrice(price)
+                    .totalPrice(price)
+                    .stepAssignments(new ArrayList<>())
+                    .build();
+
+            order.addItem(orderItem);
+            subtotal = subtotal.add(price);
+
+            populateDefaultStepAssignments(orderItem, service, defaultStaff, price);
+        }
+
+        order.setSubtotal(subtotal);
+        BigDecimal finalAmount = subtotal.subtract(depositDeducted);
+        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
+            finalAmount = BigDecimal.ZERO;
+        }
+        order.setFinalAmount(finalAmount);
+
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, BookingStatus.CHECKED_IN);
+        realtimeNotificationService.notifyOrderCheckedIn(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse createWalkInOrder(WalkInOrderRequest request) {
+        BranchEntity branch = branchRepository.findById(request.getBranchId())
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+
+        UserEntity customerUser;
+        String customerName = request.getCustomerName();
+        String customerPhone = request.getCustomerPhone();
+
+        if (request.isQuickGuest()) {
+            customerUser = userRepository.findByUsernameAndIsDeletedFalse("walkin.guest")
+                    .orElseGet(this::createWalkInGuestUser);
+            if (customerName == null || customerName.isBlank()) {
+                customerName = "Khách lẻ nhanh";
+            }
+            if (customerPhone == null || customerPhone.isBlank()) {
+                customerPhone = "0000000000";
+            }
+        } else if (customerPhone != null && !customerPhone.isBlank()) {
+            final String cleanPhone = customerPhone.trim();
+            final String finalCustName = (customerName != null && !customerName.isBlank()) ? customerName.trim() : "Khách hàng " + cleanPhone;
+            customerUser = userRepository.findByPhoneAndIsDeletedFalse(cleanPhone)
+                    .orElseGet(() -> createNewCustomerUser(cleanPhone, finalCustName, branch));
+            if (customerName == null || customerName.isBlank()) {
+                customerName = customerUser.getFullName();
+            }
+        } else {
+            customerUser = userRepository.findByUsernameAndIsDeletedFalse("walkin.guest")
+                    .orElseGet(this::createWalkInGuestUser);
+            if (customerName == null || customerName.isBlank()) {
+                customerName = "Khách lẻ vãng lai";
+            }
+            customerPhone = "0000000000";
+        }
+
+        UserEntity assignedStylist = null;
+        if (request.getStylistId() != null) {
+            assignedStylist = userRepository.findById(request.getStylistId()).orElse(null);
+        }
+        if (assignedStylist == null) {
+            assignedStylist = resolveDefaultStaff(branch);
+        }
+
+        String orderCode = generateOrderCode();
+
+        OrderEntity order = OrderEntity.builder()
+                .branch(branch)
+                .customer(customerUser)
+                .booking(null)
+                .orderCode(orderCode)
+                .status(OrderStatus.CHECKED_IN)
+                .customerName(customerName)
+                .customerPhone(customerPhone)
+                .notes(request.getNotes())
+                .subtotal(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
+                .depositDeducted(BigDecimal.ZERO)
+                .finalAmount(BigDecimal.ZERO)
+                .items(new ArrayList<>())
+                .build();
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+
+        if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
+            for (Long serviceId : request.getServiceIds()) {
+                ServiceEntity service = serviceRepository.findByIdAndIsDeletedFalse(serviceId)
+                        .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+                BigDecimal price = service.getBasePrice();
+
+                OrderItemEntity orderItem = OrderItemEntity.builder()
+                        .itemType(OrderItemType.SERVICE)
+                        .service(service)
+                        .quantity(1)
+                        .unitPrice(price)
+                        .totalPrice(price)
+                        .stepAssignments(new ArrayList<>())
+                        .build();
+
+                order.addItem(orderItem);
+                subtotal = subtotal.add(price);
+
+                populateDefaultStepAssignments(orderItem, service, assignedStylist, price);
+            }
+        }
+
+        if (request.getProductItems() != null && !request.getProductItems().isEmpty()) {
+            for (ProductItemRequest pReq : request.getProductItems()) {
+                ProductEntity product = productRepository.findByIdAndIsDeletedFalse(pReq.getProductId())
+                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+                int qty = pReq.getQuantity() > 0 ? pReq.getQuantity() : 1;
+                BigDecimal unitPrice = product.getRetailPrice() != null ? product.getRetailPrice() : BigDecimal.ZERO;
+                BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(qty));
+
+                OrderItemEntity prodItem = OrderItemEntity.builder()
+                        .itemType(OrderItemType.PRODUCT)
+                        .product(product)
+                        .quantity(qty)
+                        .unitPrice(unitPrice)
+                        .totalPrice(totalPrice)
+                        .build();
+
+                order.addItem(prodItem);
+                subtotal = subtotal.add(totalPrice);
+            }
+        }
+
+        order.setSubtotal(subtotal);
+        order.setFinalAmount(subtotal);
+
+        OrderEntity savedOrder = orderRepository.save(order);
+        realtimeNotificationService.notifyWalkInCreated(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DispatchBoardResponse getDispatchBoard(Long branchId, LocalDate date) {
+        BranchEntity branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+
+        LocalDate targetDate = (date != null) ? date : LocalDate.now();
+        LocalDateTime dayStart = targetDate.atStartOfDay();
+        LocalDateTime dayEnd = targetDate.plusDays(1).atStartOfDay();
+
+        Instant startInstant = dayStart.atZone(ZoneId.systemDefault()).toInstant();
+        Instant endInstant = dayEnd.atZone(ZoneId.systemDefault()).toInstant();
+
+        // 1. Fetch bookings for this branch and day
+        List<BookingEntity> bookings = bookingRepository.findBookingsByBranchAndDay(branchId, dayStart, dayEnd);
+        List<DispatchBoardBookingDto> upcomingBookings = new ArrayList<>();
+
+        for (BookingEntity b : bookings) {
+            Optional<OrderEntity> linkedOrder = orderRepository.findByBookingIdAndIsDeletedFalse(b.getId());
+            Long linkedOrderId = linkedOrder.map(OrderEntity::getId).orElse(null);
+
+            List<String> serviceNames = b.getItems().stream()
+                    .filter(i -> !i.isDeleted())
+                    .map(i -> i.getService().getName())
+                    .toList();
+
+            String staffName = b.getStaff() != null ? b.getStaff().getFullName() : "Stylist bất kỳ";
+            String cName = (b.getCustomerName() != null && !b.getCustomerName().isBlank())
+                    ? b.getCustomerName()
+                    : (b.getCustomer() != null ? b.getCustomer().getFullName() : "Khách hàng");
+            String cPhone = (b.getCustomerPhone() != null && !b.getCustomerPhone().isBlank())
+                    ? b.getCustomerPhone()
+                    : (b.getCustomer() != null ? b.getCustomer().getPhone() : "");
+
+            DispatchBoardBookingDto bDto = DispatchBoardBookingDto.builder()
+                    .id(b.getId())
+                    .bookingCode(b.getBookingCode())
+                    .customerId(b.getCustomer() != null ? b.getCustomer().getId() : null)
+                    .customerName(cName)
+                    .customerPhone(cPhone)
+                    .staffId(b.getStaff() != null ? b.getStaff().getId() : null)
+                    .staffName(staffName)
+                    .bookingTime(b.getBookingTime())
+                    .endTime(b.getEndTime())
+                    .totalDurationMinutes(b.getTotalDurationMinutes())
+                    .totalPrice(b.getTotalPrice())
+                    .depositAmount(b.getDepositAmount())
+                    .depositStatus(b.getDepositStatus() != null ? b.getDepositStatus().name() : null)
+                    .status(b.getStatus() != null ? b.getStatus().name() : null)
+                    .serviceNames(serviceNames)
+                    .linkedOrderId(linkedOrderId)
+                    .build();
+
+            // Sắp đến / Chờ check-in: CONFIRMED or PENDING_PAYMENT without active order
+            if ((b.getStatus() == BookingStatus.CONFIRMED || b.getStatus() == BookingStatus.PENDING_PAYMENT)
+                    && linkedOrderId == null) {
+                upcomingBookings.add(bDto);
+            }
+        }
+
+        // 2. Fetch orders for this branch
+        List<OrderEntity> ordersInRange = orderRepository.findByBranchAndDateRange(branchId, startInstant, endInstant);
+        // Also include any active orders created earlier that haven't completed
+        List<OrderEntity> activeOrders = orderRepository.findByBranchIdAndStatusIn(
+                branchId, List.of(OrderStatus.CHECKED_IN, OrderStatus.IN_PROGRESS, OrderStatus.READY_FOR_CHECKOUT));
+
+        Map<Long, OrderEntity> orderMap = new LinkedHashMap<>();
+        for (OrderEntity o : ordersInRange) {
+            orderMap.put(o.getId(), o);
+        }
+        for (OrderEntity o : activeOrders) {
+            orderMap.put(o.getId(), o);
+        }
+
+        List<PosOrderResponse> checkedInOrders = new ArrayList<>();
+        List<PosOrderResponse> inProgressOrders = new ArrayList<>();
+        List<PosOrderResponse> readyOrPaidOrders = new ArrayList<>();
+
+        for (OrderEntity o : orderMap.values()) {
+            PosOrderResponse resp = mapToOrderResponse(o);
+            if (o.getStatus() == OrderStatus.CHECKED_IN) {
+                checkedInOrders.add(resp);
+            } else if (o.getStatus() == OrderStatus.IN_PROGRESS) {
+                inProgressOrders.add(resp);
+            } else if (o.getStatus() == OrderStatus.READY_FOR_CHECKOUT || o.getStatus() == OrderStatus.PAID) {
+                readyOrPaidOrders.add(resp);
+            }
+        }
+
+        // 3. Stylist availability strip
+        List<UserEntity> stylists = userRepository.findActiveStylistsByBranchId(branchId);
+        List<StylistAvailabilityDto> stylistDtos = new ArrayList<>();
+
+        for (UserEntity stylist : stylists) {
+            List<OrderStepAssignmentEntity> activeSteps = stepAssignmentRepository
+                    .findByStaffIdAndStatus(stylist.getId(), StepAssignmentStatus.IN_PROGRESS);
+
+            boolean isBusy = !activeSteps.isEmpty();
+            String currentOrderCode = null;
+            String currentCustomerName = null;
+            String currentStepName = null;
+
+            if (isBusy) {
+                OrderStepAssignmentEntity activeStep = activeSteps.get(0);
+                currentStepName = activeStep.getStepName();
+                if (activeStep.getOrderItem() != null && activeStep.getOrderItem().getOrder() != null) {
+                    OrderEntity activeOrder = activeStep.getOrderItem().getOrder();
+                    currentOrderCode = activeOrder.getOrderCode();
+                    currentCustomerName = activeOrder.getCustomerName();
+                }
+            }
+
+            stylistDtos.add(StylistAvailabilityDto.builder()
+                    .stylistId(stylist.getId())
+                    .fullName(stylist.getFullName())
+                    .phone(stylist.getPhone())
+                    .avatarUrl(stylist.getAvatarUrl())
+                    .isBusy(isBusy)
+                    .currentOrderCode(currentOrderCode)
+                    .currentCustomerName(currentCustomerName)
+                    .currentStepName(currentStepName)
+                    .build());
+        }
+
+        return DispatchBoardResponse.builder()
+                .branchId(branch.getId())
+                .branchName(branch.getName())
+                .date(targetDate.toString())
+                .upcomingBookings(upcomingBookings)
+                .checkedInOrders(checkedInOrders)
+                .inProgressOrders(inProgressOrders)
+                .readyOrPaidOrders(readyOrPaidOrders)
+                .stylists(stylistDtos)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PosOrderResponse getOrderById(Long orderId) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        return mapToOrderResponse(order);
+    }
+
+    private UserEntity resolveDefaultStaff(BranchEntity branch) {
+        List<UserEntity> stylists = userRepository.findActiveStylistsByBranchId(branch.getId());
+        if (!stylists.isEmpty()) {
+            return stylists.get(0);
+        }
+        return userRepository.findAllActiveStylists().stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    private UserEntity createWalkInGuestUser() {
+        RoleEntity customerRole = roleRepository.findByName("CUSTOMER")
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+        UserEntity user = UserEntity.builder()
+                .username("walkin.guest")
+                .passwordHash("$2a$10$DZJ6dkpX7yQ3qTx1TVzLOOCBc8qXRqkF5ji.FkPez./skNqXqxWTm")
+                .fullName("Khách vãng lai (Walk-in)")
+                .phone("0000000000")
+                .email("walkin@smartsalon.vn")
+                .isActive(true)
+                .roles(Set.of(customerRole))
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    private UserEntity createNewCustomerUser(String phone, String name, BranchEntity branch) {
+        RoleEntity customerRole = roleRepository.findByName("CUSTOMER")
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+        UserEntity user = UserEntity.builder()
+                .branch(branch)
+                .username("guest_" + phone)
+                .passwordHash("$2a$10$DZJ6dkpX7yQ3qTx1TVzLOOCBc8qXRqkF5ji.FkPez./skNqXqxWTm")
+                .fullName(name)
+                .phone(phone)
+                .isActive(true)
+                .roles(Set.of(customerRole))
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    private String generateOrderCode() {
+        return "ORD-" + (System.currentTimeMillis() % 100000000);
+    }
+
+    private void populateDefaultStepAssignments(OrderItemEntity orderItem, ServiceEntity service, UserEntity staff, BigDecimal price) {
+        if (service.getDefaultSteps() == null) {
+            return;
+        }
+        for (ServiceDefaultStepEntity stepDef : service.getDefaultSteps()) {
+            BigDecimal poolRate = service.getCommissionPoolRate() != null
+                    ? service.getCommissionPoolRate()
+                    : new BigDecimal("20.00");
+            BigDecimal stepRate = stepDef.getCommissionRate() != null
+                    ? stepDef.getCommissionRate()
+                    : BigDecimal.ZERO;
+
+            BigDecimal poolAmount = price.multiply(poolRate).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+            BigDecimal commissionAmount = poolAmount.multiply(stepRate).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+
+            OrderStepAssignmentEntity stepAssignment = OrderStepAssignmentEntity.builder()
+                    .stepName(stepDef.getStepName())
+                    .staff(staff)
+                    .commissionRate(stepRate)
+                    .commissionAmount(commissionAmount)
+                    .status(StepAssignmentStatus.PENDING)
+                    .build();
+
+            orderItem.addStepAssignment(stepAssignment);
+        }
+    }
+
+    private PosOrderResponse mapToOrderResponse(OrderEntity order) {
+        List<PosOrderItemResponse> itemResponses = order.getItems().stream()
+                .filter(i -> !i.isDeleted())
+                .map(i -> {
+                    List<PosStepAssignmentResponse> stepResponses = i.getStepAssignments().stream()
+                            .map(s -> PosStepAssignmentResponse.builder()
+                                    .id(s.getId())
+                                    .stepName(s.getStepName())
+                                    .staffId(s.getStaff() != null ? s.getStaff().getId() : null)
+                                    .staffName(s.getStaff() != null ? s.getStaff().getFullName() : null)
+                                    .commissionRate(s.getCommissionRate())
+                                    .commissionAmount(s.getCommissionAmount())
+                                    .status(s.getStatus())
+                                    .startedAt(s.getStartedAt())
+                                    .completedAt(s.getCompletedAt())
+                                    .build())
+                            .toList();
+
+                    return PosOrderItemResponse.builder()
+                            .id(i.getId())
+                            .itemType(i.getItemType())
+                            .serviceId(i.getService() != null ? i.getService().getId() : null)
+                            .serviceName(i.getService() != null ? i.getService().getName() : null)
+                            .commissionPoolRate(i.getService() != null ? i.getService().getCommissionPoolRate() : null)
+                            .productId(i.getProduct() != null ? i.getProduct().getId() : null)
+                            .productName(i.getProduct() != null ? i.getProduct().getName() : null)
+                            .productSku(i.getProduct() != null ? i.getProduct().getSku() : null)
+                            .quantity(i.getQuantity())
+                            .unitPrice(i.getUnitPrice())
+                            .totalPrice(i.getTotalPrice())
+                            .steps(stepResponses)
+                            .build();
+                })
+                .toList();
+
+        return PosOrderResponse.builder()
+                .id(order.getId())
+                .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
+                .branchName(order.getBranch() != null ? order.getBranch().getName() : null)
+                .customerId(order.getCustomer() != null ? order.getCustomer().getId() : null)
+                .customerName(order.getCustomerName())
+                .customerPhone(order.getCustomerPhone())
+                .bookingId(order.getBooking() != null ? order.getBooking().getId() : null)
+                .bookingCode(order.getBooking() != null ? order.getBooking().getBookingCode() : null)
+                .orderCode(order.getOrderCode())
+                .subtotal(order.getSubtotal())
+                .discountAmount(order.getDiscountAmount())
+                .depositDeducted(order.getDepositDeducted())
+                .finalAmount(order.getFinalAmount())
+                .status(order.getStatus())
+                .paymentMethod(order.getPaymentMethod())
+                .notes(order.getNotes())
+                .createdAt(order.getCreatedAt())
+                .items(itemResponses)
+                .build();
+    }
+}

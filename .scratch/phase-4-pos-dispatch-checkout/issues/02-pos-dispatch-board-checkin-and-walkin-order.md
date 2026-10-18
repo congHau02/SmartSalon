@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Real-Time Booking Push Notifications to Receptionist & POS Screens
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Database schema migration V4 adds `commission_pool_rate` (default `20.00%`) to services, snapshot/checkout metadata (`customer_name`, `customer_phone`, `payment_method`, `notes`) to orders, `actual_bom_json` to technical logs, and seeds the canonical `walkin.guest` customer account.
-- [ ] Checking in a `Booking` transitions its status to `CHECKED_IN`, creates a linked `Order` in `CHECKED_IN` status, copies all `Booking Service Items` into `Order` service items, generates default `Step Assignments` from each service's default `Service Steps` pre-assigned to the booking's stylist, and populates `deposit_deducted` when the booking's `Deposit` is `PAID`.
-- [ ] Creating a `Walk-in Order` resolves an existing customer or creates a new customer by phone number (or binds to `walkin.guest` for one-click anonymous walk-in), creates an `Order` in `CHECKED_IN` status with the selected services and products, and generates default `Step Assignments`.
-- [ ] The `Dispatch Board` UI renders both the 4-column **Kanban View** (default) and the **Timeline View** (`08:30 – 20:30` per stylist), displays the live Stylist Availability strip, and updates automatically across terminals via WebSocket when check-in or walk-in events occur.
-- [ ] Automated backend tests verify V4 migration schema, booking check-in (`Deposit` carryover, item snapshot, default steps), walk-in creation (`walkin.guest` and phone lookup), and dispatch board query responses.
+- [x] Database schema migration V4 adds `commission_pool_rate` (default `20.00%`) to services, snapshot/checkout metadata (`customer_name`, `customer_phone`, `payment_method`, `notes`) to orders, `actual_bom_json` to technical logs, and seeds the canonical `walkin.guest` customer account.
+- [x] Checking in a `Booking` transitions its status to `CHECKED_IN`, creates a linked `Order` in `CHECKED_IN` status, copies all `Booking Service Items` into `Order` service items, generates default `Step Assignments` from each service's default `Service Steps` pre-assigned to the booking's stylist, and populates `deposit_deducted` when the booking's `Deposit` is `PAID`.
+- [x] Creating a `Walk-in Order` resolves an existing customer or creates a new customer by phone number (or binds to `walkin.guest` for one-click anonymous walk-in), creates an `Order` in `CHECKED_IN` status with the selected services and products, and generates default `Step Assignments`.
+- [x] The `Dispatch Board` UI renders both the 4-column **Kanban View** (default) and the **Timeline View** (`08:30 – 20:30` per stylist), displays the live Stylist Availability strip, and updates automatically across terminals via WebSocket when check-in or walk-in events occur.
+- [x] Automated backend tests verify V4 migration schema, booking check-in (`Deposit` carryover, item snapshot, default steps), walk-in creation (`walkin.guest` and phone lookup), and dispatch board query responses.

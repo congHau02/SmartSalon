@@ -2,6 +2,7 @@ package com.smartsalon.realtime.service;
 
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
+import com.smartsalon.pos.entity.OrderEntity;
 import com.smartsalon.realtime.dto.RealtimeEventDto;
 
 public interface RealtimeNotificationService {
@@ -15,4 +16,10 @@ public interface RealtimeNotificationService {
     void notifyBookingConfirmed(BookingEntity booking);
 
     void notifyBookingStatusChanged(BookingEntity booking, BookingStatus oldStatus, BookingStatus newStatus);
+
+    void notifyOrderCheckedIn(OrderEntity order);
+
+    void notifyWalkInCreated(OrderEntity order);
+
+    void notifyOrderUpdated(OrderEntity order);
 }

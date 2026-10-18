@@ -175,4 +175,90 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
 
         sendBookingEvent(branchId, event);
     }
+
+    @Override
+    public void notifyOrderCheckedIn(com.smartsalon.pos.entity.OrderEntity order) {
+        if (order == null || order.getBranch() == null) {
+            return;
+        }
+        Long branchId = order.getBranch().getId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("orderId", order.getId());
+        data.put("orderCode", order.getOrderCode());
+        data.put("customerName", order.getCustomerName());
+        data.put("customerPhone", order.getCustomerPhone());
+        data.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+        data.put("branchId", branchId);
+        if (order.getBooking() != null) {
+            data.put("bookingId", order.getBooking().getId());
+            data.put("bookingCode", order.getBooking().getBookingCode());
+        }
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("ORDER_CHECKED_IN")
+                .branchId(branchId)
+                .referenceId(order.getId())
+                .code(order.getOrderCode())
+                .title("Khách check-in: " + order.getOrderCode())
+                .message(String.format("Khách %s đã check-in thành công (Mã đơn: %s)", order.getCustomerName(), order.getOrderCode()))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendDispatchEvent(branchId, event);
+    }
+
+    @Override
+    public void notifyWalkInCreated(com.smartsalon.pos.entity.OrderEntity order) {
+        if (order == null || order.getBranch() == null) {
+            return;
+        }
+        Long branchId = order.getBranch().getId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("orderId", order.getId());
+        data.put("orderCode", order.getOrderCode());
+        data.put("customerName", order.getCustomerName());
+        data.put("customerPhone", order.getCustomerPhone());
+        data.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+        data.put("branchId", branchId);
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("WALK_IN_CREATED")
+                .branchId(branchId)
+                .referenceId(order.getId())
+                .code(order.getOrderCode())
+                .title("Khách vãng lai mới: " + order.getOrderCode())
+                .message(String.format("Tạo đơn khách vãng lai %s (Mã đơn: %s)", order.getCustomerName(), order.getOrderCode()))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendDispatchEvent(branchId, event);
+    }
+
+    @Override
+    public void notifyOrderUpdated(com.smartsalon.pos.entity.OrderEntity order) {
+        if (order == null || order.getBranch() == null) {
+            return;
+        }
+        Long branchId = order.getBranch().getId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("orderId", order.getId());
+        data.put("orderCode", order.getOrderCode());
+        data.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+        data.put("branchId", branchId);
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("ORDER_UPDATED")
+                .branchId(branchId)
+                .referenceId(order.getId())
+                .code(order.getOrderCode())
+                .title("Cập nhật đơn hàng: " + order.getOrderCode())
+                .message(String.format("Đơn %s chuyển sang trạng thái %s", order.getOrderCode(), order.getStatus()))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendDispatchEvent(branchId, event);
+    }
 }
