@@ -4,11 +4,11 @@
 
 **Blocked by:** 02: POS Dispatch Board (Kanban & Timeline), Booking Check-In & Walk-In Order Creation
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Adding a catalog service to an unpaid `Order` appends the `Order` item, generates its default `Step Assignments`, and recalculates `subtotal` and `final_amount`; removing an item deletes its associated steps and recalculates totals.
-- [ ] Adding a retail `Master Product` item to an unpaid `Order` appends a `PRODUCT` item with quantity and unit retail price and recalculates `subtotal` and `final_amount`.
-- [ ] Receptionists can reassign the staff member (`staff_id`) and adjust the step weight (`commission_rate`) on any `Step Assignment`, immediately recalculating the step's preview `commission_amount` as `orderItem.totalPrice * (service.commissionPoolRate / 100) * (step.commissionRate / 100)`.
-- [ ] Transitioning the first `Step Assignment` of an `Order` to `IN_PROGRESS` records `started_at` and automatically transitions the `Order` (and any linked `Booking`) to `IN_PROGRESS`; transitioning all steps to `COMPLETED` records `completed_at` and advances the `Order` to `READY_FOR_CHECKOUT`.
-- [ ] The POS Order Drawer UI renders cart items, retail product additions, step-level staff selectors, commission previews, and step status toggles, broadcasting updates over WebSocket so Kanban step progress bars (`1/3`, `2/3`, `3/3`) update immediately.
-- [ ] Automated tests verify service/product cart mutations, two-tier step commission previews, and automatic parent `Order`/`Booking` state progression when steps start and complete.
+- [x] Adding a catalog service to an unpaid `Order` appends the `Order` item, generates its default `Step Assignments`, and recalculates `subtotal` and `final_amount`; removing an item deletes its associated steps and recalculates totals.
+- [x] Adding a retail `Master Product` item to an unpaid `Order` appends a `PRODUCT` item with quantity and unit retail price and recalculates `subtotal` and `final_amount`.
+- [x] Receptionists can reassign the staff member (`staff_id`) and adjust the step weight (`commission_rate`) on any `Step Assignment`, immediately recalculating the step's preview `commission_amount` as `orderItem.totalPrice * (service.commissionPoolRate / 100) * (step.commissionRate / 100)`.
+- [x] Transitioning the first `Step Assignment` of an `Order` to `IN_PROGRESS` records `started_at` and automatically transitions the `Order` (and any linked `Booking`) to `IN_PROGRESS`; transitioning all steps to `COMPLETED` records `completed_at` and advances the `Order` to `READY_FOR_CHECKOUT`.
+- [x] The POS Order Drawer UI renders cart items, retail product additions, step-level staff selectors, commission previews, and step status toggles, broadcasting updates over WebSocket so Kanban step progress bars (`1/3`, `2/3`, `3/3`) update immediately.
+- [x] Automated tests verify service/product cart mutations, two-tier step commission previews, and automatic parent `Order`/`Booking` state progression when steps start and complete.

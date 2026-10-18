@@ -37,4 +37,34 @@ export const posApi = {
     const response = await axiosClient.get("/bookings/stylists", { params: { branchId } });
     return response?.result || response?.data || [];
   },
+
+  addServiceItem: async (orderId, data) => {
+    const response = await axiosClient.post(`/pos/orders/${orderId}/items/service`, data);
+    return response?.result || response?.data || response;
+  },
+
+  addProductItem: async (orderId, data) => {
+    const response = await axiosClient.post(`/pos/orders/${orderId}/items/product`, data);
+    return response?.result || response?.data || response;
+  },
+
+  updateOrder: async (orderId, data) => {
+    const response = await axiosClient.patch(`/pos/orders/${orderId}`, data);
+    return response?.result || response?.data || response;
+  },
+
+  removeOrderItem: async (orderId, itemId) => {
+    const response = await axiosClient.delete(`/pos/orders/${orderId}/items/${itemId}`);
+    return response?.result || response?.data || response;
+  },
+
+  updateStepAssignment: async (orderId, stepId, data) => {
+    const response = await axiosClient.patch(`/pos/orders/${orderId}/steps/${stepId}`, data);
+    return response?.result || response?.data || response;
+  },
+
+  updateStepStatus: async (orderId, stepId, data) => {
+    const response = await axiosClient.patch(`/pos/orders/${orderId}/steps/${stepId}/status`, data);
+    return response?.result || response?.data || response;
+  },
 };

@@ -33,7 +33,8 @@ public enum ErrorCode {
     ORDER_NOT_FOUND(4001, "Không tìm thấy đơn hàng yêu cầu", HttpStatus.NOT_FOUND),
     ORDER_ALREADY_EXISTS_FOR_BOOKING(4002, "Lịch hẹn này đã được mở đơn hàng", HttpStatus.CONFLICT),
     INVALID_ORDER_STATUS(4003, "Trạng thái đơn hàng không hợp lệ cho thao tác này", HttpStatus.BAD_REQUEST),
-    STEP_ASSIGNMENT_NOT_FOUND(4004, "Không tìm thấy bước kỹ thuật được phân công", HttpStatus.NOT_FOUND);
+    STEP_ASSIGNMENT_NOT_FOUND(4004, "Không tìm thấy bước kỹ thuật được phân công", HttpStatus.NOT_FOUND),
+    ORDER_ITEM_NOT_FOUND(4005, "Không tìm thấy mục hàng trong đơn", HttpStatus.NOT_FOUND);
 
     private final int code;
     private final String message;

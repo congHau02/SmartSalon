@@ -403,6 +403,278 @@ public class PosOrderServiceImpl implements PosOrderService {
         return mapToOrderResponse(order);
     }
 
+    @Override
+    @Transactional
+    public PosOrderResponse addServiceItem(Long orderId, AddServiceItemRequest request) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        ServiceEntity service = serviceRepository.findByIdAndIsDeletedFalse(request.getServiceId())
+                .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+
+        UserEntity assignedStaff = null;
+        if (request.getStaffId() != null) {
+            assignedStaff = userRepository.findById(request.getStaffId()).orElse(null);
+        }
+        if (assignedStaff == null) {
+            assignedStaff = resolveDefaultStaff(order.getBranch());
+        }
+
+        BigDecimal price = service.getBasePrice();
+
+        OrderItemEntity orderItem = OrderItemEntity.builder()
+                .itemType(OrderItemType.SERVICE)
+                .service(service)
+                .quantity(1)
+                .unitPrice(price)
+                .totalPrice(price)
+                .stepAssignments(new ArrayList<>())
+                .build();
+
+        order.addItem(orderItem);
+
+        populateDefaultStepAssignments(orderItem, service, assignedStaff, price);
+
+        recalculateOrderTotals(order);
+        OrderEntity savedOrder = orderRepository.save(order);
+        realtimeNotificationService.notifyOrderUpdated(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse addProductItem(Long orderId, AddProductItemRequest request) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(request.getProductId())
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        int qty = request.getQuantity() > 0 ? request.getQuantity() : 1;
+        BigDecimal unitPrice = product.getRetailPrice() != null ? product.getRetailPrice() : BigDecimal.ZERO;
+        BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(qty));
+
+        OrderItemEntity prodItem = OrderItemEntity.builder()
+                .itemType(OrderItemType.PRODUCT)
+                .product(product)
+                .quantity(qty)
+                .unitPrice(unitPrice)
+                .totalPrice(totalPrice)
+                .build();
+
+        order.addItem(prodItem);
+
+        recalculateOrderTotals(order);
+        OrderEntity savedOrder = orderRepository.save(order);
+        realtimeNotificationService.notifyOrderUpdated(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse updateOrder(Long orderId, UpdateOrderRequest request) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        if (request.getDiscountAmount() != null) {
+            order.setDiscountAmount(request.getDiscountAmount());
+        }
+        if (request.getNotes() != null) {
+            order.setNotes(request.getNotes());
+        }
+
+        recalculateOrderTotals(order);
+        OrderEntity savedOrder = orderRepository.save(order);
+        realtimeNotificationService.notifyOrderUpdated(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse removeOrderItem(Long orderId, Long itemId) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        OrderItemEntity itemToRemove = order.getItems().stream()
+                .filter(i -> i.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_ITEM_NOT_FOUND));
+
+        order.removeItem(itemToRemove);
+
+        recalculateOrderTotals(order);
+        OrderEntity savedOrder = orderRepository.save(order);
+        realtimeNotificationService.notifyOrderUpdated(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public PosStepAssignmentResponse updateStepAssignment(Long orderId, Long stepId, UpdateStepAssignmentRequest request) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        OrderStepAssignmentEntity step = stepAssignmentRepository.findById(stepId)
+                .orElseThrow(() -> new AppException(ErrorCode.STEP_ASSIGNMENT_NOT_FOUND));
+
+        if (!step.getOrderItem().getOrder().getId().equals(orderId)) {
+            throw new AppException(ErrorCode.STEP_ASSIGNMENT_NOT_FOUND);
+        }
+
+        if (request.getStaffId() != null) {
+            UserEntity staff = userRepository.findById(request.getStaffId())
+                    .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND));
+            step.setStaff(staff);
+        }
+
+        if (request.getCommissionRate() != null) {
+            step.setCommissionRate(request.getCommissionRate());
+        }
+
+        OrderItemEntity orderItem = step.getOrderItem();
+        ServiceEntity service = orderItem.getService();
+        BigDecimal poolRate = (service != null && service.getCommissionPoolRate() != null)
+                ? service.getCommissionPoolRate()
+                : new BigDecimal("20.00");
+        BigDecimal stepRate = step.getCommissionRate() != null ? step.getCommissionRate() : BigDecimal.ZERO;
+        BigDecimal itemPrice = orderItem.getTotalPrice() != null ? orderItem.getTotalPrice() : BigDecimal.ZERO;
+
+        BigDecimal commissionAmount = calculateCommissionAmount(itemPrice, poolRate, stepRate);
+        step.setCommissionAmount(commissionAmount);
+
+        OrderStepAssignmentEntity savedStep = stepAssignmentRepository.save(step);
+        realtimeNotificationService.notifyOrderUpdated(order);
+
+        return mapToStepResponse(savedStep);
+    }
+
+    @Override
+    @Transactional
+    public PosStepAssignmentResponse updateStepStatus(Long orderId, Long stepId, UpdateStepStatusRequest request) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        OrderStepAssignmentEntity step = stepAssignmentRepository.findById(stepId)
+                .orElseThrow(() -> new AppException(ErrorCode.STEP_ASSIGNMENT_NOT_FOUND));
+
+        if (!step.getOrderItem().getOrder().getId().equals(orderId)) {
+            throw new AppException(ErrorCode.STEP_ASSIGNMENT_NOT_FOUND);
+        }
+
+        StepAssignmentStatus newStatus = request.getStatus();
+        step.setStatus(newStatus);
+
+        if (newStatus == StepAssignmentStatus.IN_PROGRESS) {
+            if (step.getStartedAt() == null) {
+                step.setStartedAt(LocalDateTime.now());
+            }
+            if (order.getStatus() == OrderStatus.CHECKED_IN) {
+                order.setStatus(OrderStatus.IN_PROGRESS);
+                advanceLinkedBookingToInProgress(order);
+            }
+        } else if (newStatus == StepAssignmentStatus.COMPLETED) {
+            if (step.getCompletedAt() == null) {
+                step.setCompletedAt(LocalDateTime.now());
+            }
+            if (order.getStatus() == OrderStatus.CHECKED_IN) {
+                order.setStatus(OrderStatus.IN_PROGRESS);
+                advanceLinkedBookingToInProgress(order);
+            }
+            List<OrderStepAssignmentEntity> allSteps = stepAssignmentRepository.findByOrderId(orderId);
+            boolean allCompleted = allSteps.stream()
+                    .allMatch(s -> s.getId().equals(stepId) || s.getStatus() == StepAssignmentStatus.COMPLETED);
+            if (allCompleted) {
+                order.setStatus(OrderStatus.READY_FOR_CHECKOUT);
+            }
+        }
+
+        OrderStepAssignmentEntity savedStep = stepAssignmentRepository.save(step);
+        OrderEntity savedOrder = orderRepository.save(order);
+        realtimeNotificationService.notifyOrderUpdated(savedOrder);
+
+        return mapToStepResponse(savedStep);
+    }
+
+    private void advanceLinkedBookingToInProgress(OrderEntity order) {
+        if (order.getBooking() != null && order.getBooking().getStatus() != BookingStatus.IN_PROGRESS) {
+            BookingStatus oldBStatus = order.getBooking().getStatus();
+            order.getBooking().setStatus(BookingStatus.IN_PROGRESS);
+            bookingRepository.save(order.getBooking());
+            realtimeNotificationService.notifyBookingStatusChanged(order.getBooking(), oldBStatus, BookingStatus.IN_PROGRESS);
+        }
+    }
+
+    private BigDecimal calculateCommissionAmount(BigDecimal price, BigDecimal poolRate, BigDecimal stepRate) {
+        if (price == null || poolRate == null || stepRate == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal poolAmount = price.multiply(poolRate).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        return poolAmount.multiply(stepRate).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+    }
+
+    private void recalculateOrderTotals(OrderEntity order) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        if (order.getItems() != null) {
+            for (OrderItemEntity item : order.getItems()) {
+                if (!item.isDeleted() && item.getTotalPrice() != null) {
+                    subtotal = subtotal.add(item.getTotalPrice());
+                }
+            }
+        }
+        order.setSubtotal(subtotal);
+
+        BigDecimal discount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal deposit = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
+
+        BigDecimal finalAmount = subtotal.subtract(discount).subtract(deposit);
+        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
+            finalAmount = BigDecimal.ZERO;
+        }
+        order.setFinalAmount(finalAmount);
+    }
+
+    private PosStepAssignmentResponse mapToStepResponse(OrderStepAssignmentEntity s) {
+        return PosStepAssignmentResponse.builder()
+                .id(s.getId())
+                .stepName(s.getStepName())
+                .staffId(s.getStaff() != null ? s.getStaff().getId() : null)
+                .staffName(s.getStaff() != null ? s.getStaff().getFullName() : null)
+                .commissionRate(s.getCommissionRate())
+                .commissionAmount(s.getCommissionAmount())
+                .status(s.getStatus())
+                .startedAt(s.getStartedAt())
+                .completedAt(s.getCompletedAt())
+                .build();
+    }
+
     private UserEntity resolveDefaultStaff(BranchEntity branch) {
         List<UserEntity> stylists = userRepository.findActiveStylistsByBranchId(branch.getId());
         if (!stylists.isEmpty()) {
@@ -463,8 +735,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                     ? stepDef.getCommissionRate()
                     : BigDecimal.ZERO;
 
-            BigDecimal poolAmount = price.multiply(poolRate).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
-            BigDecimal commissionAmount = poolAmount.multiply(stepRate).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+            BigDecimal commissionAmount = calculateCommissionAmount(price, poolRate, stepRate);
 
             OrderStepAssignmentEntity stepAssignment = OrderStepAssignmentEntity.builder()
                     .stepName(stepDef.getStepName())
@@ -483,17 +754,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .filter(i -> !i.isDeleted())
                 .map(i -> {
                     List<PosStepAssignmentResponse> stepResponses = i.getStepAssignments().stream()
-                            .map(s -> PosStepAssignmentResponse.builder()
-                                    .id(s.getId())
-                                    .stepName(s.getStepName())
-                                    .staffId(s.getStaff() != null ? s.getStaff().getId() : null)
-                                    .staffName(s.getStaff() != null ? s.getStaff().getFullName() : null)
-                                    .commissionRate(s.getCommissionRate())
-                                    .commissionAmount(s.getCommissionAmount())
-                                    .status(s.getStatus())
-                                    .startedAt(s.getStartedAt())
-                                    .completedAt(s.getCompletedAt())
-                                    .build())
+                            .map(this::mapToStepResponse)
                             .toList();
 
                     return PosOrderItemResponse.builder()

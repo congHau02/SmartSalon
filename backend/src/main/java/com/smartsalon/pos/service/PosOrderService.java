@@ -1,8 +1,6 @@
 package com.smartsalon.pos.service;
 
-import com.smartsalon.pos.dto.DispatchBoardResponse;
-import com.smartsalon.pos.dto.PosOrderResponse;
-import com.smartsalon.pos.dto.WalkInOrderRequest;
+import com.smartsalon.pos.dto.*;
 
 import java.time.LocalDate;
 
@@ -15,4 +13,16 @@ public interface PosOrderService {
     DispatchBoardResponse getDispatchBoard(Long branchId, LocalDate date);
 
     PosOrderResponse getOrderById(Long orderId);
+
+    PosOrderResponse addServiceItem(Long orderId, AddServiceItemRequest request);
+
+    PosOrderResponse addProductItem(Long orderId, AddProductItemRequest request);
+
+    PosOrderResponse updateOrder(Long orderId, UpdateOrderRequest request);
+
+    PosOrderResponse removeOrderItem(Long orderId, Long itemId);
+
+    PosStepAssignmentResponse updateStepAssignment(Long orderId, Long stepId, UpdateStepAssignmentRequest request);
+
+    PosStepAssignmentResponse updateStepStatus(Long orderId, Long stepId, UpdateStepStatusRequest request);
 }

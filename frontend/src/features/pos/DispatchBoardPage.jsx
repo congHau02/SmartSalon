@@ -20,6 +20,7 @@ import { StylistAvailabilityStrip } from "./StylistAvailabilityStrip";
 import { KanbanBoard } from "./KanbanBoard";
 import { TimelineBoard } from "./TimelineBoard";
 import { WalkInModal } from "./WalkInModal";
+import { PosOrderDrawer } from "./PosOrderDrawer";
 import { formatCurrency } from "../../lib/utils";
 
 export function DispatchBoardPage() {
@@ -324,96 +325,16 @@ export function DispatchBoardPage() {
         isSubmitting={walkInMutation.isPending}
       />
 
-      {/* Quick Order Detail Modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-bold text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">
-                  {selectedOrder.orderCode}
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">
-                  {selectedOrder.status}
-                </span>
-              </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div>
-              <p className="text-sm font-bold text-white">{selectedOrder.customerName}</p>
-              {selectedOrder.customerPhone && (
-                <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  {selectedOrder.customerPhone}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Dịch vụ & Sản phẩm
-              </p>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {selectedOrder.items?.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-2 rounded-lg bg-slate-850 border border-slate-800 text-xs"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-200">
-                        {item.serviceName || item.productName}
-                      </p>
-                      {item.steps?.length > 0 && (
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {item.steps.map((s) => s.stepName).join(" → ")}
-                        </p>
-                      )}
-                    </div>
-                    <span className="font-mono font-bold text-slate-300">
-                      {formatCurrency(item.totalPrice)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-400">
-                <span>Tạm tính</span>
-                <span className="font-mono">{formatCurrency(selectedOrder.subtotal)}</span>
-              </div>
-              {selectedOrder.depositDeducted > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Trừ tiền cọc</span>
-                  <span className="font-mono">
-                    -{formatCurrency(selectedOrder.depositDeducted)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm font-bold text-white pt-1">
-                <span>Tổng thanh toán</span>
-                <span className="font-mono text-pink-400">
-                  {formatCurrency(selectedOrder.finalAmount)}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Interactive POS Order Drawer */}
+      <PosOrderDrawer
+        isOpen={!!selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        orderId={selectedOrder?.id}
+        branchId={selectedBranchId}
+        stylists={stylists}
+        services={services}
+        products={products}
+      />
     </div>
   );
 }

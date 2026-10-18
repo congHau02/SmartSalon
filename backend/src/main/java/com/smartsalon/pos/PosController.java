@@ -1,9 +1,7 @@
 package com.smartsalon.pos;
 
 import com.smartsalon.common.ApiResponse;
-import com.smartsalon.pos.dto.DispatchBoardResponse;
-import com.smartsalon.pos.dto.PosOrderResponse;
-import com.smartsalon.pos.dto.WalkInOrderRequest;
+import com.smartsalon.pos.dto.*;
 import com.smartsalon.pos.service.PosOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -57,5 +55,61 @@ public class PosController {
     public ResponseEntity<ApiResponse<PosOrderResponse>> getOrderById(@PathVariable Long orderId) {
         PosOrderResponse response = posOrderService.getOrderById(orderId);
         return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết đơn hàng thành công", response));
+    }
+
+    @PostMapping("/orders/{orderId}/items/service")
+    @Operation(summary = "Thêm dịch vụ vào đơn hàng POS và sinh các bước kỹ thuật mặc định")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> addServiceItem(
+            @PathVariable Long orderId,
+            @Valid @RequestBody AddServiceItemRequest request) {
+        PosOrderResponse response = posOrderService.addServiceItem(orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Thêm dịch vụ vào đơn hàng thành công", response));
+    }
+
+    @PostMapping("/orders/{orderId}/items/product")
+    @Operation(summary = "Thêm sản phẩm bán lẻ vào đơn hàng POS")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> addProductItem(
+            @PathVariable Long orderId,
+            @Valid @RequestBody AddProductItemRequest request) {
+        PosOrderResponse response = posOrderService.addProductItem(orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Thêm sản phẩm vào đơn hàng thành công", response));
+    }
+
+    @PatchMapping("/orders/{orderId}")
+    @Operation(summary = "Cập nhật giảm giá và ghi chú đơn hàng POS")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> updateOrder(
+            @PathVariable Long orderId,
+            @Valid @RequestBody UpdateOrderRequest request) {
+        PosOrderResponse response = posOrderService.updateOrder(orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật đơn hàng thành công", response));
+    }
+
+    @DeleteMapping("/orders/{orderId}/items/{itemId}")
+    @Operation(summary = "Xóa dịch vụ hoặc sản phẩm khỏi đơn hàng POS")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> removeOrderItem(
+            @PathVariable Long orderId,
+            @PathVariable Long itemId) {
+        PosOrderResponse response = posOrderService.removeOrderItem(orderId, itemId);
+        return ResponseEntity.ok(ApiResponse.success("Xóa mục hàng khỏi đơn thành công", response));
+    }
+
+    @PatchMapping("/orders/{orderId}/steps/{stepId}")
+    @Operation(summary = "Phân công lại nhân sự và điều chỉnh tỷ lệ hoa hồng bước kỹ thuật")
+    public ResponseEntity<ApiResponse<PosStepAssignmentResponse>> updateStepAssignment(
+            @PathVariable Long orderId,
+            @PathVariable Long stepId,
+            @Valid @RequestBody UpdateStepAssignmentRequest request) {
+        PosStepAssignmentResponse response = posOrderService.updateStepAssignment(orderId, stepId, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật phân công bước thành công", response));
+    }
+
+    @PatchMapping("/orders/{orderId}/steps/{stepId}/status")
+    @Operation(summary = "Chuyển trạng thái bước kỹ thuật (PENDING -> IN_PROGRESS -> COMPLETED)")
+    public ResponseEntity<ApiResponse<PosStepAssignmentResponse>> updateStepStatus(
+            @PathVariable Long orderId,
+            @PathVariable Long stepId,
+            @Valid @RequestBody UpdateStepStatusRequest request) {
+        PosStepAssignmentResponse response = posOrderService.updateStepStatus(orderId, stepId, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái bước thành công", response));
     }
 }

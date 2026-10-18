@@ -75,6 +75,7 @@ export function RealtimeProvider({ children }) {
       queryClient.invalidateQueries({ queryKey: ["booking"] });
       queryClient.invalidateQueries({ queryKey: ["pos"] });
       queryClient.invalidateQueries({ queryKey: ["dispatch"] });
+      queryClient.invalidateQueries({ queryKey: ["order"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     [queryClient, dismissToast]
