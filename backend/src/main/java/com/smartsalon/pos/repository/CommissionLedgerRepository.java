@@ -14,7 +14,7 @@ public interface CommissionLedgerRepository extends JpaRepository<CommissionLedg
 
     List<CommissionLedgerEntity> findByOrderId(Long orderId);
 
-    @Query("SELECT c FROM CommissionLedgerEntity c WHERE c.order.branch.id = :branchId AND c.createdAt >= :startDate AND c.createdAt < :endDate ORDER BY c.createdAt DESC")
+    @Query("SELECT c FROM CommissionLedgerEntity c WHERE (:branchId IS NULL OR c.order.branch.id = :branchId) AND c.createdAt >= :startDate AND c.createdAt < :endDate ORDER BY c.createdAt DESC")
     List<CommissionLedgerEntity> findByBranchAndDateRange(
             @Param("branchId") Long branchId,
             @Param("startDate") Instant startDate,

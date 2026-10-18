@@ -92,4 +92,26 @@ _Avoid_: Direct bill, quick ticket, unbooked appointment
 The percentage of a service item's price allocated as the total commission budget to be split across that service's Step Assignments according to their step weights.
 _Avoid_: Staff fee, bonus pool, service cut
 
+**Chemical COGS**:
+The material cost of consumable chemicals (measured in ml or grams) deducted for a service, valued using the snapshotted cost per volume unit at the time of stock movement.
+_Avoid_: Material fee, supply expense, product cost
 
+**Order Net Profit**:
+The net operational earnings of a completed Order after deducting Chemical COGS, retail product cost of goods, and staff commissions from net revenue.
+_Avoid_: Shift margin, ticket profit, gross take
+
+**Base Salary**:
+The fixed monthly base compensation configured for a staff member prior to adding earned commissions from the Commission Ledger.
+_Avoid_: Fixed wage, retainer, base pay
+
+**Requested Stylist Rate**:
+The percentage of a stylist's completed Bookings in which the customer explicitly requested that specific stylist rather than accepting automatic load-balanced assignment.
+_Avoid_: Pick rate, preference score, direct booking rate
+
+**Re-booking Rate**:
+The percentage of a stylist's identified customers who have completed two or more service visits with that same stylist.
+_Avoid_: Retention score, repeat ratio, loyalty rate
+
+**BOM Wastage**:
+The excess consumable chemical volume (from treatment overrides and negative Stock Adjustments) consumed beyond the aggregated standard BOM of completed services over a period.
+_Avoid_: Chemical shrinkage, over-pour, variance loss

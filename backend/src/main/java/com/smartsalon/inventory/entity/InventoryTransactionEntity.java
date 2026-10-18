@@ -53,6 +53,14 @@ public class InventoryTransactionEntity {
     @Column(name = "reference_order_id")
     private Long referenceOrderId;
 
+    @Column(name = "unit_cost_snapshot", nullable = false, precision = 15, scale = 4)
+    @Builder.Default
+    private BigDecimal unitCostSnapshot = BigDecimal.ZERO;
+
+    @Column(name = "total_cost_amount", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal totalCostAmount = BigDecimal.ZERO;
+
     @Column(name = "notes", length = 255)
     private String notes;
 

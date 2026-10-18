@@ -227,6 +227,7 @@ public class BookingServiceImpl implements BookingService {
                 .totalPrice(totalPrice)
                 .depositAmount(depositAmount)
                 .depositStatus(DepositStatus.UNPAID)
+                .isStylistRequested(request.stylistId() != null)
                 .status(BookingStatus.PENDING_PAYMENT)
                 .slotLockExpiresAt(now.plusMinutes(HOLD_TTL_MINUTES))
                 .customerName(request.customerName().trim())

@@ -68,10 +68,14 @@ export function AdminSidebar({ isOpen, onClose }) {
               <div className="space-y-1 pt-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive =
-                    item.to === "/admin"
-                      ? location.pathname === "/" || location.pathname === "/admin"
-                      : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+                  const searchParams = new URLSearchParams(location.search);
+                  const currentTab = searchParams.get("tab") || "pnl";
+                  const isAdminPath = location.pathname === "/" || location.pathname === "/admin";
+                  const isItemActive = item.tab
+                    ? isAdminPath && currentTab === item.tab
+                    : item.to === "/admin"
+                    ? isAdminPath
+                    : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
 
                   return (
                     <NavLink
@@ -79,8 +83,8 @@ export function AdminSidebar({ isOpen, onClose }) {
                       to={item.to}
                       end={item.end}
                       onClick={onClose}
-                      className={({ isActive: navActive }) => {
-                        const active = isActive || navActive;
+                      className={() => {
+                        const active = isItemActive;
                         return `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold min-h-[44px] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/30 ${
                           active
                             ? "bg-pink-50 text-pink-700 font-bold border border-pink-200/80 shadow-xs"
@@ -88,8 +92,8 @@ export function AdminSidebar({ isOpen, onClose }) {
                         }`;
                       }}
                     >
-                      {({ isActive: navActive }) => {
-                        const active = isActive || navActive;
+                      {() => {
+                        const active = isItemActive;
                         return (
                           <>
                             <Icon

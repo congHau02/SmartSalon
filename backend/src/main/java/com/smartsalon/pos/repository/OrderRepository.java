@@ -28,8 +28,35 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate);
 
+    @Query("SELECT o FROM OrderEntity o WHERE o.branch.id = :branchId AND o.status = :status AND o.createdAt >= :startDate AND o.createdAt < :endDate AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    List<OrderEntity> findByBranchAndStatusAndDateRange(
+            @Param("branchId") Long branchId,
+            @Param("status") OrderStatus status,
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.status = :status AND o.createdAt >= :startDate AND o.createdAt < :endDate AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    List<OrderEntity> findByStatusAndDateRange(
+            @Param("status") OrderStatus status,
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate);
+
     @Query("SELECT o FROM OrderEntity o WHERE o.branch.id = :branchId AND o.status IN (:statuses) AND o.isDeleted = false ORDER BY o.createdAt DESC")
     List<OrderEntity> findByBranchIdAndStatusIn(
             @Param("branchId") Long branchId,
             @Param("statuses") List<OrderStatus> statuses);
+
+    @Query("SELECT COUNT(DISTINCT o.id) FROM OrderEntity o " +
+           "LEFT JOIN o.booking b " +
+           "LEFT JOIN o.items i " +
+           "LEFT JOIN i.stepAssignments s " +
+           "WHERE o.customer.id = :customerId " +
+           "AND o.status = com.smartsalon.pos.entity.OrderStatus.PAID " +
+           "AND o.isDeleted = false " +
+           "AND o.createdAt < :endInstant " +
+           "AND (b.staff.id = :staffId OR (s.staff.id = :staffId AND s.status = com.smartsalon.pos.entity.StepAssignmentStatus.COMPLETED))")
+    long countPaidOrdersByCustomerAndStaff(
+            @Param("customerId") Long customerId,
+            @Param("staffId") Long staffId,
+            @Param("endInstant") Instant endInstant);
 }

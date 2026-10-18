@@ -120,5 +120,56 @@ class FlywayMigrationTest {
                 "JOIN roles r ON ur.role_id = r.id " +
                 "WHERE u.username = 'walkin.guest' AND r.name = 'CUSTOMER'", Integer.class);
         assertEquals(1, walkinRoleCount, "walkin.guest user must have CUSTOMER role");
+
+        // 9. Verify V5 Schema & Historical Seeds
+        assertTrue(result.migrationsExecuted >= 5, "Expected at least 5 migrations (including V5)");
+        jdbcTemplate.execute("SELECT base_salary FROM users WHERE 1=0");
+        jdbcTemplate.execute("SELECT is_stylist_requested FROM bookings WHERE 1=0");
+        jdbcTemplate.execute("SELECT unit_cost_snapshot, total_cost_amount FROM inventory_transactions WHERE 1=0");
+
+        Integer staffWithBaseSalaryCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE base_salary > 0", Integer.class);
+        assertTrue(staffWithBaseSalaryCount != null && staffWithBaseSalaryCount >= 4,
+                "Expected at least 4 active staff seeded with base_salary > 0");
+
+        Integer completedBookingsCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bookings WHERE status = 'COMPLETED'", Integer.class);
+        assertTrue(completedBookingsCount != null && completedBookingsCount >= 4,
+                "Expected at least 4 historical COMPLETED bookings");
+
+        Integer requestedStylistCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bookings WHERE is_stylist_requested = 1", Integer.class);
+        assertTrue(requestedStylistCount != null && requestedStylistCount >= 2,
+                "Expected at least 2 bookings with is_stylist_requested = 1");
+
+        Integer unrequestedStylistCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bookings WHERE is_stylist_requested = 0", Integer.class);
+        assertTrue(unrequestedStylistCount != null && unrequestedStylistCount >= 1,
+                "Expected at least 1 booking with is_stylist_requested = 0");
+
+        Integer paidOrdersCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM orders WHERE status = 'PAID'", Integer.class);
+        assertTrue(paidOrdersCount != null && paidOrdersCount >= 4,
+                "Expected at least 4 historical PAID orders");
+
+        Integer earnedCommissionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM commission_ledgers WHERE status = 'EARNED'", Integer.class);
+        assertTrue(earnedCommissionCount != null && earnedCommissionCount >= 4,
+                "Expected at least 4 EARNED commission ledger entries");
+
+        Integer txCostSnapshotCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inventory_transactions WHERE unit_cost_snapshot > 0 AND total_cost_amount > 0", Integer.class);
+        assertTrue(txCostSnapshotCount != null && txCostSnapshotCount >= 4,
+                "Expected at least 4 inventory transactions with cost snapshots");
+
+        Integer lowStockCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM branch_inventories WHERE stock_units <= min_stock_alert_units", Integer.class);
+        assertTrue(lowStockCount != null && lowStockCount >= 1,
+                "Expected at least 1 branch inventory item in LOW_STOCK");
+
+        Integer nearThresholdCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM branch_inventories WHERE stock_units = min_stock_alert_units + 1", Integer.class);
+        assertTrue(nearThresholdCount != null && nearThresholdCount >= 1,
+                "Expected at least 1 branch inventory item in NEAR_THRESHOLD");
     }
 }

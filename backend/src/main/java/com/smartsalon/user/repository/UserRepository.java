@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -24,9 +25,15 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     boolean existsByEmail(String email);
 
-    @Query("SELECT u FROM UserEntity u JOIN u.roles r WHERE u.branch.id = :branchId AND r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
-    java.util.List<UserEntity> findActiveStylistsByBranchId(@Param("branchId") Long branchId);
+    @Query("SELECT DISTINCT u FROM UserEntity u JOIN u.roles r WHERE u.branch.id = :branchId AND r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
+    List<UserEntity> findActiveStylistsByBranchId(@Param("branchId") Long branchId);
 
-    @Query("SELECT u FROM UserEntity u JOIN u.roles r WHERE r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
-    java.util.List<UserEntity> findAllActiveStylists();
+    @Query("SELECT DISTINCT u FROM UserEntity u JOIN u.roles r WHERE u.branch.id = :branchId AND r.name != 'CUSTOMER' AND u.isActive = true AND u.isDeleted = false")
+    List<UserEntity> findActiveStaffByBranchId(@Param("branchId") Long branchId);
+
+    @Query("SELECT DISTINCT u FROM UserEntity u JOIN u.roles r WHERE r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
+    List<UserEntity> findAllActiveStylists();
+
+    @Query("SELECT DISTINCT u FROM UserEntity u JOIN u.roles r WHERE r.name != 'CUSTOMER' AND u.isActive = true AND u.isDeleted = false")
+    List<UserEntity> findAllActiveStaff();
 }

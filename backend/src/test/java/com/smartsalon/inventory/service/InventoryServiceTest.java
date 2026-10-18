@@ -143,6 +143,8 @@ class InventoryServiceTest {
         // Tổng tồn: 3 * 525 + 10 = 1585ml
         assertEquals(new BigDecimal("1585.00"), tx.getBalanceAfterVolume());
         assertEquals(5001L, tx.getReferenceOrderId());
+        assertEquals(new BigDecimal("2285.7143"), tx.getUnitCostSnapshot());
+        assertEquals(new BigDecimal("34285.71"), tx.getTotalCostAmount());
     }
 
     @Test

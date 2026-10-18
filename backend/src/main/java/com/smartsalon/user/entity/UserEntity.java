@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -46,6 +47,10 @@ public class UserEntity extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean isActive = true;
+
+    @Column(name = "base_salary", precision = 15, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal baseSalary = BigDecimal.ZERO;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

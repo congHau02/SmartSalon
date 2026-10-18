@@ -25,6 +25,8 @@ public class InventoryTransactionResponse {
     private String unit;
     private BigDecimal balanceAfterVolume;
     private Long referenceOrderId;
+    private BigDecimal unitCostSnapshot;
+    private BigDecimal totalCostAmount;
     private String notes;
     private Instant createdAt;
     private String createdBy;

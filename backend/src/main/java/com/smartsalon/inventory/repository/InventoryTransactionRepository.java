@@ -12,4 +12,8 @@ public interface InventoryTransactionRepository extends JpaRepository<InventoryT
     List<InventoryTransactionEntity> findAllByBranchIdOrderByCreatedAtDesc(Long branchId);
 
     List<InventoryTransactionEntity> findAllByBranchIdAndProductIdOrderByCreatedAtDesc(Long branchId, Long productId);
+
+    List<InventoryTransactionEntity> findAllByReferenceOrderId(Long referenceOrderId);
+
+    List<InventoryTransactionEntity> findAllByReferenceOrderIdIn(List<Long> referenceOrderIds);
 }

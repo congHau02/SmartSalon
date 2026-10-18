@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Slf4j
@@ -404,16 +405,54 @@ public class InventoryService {
             Long referenceOrderId,
             String notes
     ) {
+        BigDecimal costPrice = product.getCostPrice() != null ? product.getCostPrice() : BigDecimal.ZERO;
+        BigDecimal volPerUnit = product.getVolumeOrWeightPerUnit() != null ? product.getVolumeOrWeightPerUnit() : BigDecimal.ZERO;
+        BigDecimal unitCostSnapshot = BigDecimal.ZERO;
+        BigDecimal totalCostAmount = BigDecimal.ZERO;
+
+        BigDecimal safeVolAmount = volumeAmount != null ? volumeAmount : BigDecimal.ZERO;
+
+        if (type == InventoryTransactionType.SERVICE_CONSUMPTION || type == InventoryTransactionType.AUTO_UNSEAL) {
+            if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
+                unitCostSnapshot = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
+            }
+            totalCostAmount = safeVolAmount.abs().multiply(unitCostSnapshot).setScale(2, RoundingMode.HALF_UP);
+        } else if (type == InventoryTransactionType.RETAIL_SALE || type == InventoryTransactionType.STOCK_IN) {
+            unitCostSnapshot = costPrice.setScale(4, RoundingMode.HALF_UP);
+            totalCostAmount = BigDecimal.valueOf(Math.abs(quantityUnits)).multiply(costPrice).setScale(2, RoundingMode.HALF_UP);
+        } else if (type == InventoryTransactionType.STOCK_ADJUSTMENT) {
+            if (quantityUnits != 0 && safeVolAmount.compareTo(BigDecimal.ZERO) == 0) {
+                unitCostSnapshot = costPrice.setScale(4, RoundingMode.HALF_UP);
+                totalCostAmount = BigDecimal.valueOf(Math.abs(quantityUnits)).multiply(costPrice).setScale(2, RoundingMode.HALF_UP);
+            } else if (safeVolAmount.compareTo(BigDecimal.ZERO) != 0 && quantityUnits == 0) {
+                if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
+                    unitCostSnapshot = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
+                }
+                totalCostAmount = safeVolAmount.abs().multiply(unitCostSnapshot).setScale(2, RoundingMode.HALF_UP);
+            } else {
+                if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
+                    unitCostSnapshot = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
+                } else {
+                    unitCostSnapshot = costPrice.setScale(4, RoundingMode.HALF_UP);
+                }
+                BigDecimal unitCost = BigDecimal.valueOf(Math.abs(quantityUnits)).multiply(costPrice);
+                BigDecimal volCost = safeVolAmount.abs().multiply(unitCostSnapshot);
+                totalCostAmount = unitCost.add(volCost).setScale(2, RoundingMode.HALF_UP);
+            }
+        }
+
         InventoryTransactionEntity tx = InventoryTransactionEntity.builder()
                 .product(product)
                 .branch(branch)
                 .transactionType(type)
                 .quantityUnits(quantityUnits)
-                .volumeAmount(volumeAmount)
+                .volumeAmount(safeVolAmount)
                 .unit(unit)
                 .balanceAfterVolume(balanceAfterVolume)
                 .referenceOrderId(referenceOrderId)
                 .notes(notes)
+                .unitCostSnapshot(unitCostSnapshot)
+                .totalCostAmount(totalCostAmount)
                 .build();
         inventoryTransactionRepository.save(tx);
     }
@@ -477,6 +516,8 @@ public class InventoryService {
                 .unit(tx.getUnit())
                 .balanceAfterVolume(tx.getBalanceAfterVolume())
                 .referenceOrderId(tx.getReferenceOrderId())
+                .unitCostSnapshot(tx.getUnitCostSnapshot())
+                .totalCostAmount(tx.getTotalCostAmount())
                 .notes(tx.getNotes())
                 .createdAt(tx.getCreatedAt())
                 .createdBy(tx.getCreatedBy())

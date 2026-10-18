@@ -1,0 +1,13 @@
+# 02: Staff Performance, Base Salary Management, Requested Stylist / Re-booking KPIs & Payroll View (Tab 2)
+
+**What to build:** Branch managers and salon owners can switch to **Tab 2 (Hiệu suất Nhân sự & Hoa hồng)** on the Executive Dashboard (or via the sidebar shortcut) to review consolidated staff performance and monthly payroll for the selected branch and date range. Each staff member's row displays their role, configurable monthly `Base Salary`, completed orders and `Service Steps`, total earned commissions from the `Commission Ledger`, total monthly payout (`Base Salary + Total Commission`), and two customer loyalty KPIs with visual progress bars: **`Requested Stylist Rate`** (percentage of the stylist's completed `Bookings` where the customer explicitly requested that stylist) and **`Re-booking Rate`** (percentage of the stylist's identified customers who completed two or more `PAID` orders with that stylist). Administrators and managers can update any employee's `Base Salary` directly from the table, and click on any staff row to open a drill-down modal listing every individual `Commission Ledger` entry and calculation breakdown for that period.
+
+**Blocked by:** 01: Realized Profit & Loss (P&L) Engine, Cost Snapshots & Executive Command Center Dashboard (Tab 1)
+
+**Status:** ready-for-agent
+
+- [x] The Staff Performance & Payroll endpoint aggregates each active branch staff member's `Base Salary`, completed order count, completed step count, total commission from `Commission Ledger`, total compensation (`Base Salary + Total Commission`), and itemized `Commission Ledger` entries for the selected date range.
+- [x] Each stylist's `Requested Stylist Rate` (completed bookings with `is_stylist_requested = true` divided by total completed bookings) and `Re-booking Rate` (distinct identified customers with $\ge 2$ `PAID` orders with the stylist divided by total identified customers of the stylist, excluding `walkin.guest`) are accurately calculated and returned.
+- [x] Authorized `ADMIN` and `MANAGER` users can update a staff member's monthly `Base Salary`, immediately refreshing both the Staff Payroll totals and the Tier 2 Post-Payroll Net Profit on the P&L summary.
+- [x] **Tab 2 (Hiệu suất Nhân sự & Hoa hồng)** on the Executive Dashboard displays payroll summary KPI cards, the staff performance table with `Requested Stylist Rate` and `Re-booking Rate` progress indicators, inline/modal `Base Salary` editing, and an itemized `Commission Ledger` drill-down modal per staff member.
+- [x] Automated backend integration tests verify payroll aggregation, `Base Salary` update authorization and persistence, `Requested Stylist Rate`, and `Re-booking Rate` math, and the frontend compiles cleanly.

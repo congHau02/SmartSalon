@@ -18,6 +18,7 @@ public record BookingResponse(
         String customerPhone,
         Long stylistId,
         String stylistName,
+        boolean isStylistRequested,
         LocalDateTime bookingTime,
         LocalDateTime endTime,
         int totalDurationMinutes,

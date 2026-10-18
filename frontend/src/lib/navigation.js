@@ -5,17 +5,32 @@ import {
   Boxes,
   ClipboardList,
   CalendarCheck,
+  TrendingUp,
+  Users,
+  AlertTriangle,
 } from "lucide-react";
 
 export const ADMIN_NAV_GROUPS = [
   {
-    groupTitle: "Tổng quan",
+    groupTitle: "Tài chính & Điều hành",
     items: [
       {
-        label: "Bàn làm việc",
-        to: "/admin",
-        icon: LayoutDashboard,
-        end: true,
+        label: "Bảng điều khiển & P&L",
+        to: "/admin?tab=pnl",
+        tab: "pnl",
+        icon: TrendingUp,
+      },
+      {
+        label: "Hiệu suất & Lương Nhân sự",
+        to: "/admin?tab=staff",
+        tab: "staff",
+        icon: Users,
+      },
+      {
+        label: "Cảnh báo Kho & Hao hụt BOM",
+        to: "/admin?tab=inventory",
+        tab: "inventory",
+        icon: AlertTriangle,
       },
     ],
   },

@@ -66,6 +66,10 @@ public class BookingEntity extends BaseEntity {
     @Builder.Default
     private DepositStatus depositStatus = DepositStatus.UNPAID;
 
+    @Column(name = "is_stylist_requested", nullable = false)
+    @Builder.Default
+    private boolean isStylistRequested = false;
+
     @Column(name = "customer_name", length = 150)
     private String customerName;
 

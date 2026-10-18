@@ -154,6 +154,7 @@ class BookingServiceTest {
         assertThat(response.bookingCode()).startsWith("BK-");
         assertThat(response.branchId()).isEqualTo(1L);
         assertThat(response.stylistId()).isEqualTo(20L);
+        assertThat(response.isStylistRequested()).isTrue();
         assertThat(response.totalDurationMinutes()).isEqualTo(60);
         assertThat(response.totalPrice()).isEqualByComparingTo("200000.00");
         assertThat(response.depositAmount()).isEqualByComparingTo("40000.00"); // 20% of 200,000
@@ -278,6 +279,7 @@ class BookingServiceTest {
 
         assertThat(response).isNotNull();
         assertThat(response.stylistId()).isEqualTo(21L); // Assigned to stylist B!
+        assertThat(response.isStylistRequested()).isFalse();
         verify(redisLockService, times(1)).tryLockSlots(eq(21L), any(), any(), anyString());
         verify(redisLockService, never()).tryLockSlots(eq(20L), any(), any(), anyString());
     }

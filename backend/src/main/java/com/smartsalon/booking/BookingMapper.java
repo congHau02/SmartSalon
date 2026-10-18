@@ -35,6 +35,7 @@ public class BookingMapper {
                 entity.getCustomerPhone() != null ? entity.getCustomerPhone() : (entity.getCustomer() != null ? entity.getCustomer().getPhone() : ""),
                 entity.getStaff() != null ? entity.getStaff().getId() : null,
                 entity.getStaff() != null ? entity.getStaff().getFullName() : null,
+                entity.isStylistRequested(),
                 entity.getBookingTime(),
                 entity.getEndTime(),
                 entity.getTotalDurationMinutes(),
