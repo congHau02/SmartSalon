@@ -48,14 +48,21 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.mock.web.MockMultipartFile;
+import com.smartsalon.catalog.entity.ServiceBomEntity;
+import com.smartsalon.catalog.repository.ServiceBomRepository;
 import com.smartsalon.pos.dto.*;
 import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
 import com.smartsalon.pos.entity.StepAssignmentStatus;
+import com.smartsalon.pos.entity.TechnicalLogEntity;
 import com.smartsalon.pos.repository.OrderStepAssignmentRepository;
+import com.smartsalon.pos.repository.TechnicalLogRepository;
 
 @SpringBootTest
 @Import(TestAuthConfig.class)
@@ -91,6 +98,12 @@ class PosControllerIntegrationTest {
 
     @Autowired
     private OrderStepAssignmentRepository stepAssignmentRepository;
+
+    @Autowired
+    private ServiceBomRepository serviceBomRepository;
+
+    @Autowired
+    private TechnicalLogRepository technicalLogRepository;
 
     private BranchEntity branch;
     private UserEntity customer;
@@ -575,5 +588,183 @@ class PosControllerIntegrationTest {
         // Verify Order is now READY_FOR_CHECKOUT
         OrderEntity finalOrder = orderRepository.findById(createdOrder.getId()).orElseThrow();
         assertEquals(OrderStatus.READY_FOR_CHECKOUT, finalOrder.getStatus());
+    }
+
+    @Test
+    @DisplayName("Ticket 04: Should synthesize baseline BOM from service BOMs when no actual_bom_json exists yet")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldSynthesizeBaselineBomWhenNoActualBomJsonExists() throws Exception {
+        // Setup chemical product and service BOM
+        ProductEntity dyeProduct = productRepository.save(ProductEntity.builder()
+                .name("Thuốc nhuộm tóc Loreal Test")
+                .sku("DYE-TEST-" + System.currentTimeMillis())
+                .unit("ml")
+                .volumeOrWeightPerUnit(new BigDecimal("100.00"))
+                .volumeUnit("ml")
+                .retailPrice(new BigDecimal("150000.00"))
+                .isActive(true)
+                .build());
+
+        serviceBomRepository.save(ServiceBomEntity.builder()
+                .service(service)
+                .product(dyeProduct)
+                .standardAmount(new BigDecimal("60.00"))
+                .unit("ml")
+                .build());
+
+        // Create a Walk-in order with this service
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .isQuickGuest(true)
+                .serviceIds(List.of(service.getId()))
+                .build();
+        String walkInJson = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInJson).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        // Fetch Visual Log: should synthesize baseline BOM
+        mockMvc.perform(get("/api/v1/pos/orders/" + createdOrder.getId() + "/visual-log"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.orderId", is(createdOrder.getId().intValue())))
+                .andExpect(jsonPath("$.result.isSaved", is(false)))
+                .andExpect(jsonPath("$.result.bomItems", hasSize(1)))
+                .andExpect(jsonPath("$.result.bomItems[0].productId", is(dyeProduct.getId().intValue())))
+                .andExpect(jsonPath("$.result.bomItems[0].productName", is("Thuốc nhuộm tóc Loreal Test")))
+                .andExpect(jsonPath("$.result.bomItems[0].standardAmount", is(60.00)))
+                .andExpect(jsonPath("$.result.bomItems[0].actualAmount", is(60.00)))
+                .andExpect(jsonPath("$.result.bomItems[0].unit", is("ml")));
+    }
+
+    @Test
+    @DisplayName("Ticket 04: Should save Visual Log with actual BOM overrides and reload persisted state")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldSaveVisualLogWithActualBomOverridesAndPersist() throws Exception {
+        ProductEntity dyeProduct = productRepository.save(ProductEntity.builder()
+                .name("Thuốc nhuộm tóc Wella Test")
+                .sku("DYE-WELLA-" + System.currentTimeMillis())
+                .unit("ml")
+                .volumeOrWeightPerUnit(new BigDecimal("100.00"))
+                .volumeUnit("ml")
+                .retailPrice(new BigDecimal("180000.00"))
+                .isActive(true)
+                .build());
+
+        ProductEntity oxyProduct = productRepository.save(ProductEntity.builder()
+                .name("Oxy trợ nhuộm 9% Test")
+                .sku("OXY-9-" + System.currentTimeMillis())
+                .unit("ml")
+                .volumeOrWeightPerUnit(new BigDecimal("1000.00"))
+                .volumeUnit("ml")
+                .retailPrice(new BigDecimal("120000.00"))
+                .isActive(true)
+                .build());
+
+        serviceBomRepository.save(ServiceBomEntity.builder()
+                .service(service)
+                .product(dyeProduct)
+                .standardAmount(new BigDecimal("60.00"))
+                .unit("ml")
+                .build());
+
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .isQuickGuest(true)
+                .serviceIds(List.of(service.getId()))
+                .build();
+        String walkInJson = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInJson).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        // Prepare SaveTechnicalLogRequest with actual BOM override (dye 85ml instead of 60ml, oxy 30ml added)
+        SaveTechnicalLogRequest saveReq = SaveTechnicalLogRequest.builder()
+                .staffId(stylist.getId())
+                .formulaNotes("Tỉ lệ 1:1.5 Oxy 9% + Thuốc nhuộm Wella, ủ nhiệt 35p")
+                .hairConditionNotes("Tóc sợi mảnh, chân tóc level 3, ngọn level 5")
+                .beforeImageUrl("/uploads/visual-logs/before-test.jpg")
+                .afterImageUrl("/uploads/visual-logs/after-test.jpg")
+                .bomItems(List.of(
+                        ActualBomItemDto.builder()
+                                .productId(dyeProduct.getId())
+                                .productName(dyeProduct.getName())
+                                .standardAmount(new BigDecimal("60.00"))
+                                .actualAmount(new BigDecimal("85.00"))
+                                .unit("ml")
+                                .build(),
+                        ActualBomItemDto.builder()
+                                .productId(oxyProduct.getId())
+                                .productName(oxyProduct.getName())
+                                .standardAmount(BigDecimal.ZERO)
+                                .actualAmount(new BigDecimal("30.00"))
+                                .unit("ml")
+                                .build()
+                ))
+                .build();
+
+        // Save Visual Log
+        mockMvc.perform(put("/api/v1/pos/orders/" + createdOrder.getId() + "/visual-log")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(saveReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.orderId", is(createdOrder.getId().intValue())))
+                .andExpect(jsonPath("$.result.isSaved", is(true)))
+                .andExpect(jsonPath("$.result.formulaNotes", containsString("Tỉ lệ 1:1.5")))
+                .andExpect(jsonPath("$.result.bomItems", hasSize(2)))
+                .andExpect(jsonPath("$.result.bomItems[0].actualAmount", is(85.00)))
+                .andExpect(jsonPath("$.result.bomItems[1].actualAmount", is(30.00)));
+
+        // Verify entity in DB
+        TechnicalLogEntity savedLog = technicalLogRepository.findByOrderIdAndIsDeletedFalse(createdOrder.getId()).orElseThrow();
+        assertEquals("Tỉ lệ 1:1.5 Oxy 9% + Thuốc nhuộm Wella, ủ nhiệt 35p", savedLog.getFormulaNotes());
+        assertEquals("/uploads/visual-logs/before-test.jpg", savedLog.getBeforeImageUrl());
+        assertNotNull(savedLog.getActualBomJson());
+        assertTrue(savedLog.getActualBomJson().contains("85.00"));
+
+        // Fetch Visual Log again -> verify persisted response
+        mockMvc.perform(get("/api/v1/pos/orders/" + createdOrder.getId() + "/visual-log"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.isSaved", is(true)))
+                .andExpect(jsonPath("$.result.bomItems", hasSize(2)))
+                .andExpect(jsonPath("$.result.bomItems[0].actualAmount", is(85.00)));
+    }
+
+    @Test
+    @DisplayName("Ticket 04: Should upload image via multipart in local fallback mode successfully")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldUploadMediaInLocalFallbackModeSuccessfully() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test-hair-before.jpg",
+                "image/jpeg",
+                "simulated-image-binary-data".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/v1/pos/media/upload").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.url", notNullValue()))
+                .andExpect(jsonPath("$.result.originalName", is("test-hair-before.jpg")))
+                .andExpect(jsonPath("$.result.contentType", is("image/jpeg")));
+    }
+
+    @Test
+    @DisplayName("Ticket 04: Should reject non-image file uploads with 400 Bad Request")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldRejectNonImageFileUpload() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "malicious.exe",
+                "application/octet-stream",
+                "malicious-payload".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/v1/pos/media/upload").file(file))
+                .andExpect(status().isBadRequest());
     }
 }

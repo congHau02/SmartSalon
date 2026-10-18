@@ -34,7 +34,9 @@ public enum ErrorCode {
     ORDER_ALREADY_EXISTS_FOR_BOOKING(4002, "Lịch hẹn này đã được mở đơn hàng", HttpStatus.CONFLICT),
     INVALID_ORDER_STATUS(4003, "Trạng thái đơn hàng không hợp lệ cho thao tác này", HttpStatus.BAD_REQUEST),
     STEP_ASSIGNMENT_NOT_FOUND(4004, "Không tìm thấy bước kỹ thuật được phân công", HttpStatus.NOT_FOUND),
-    ORDER_ITEM_NOT_FOUND(4005, "Không tìm thấy mục hàng trong đơn", HttpStatus.NOT_FOUND);
+    ORDER_ITEM_NOT_FOUND(4005, "Không tìm thấy mục hàng trong đơn", HttpStatus.NOT_FOUND),
+    INVALID_MEDIA_TYPE(4006, "Định dạng tệp không hợp lệ, chỉ chấp nhận ảnh JPEG, PNG, WEBP, GIF", HttpStatus.BAD_REQUEST),
+    EMPTY_FILE(4007, "Tệp tải lên không được để trống", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

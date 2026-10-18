@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { posApi } from "../../api/posApi";
 import { formatCurrency } from "../../lib/utils";
+import { VisualLogTab } from "./VisualLogTab";
 
 export function PosOrderDrawer({
   isOpen,
@@ -763,17 +764,18 @@ export function PosOrderDrawer({
             </div>
           ) : activeTab === "visuallog" ? (
             /* ==========================================
-               TAB 2: VISUAL LOG (Ticket 4 Preview)
+               TAB 2: VISUAL LOG & BOM OVERRIDES (Ticket 04)
                ========================================== */
-            <div className="p-6 text-center border border-dashed border-slate-800 rounded-xl space-y-3">
-              <Camera className="w-10 h-10 text-pink-400 mx-auto" />
-              <h4 className="text-sm font-bold text-white">
-                Tab 2: Visual Log & Ghi nhận thực tế định mức hóa chất (BOM)
-              </h4>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Chức năng điều chỉnh lượng thuốc thực tế (ml/gram), ghi chú công thức nhuộm, tình trạng tóc và tải ảnh Trước/Sau sẽ được tích hợp ở Ticket tiếp theo (Ticket 04).
-              </p>
-            </div>
+            <VisualLogTab
+              orderId={orderId}
+              order={order}
+              stylists={stylists}
+              products={products}
+              onNotice={(notice) => {
+                setActionNotice(notice);
+                setTimeout(() => setActionNotice(null), 4000);
+              }}
+            />
           ) : (
             /* ==========================================
                TAB 3: THANH TOÁN (Ticket 5 Preview)

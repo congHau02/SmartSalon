@@ -25,4 +25,8 @@ public interface PosOrderService {
     PosStepAssignmentResponse updateStepAssignment(Long orderId, Long stepId, UpdateStepAssignmentRequest request);
 
     PosStepAssignmentResponse updateStepStatus(Long orderId, Long stepId, UpdateStepStatusRequest request);
+
+    TechnicalLogResponse getVisualLog(Long orderId);
+
+    TechnicalLogResponse saveVisualLog(Long orderId, SaveTechnicalLogRequest request);
 }

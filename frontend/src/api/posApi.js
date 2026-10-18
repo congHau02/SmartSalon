@@ -67,4 +67,23 @@ export const posApi = {
     const response = await axiosClient.patch(`/pos/orders/${orderId}/steps/${stepId}/status`, data);
     return response?.result || response?.data || response;
   },
+
+  getVisualLog: async (orderId) => {
+    const response = await axiosClient.get(`/pos/orders/${orderId}/visual-log`);
+    return response?.result || response?.data || response;
+  },
+
+  saveVisualLog: async (orderId, data) => {
+    const response = await axiosClient.put(`/pos/orders/${orderId}/visual-log`, data);
+    return response?.result || response?.data || response;
+  },
+
+  uploadMedia: async (formData) => {
+    const response = await axiosClient.post("/pos/media/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response?.result || response?.data || response;
+  },
 };

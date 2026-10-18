@@ -7,8 +7,12 @@ import com.smartsalon.booking.entity.DepositStatus;
 import com.smartsalon.booking.repository.BookingRepository;
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartsalon.catalog.entity.ServiceBomEntity;
 import com.smartsalon.catalog.entity.ServiceDefaultStepEntity;
 import com.smartsalon.catalog.entity.ServiceEntity;
+import com.smartsalon.catalog.repository.ServiceBomRepository;
 import com.smartsalon.catalog.repository.ServiceRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
@@ -18,6 +22,7 @@ import com.smartsalon.pos.dto.*;
 import com.smartsalon.pos.entity.*;
 import com.smartsalon.pos.repository.OrderRepository;
 import com.smartsalon.pos.repository.OrderStepAssignmentRepository;
+import com.smartsalon.pos.repository.TechnicalLogRepository;
 import com.smartsalon.pos.service.PosOrderService;
 import com.smartsalon.realtime.service.RealtimeNotificationService;
 import com.smartsalon.user.entity.RoleEntity;
@@ -28,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -48,10 +54,13 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final BookingRepository bookingRepository;
     private final BranchRepository branchRepository;
     private final ServiceRepository serviceRepository;
+    private final ServiceBomRepository serviceBomRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final TechnicalLogRepository technicalLogRepository;
     private final RealtimeNotificationService realtimeNotificationService;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Override
     @Transactional
@@ -749,6 +758,202 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public TechnicalLogResponse getVisualLog(Long orderId) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        Optional<TechnicalLogEntity> existingLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(orderId);
+
+        if (existingLogOpt.isPresent()) {
+            TechnicalLogEntity techLogEntity = existingLogOpt.get();
+            if (StringUtils.hasText(techLogEntity.getActualBomJson())) {
+                List<ActualBomItemDto> bomItems;
+                try {
+                    bomItems = objectMapper.readValue(techLogEntity.getActualBomJson(), new TypeReference<List<ActualBomItemDto>>() {});
+                } catch (Exception e) {
+                    log.warn("Failed to deserialize actual_bom_json for order {}: {}", orderId, e.getMessage());
+                    bomItems = new ArrayList<>();
+                }
+
+                return TechnicalLogResponse.builder()
+                        .id(techLogEntity.getId())
+                        .orderId(order.getId())
+                        .orderCode(order.getOrderCode())
+                        .customerId(techLogEntity.getCustomer() != null ? techLogEntity.getCustomer().getId() : (order.getCustomer() != null ? order.getCustomer().getId() : null))
+                        .customerName(order.getCustomerName() != null ? order.getCustomerName() : (techLogEntity.getCustomer() != null ? techLogEntity.getCustomer().getFullName() : null))
+                        .staffId(techLogEntity.getStaff() != null ? techLogEntity.getStaff().getId() : null)
+                        .staffName(techLogEntity.getStaff() != null ? techLogEntity.getStaff().getFullName() : null)
+                        .formulaNotes(techLogEntity.getFormulaNotes())
+                        .hairConditionNotes(techLogEntity.getHairConditionNotes())
+                        .beforeImageUrl(techLogEntity.getBeforeImageUrl())
+                        .afterImageUrl(techLogEntity.getAfterImageUrl())
+                        .bomItems(bomItems)
+                        .isSaved(true)
+                        .createdAt(techLogEntity.getCreatedAt())
+                        .updatedAt(techLogEntity.getUpdatedAt())
+                        .build();
+            }
+        }
+
+        // Synthesize baseline consumable chemical rows from the standard BOM of all active services
+        Map<Long, ActualBomItemDto> bomMap = new LinkedHashMap<>();
+
+        if (order.getItems() != null) {
+            for (OrderItemEntity item : order.getItems()) {
+                if (item.isDeleted() || item.getItemType() != OrderItemType.SERVICE || item.getService() == null) {
+                    continue;
+                }
+                Long serviceId = item.getService().getId();
+                int qty = item.getQuantity();
+                List<ServiceBomEntity> serviceBoms = serviceBomRepository.findAllByServiceIdAndIsDeletedFalse(serviceId);
+
+                for (ServiceBomEntity bom : serviceBoms) {
+                    if (bom.getProduct() == null) continue;
+                    ProductEntity product = bom.getProduct();
+                    Long prodId = product.getId();
+                    BigDecimal itemAmount = bom.getStandardAmount() != null
+                            ? bom.getStandardAmount().multiply(BigDecimal.valueOf(qty))
+                            : BigDecimal.ZERO;
+
+                    if (bomMap.containsKey(prodId)) {
+                        ActualBomItemDto existing = bomMap.get(prodId);
+                        BigDecimal updatedStd = existing.getStandardAmount().add(itemAmount);
+                        existing.setStandardAmount(updatedStd);
+                        existing.setActualAmount(updatedStd);
+                    } else {
+                        bomMap.put(prodId, ActualBomItemDto.builder()
+                                .productId(prodId)
+                                .productName(product.getName())
+                                .productSku(product.getSku())
+                                .standardAmount(itemAmount)
+                                .actualAmount(itemAmount)
+                                .unit(bom.getUnit() != null ? bom.getUnit() : "ml")
+                                .build());
+                    }
+                }
+            }
+        }
+
+        // Suggest staff: from existing log, or first step assignment stylist, or null
+        Long suggestedStaffId = null;
+        String suggestedStaffName = null;
+        if (existingLogOpt.isPresent() && existingLogOpt.get().getStaff() != null) {
+            suggestedStaffId = existingLogOpt.get().getStaff().getId();
+            suggestedStaffName = existingLogOpt.get().getStaff().getFullName();
+        } else {
+            UserEntity resolvedStaff = resolveOrderStaff(order);
+            if (resolvedStaff != null) {
+                suggestedStaffId = resolvedStaff.getId();
+                suggestedStaffName = resolvedStaff.getFullName();
+            }
+        }
+
+        return TechnicalLogResponse.builder()
+                .id(existingLogOpt.map(TechnicalLogEntity::getId).orElse(null))
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .customerId(order.getCustomer() != null ? order.getCustomer().getId() : null)
+                .customerName(order.getCustomerName() != null ? order.getCustomerName() : (order.getCustomer() != null ? order.getCustomer().getFullName() : null))
+                .staffId(suggestedStaffId)
+                .staffName(suggestedStaffName)
+                .formulaNotes(existingLogOpt.map(TechnicalLogEntity::getFormulaNotes).orElse(null))
+                .hairConditionNotes(existingLogOpt.map(TechnicalLogEntity::getHairConditionNotes).orElse(null))
+                .beforeImageUrl(existingLogOpt.map(TechnicalLogEntity::getBeforeImageUrl).orElse(null))
+                .afterImageUrl(existingLogOpt.map(TechnicalLogEntity::getAfterImageUrl).orElse(null))
+                .bomItems(new ArrayList<>(bomMap.values()))
+                .isSaved(false)
+                .createdAt(existingLogOpt.map(TechnicalLogEntity::getCreatedAt).orElse(null))
+                .updatedAt(existingLogOpt.map(TechnicalLogEntity::getUpdatedAt).orElse(null))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public TechnicalLogResponse saveVisualLog(Long orderId, SaveTechnicalLogRequest request) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        UserEntity customer = order.getCustomer();
+        if (customer == null) {
+            customer = userRepository.findByUsernameAndIsDeletedFalse("walkin.guest")
+                    .orElseGet(() -> userRepository.findAllActiveStylists().stream().findFirst()
+                            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND)));
+        }
+
+        UserEntity staff = null;
+        if (request.getStaffId() != null) {
+            staff = userRepository.findById(request.getStaffId())
+                    .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND));
+        } else {
+            staff = resolveOrderStaff(order);
+            if (staff == null) {
+                staff = userRepository.findAllActiveStylists().stream().findFirst()
+                        .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND));
+            }
+        }
+
+        final UserEntity effectiveCustomer = (order.getCustomer() != null) ? order.getCustomer() : customer;
+        final UserEntity effectiveStaff = staff;
+
+        TechnicalLogEntity techLog = technicalLogRepository.findByOrderIdAndIsDeletedFalse(orderId)
+                .orElseGet(() -> TechnicalLogEntity.builder()
+                        .order(order)
+                        .customer(effectiveCustomer)
+                        .staff(effectiveStaff)
+                        .build());
+
+        techLog.setStaff(staff);
+        techLog.setFormulaNotes(request.getFormulaNotes());
+        techLog.setHairConditionNotes(request.getHairConditionNotes());
+        techLog.setBeforeImageUrl(request.getBeforeImageUrl());
+        techLog.setAfterImageUrl(request.getAfterImageUrl());
+
+        List<ActualBomItemDto> items = request.getBomItems() != null ? request.getBomItems() : new ArrayList<>();
+        for (ActualBomItemDto item : items) {
+            if (!StringUtils.hasText(item.getProductName()) && item.getProductId() != null) {
+                productRepository.findById(item.getProductId()).ifPresent(p -> {
+                    item.setProductName(p.getName());
+                    item.setProductSku(p.getSku());
+                    if (!StringUtils.hasText(item.getUnit()) && StringUtils.hasText(p.getUnit())) {
+                        item.setUnit(p.getUnit());
+                    }
+                });
+            }
+        }
+
+        try {
+            techLog.setActualBomJson(objectMapper.writeValueAsString(items));
+        } catch (Exception e) {
+            log.error("Failed to serialize bomItems for order {}: {}", orderId, e.getMessage());
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+        }
+
+        TechnicalLogEntity saved = technicalLogRepository.save(techLog);
+
+        // Broadcast realtime notification
+        realtimeNotificationService.notifyVisualLogSaved(order);
+
+        return TechnicalLogResponse.builder()
+                .id(saved.getId())
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .customerId(saved.getCustomer() != null ? saved.getCustomer().getId() : null)
+                .customerName(order.getCustomerName() != null ? order.getCustomerName() : (saved.getCustomer() != null ? saved.getCustomer().getFullName() : null))
+                .staffId(saved.getStaff() != null ? saved.getStaff().getId() : null)
+                .staffName(saved.getStaff() != null ? saved.getStaff().getFullName() : null)
+                .formulaNotes(saved.getFormulaNotes())
+                .hairConditionNotes(saved.getHairConditionNotes())
+                .beforeImageUrl(saved.getBeforeImageUrl())
+                .afterImageUrl(saved.getAfterImageUrl())
+                .bomItems(items)
+                .isSaved(true)
+                .createdAt(saved.getCreatedAt())
+                .updatedAt(saved.getUpdatedAt())
+                .build();
+    }
+
     private PosOrderResponse mapToOrderResponse(OrderEntity order) {
         List<PosOrderItemResponse> itemResponses = order.getItems().stream()
                 .filter(i -> !i.isDeleted())
@@ -794,5 +999,20 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .createdAt(order.getCreatedAt())
                 .items(itemResponses)
                 .build();
+    }
+
+    private UserEntity resolveOrderStaff(OrderEntity order) {
+        if (order.getItems() != null) {
+            for (OrderItemEntity item : order.getItems()) {
+                if (item.getStepAssignments() != null) {
+                    for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                        if (step.getStaff() != null) {
+                            return step.getStaff();
+                        }
+                    }
+                }
+            }
+        }
+        return userRepository.findAllActiveStylists().stream().findFirst().orElse(null);
     }
 }

@@ -261,4 +261,30 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
 
         sendDispatchEvent(branchId, event);
     }
+
+    @Override
+    public void notifyVisualLogSaved(com.smartsalon.pos.entity.OrderEntity order) {
+        if (order == null || order.getBranch() == null) {
+            return;
+        }
+        Long branchId = order.getBranch().getId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("orderId", order.getId());
+        data.put("orderCode", order.getOrderCode());
+        data.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+        data.put("branchId", branchId);
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("VISUAL_LOG_SAVED")
+                .branchId(branchId)
+                .referenceId(order.getId())
+                .code(order.getOrderCode())
+                .title("Cập nhật Visual Log: " + order.getOrderCode())
+                .message(String.format("Đã lưu công thức pha chế & ảnh kết quả cho đơn %s", order.getOrderCode()))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendDispatchEvent(branchId, event);
+    }
 }

@@ -4,10 +4,10 @@
 
 **Blocked by:** 02: POS Dispatch Board (Kanban & Timeline), Booking Check-In & Walk-In Order Creation
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Fetching the `Visual Log` for an `Order` that has no saved `actual_bom_json` yet synthesizes and returns the baseline consumable chemical rows (`productId`, `productName`, `standardAmount`, `actualAmount`, `unit`) from the standard `BOM` of all active services on the `Order`.
-- [ ] Saving the `Visual Log` persists `formula_notes`, `hair_condition_notes`, `before_image_url`, `after_image_url`, technician `staff_id`, and the customized `actual_bom_json` chemical quantities on the order's `TechnicalLog` record.
-- [ ] Uploading a `Before` or `After` photograph via the media upload endpoint validates image format/size, uploads to Cloudinary (`smartsalon/visual-logs`) when Cloudinary credentials are configured, or stores and serves the image from local static storage (`/uploads/visual-logs/**`) in local/sandbox mode.
-- [ ] Tab 2 of the POS Order Drawer allows editing actual chemical `ml`/`g` amounts, adding extra consumables from catalog products, editing technical notes, uploading `Before` and `After` photos with side-by-side preview, and saving the `Visual Log`.
-- [ ] Automated backend tests verify baseline `BOM` synthesis, `Visual Log` persistence with `actual_bom_json` overrides, and multipart image upload in local fallback mode.
+- [x] Fetching the `Visual Log` for an `Order` that has no saved `actual_bom_json` yet synthesizes and returns the baseline consumable chemical rows (`productId`, `productName`, `standardAmount`, `actualAmount`, `unit`) from the standard `BOM` of all active services on the `Order`.
+- [x] Saving the `Visual Log` persists `formula_notes`, `hair_condition_notes`, `before_image_url`, `after_image_url`, technician `staff_id`, and the customized `actual_bom_json` chemical quantities on the order's `TechnicalLog` record.
+- [x] Uploading a `Before` or `After` photograph via the media upload endpoint validates image format/size, uploads to Cloudinary (`smartsalon/visual-logs`) when Cloudinary credentials are configured, or stores and serves the image from local static storage (`/uploads/visual-logs/**`) in local/sandbox mode.
+- [x] Tab 2 of the POS Order Drawer allows editing actual chemical `ml`/`g` amounts, adding extra consumables from catalog products, editing technical notes, uploading `Before` and `After` photos with side-by-side preview, and saving the `Visual Log`.
+- [x] Automated backend tests verify baseline `BOM` synthesis, `Visual Log` persistence with `actual_bom_json` overrides, and multipart image upload in local fallback mode.

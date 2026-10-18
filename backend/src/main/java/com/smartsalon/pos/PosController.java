@@ -13,6 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.MediaType;
+import com.smartsalon.pos.service.MediaStorageService;
+
 import java.time.LocalDate;
 
 @RestController
@@ -23,6 +26,7 @@ import java.time.LocalDate;
 public class PosController {
 
     private final PosOrderService posOrderService;
+    private final MediaStorageService mediaStorageService;
 
     @PostMapping("/bookings/{bookingId}/check-in")
     @Operation(summary = "Check-in lịch hẹn và tự động mở đơn hàng POS")
@@ -111,5 +115,29 @@ public class PosController {
             @Valid @RequestBody UpdateStepStatusRequest request) {
         PosStepAssignmentResponse response = posOrderService.updateStepStatus(orderId, stepId, request);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái bước thành công", response));
+    }
+
+    @GetMapping("/orders/{orderId}/visual-log")
+    @Operation(summary = "Lấy thông tin Visual Log (tổng hợp định mức hóa chất tiêu chuẩn hoặc thực tế đã lưu)")
+    public ResponseEntity<ApiResponse<TechnicalLogResponse>> getVisualLog(@PathVariable Long orderId) {
+        TechnicalLogResponse response = posOrderService.getVisualLog(orderId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin Visual Log thành công", response));
+    }
+
+    @PutMapping("/orders/{orderId}/visual-log")
+    @Operation(summary = "Lưu thông tin Visual Log (ghi chú công thức, tình trạng tóc, ảnh trước/sau và định mức thực tế)")
+    public ResponseEntity<ApiResponse<TechnicalLogResponse>> saveVisualLog(
+            @PathVariable Long orderId,
+            @Valid @RequestBody SaveTechnicalLogRequest request) {
+        TechnicalLogResponse response = posOrderService.saveVisualLog(orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Lưu Visual Log thành công", response));
+    }
+
+    @PostMapping(value = "/media/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Tải ảnh Trước/Sau xử lý hóa chất (Cloudinary Hybrid với Local Static Fallback)")
+    public ResponseEntity<ApiResponse<MediaUploadResponse>> uploadVisualLogMedia(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        MediaUploadResponse response = mediaStorageService.uploadVisualLogImage(file);
+        return ResponseEntity.ok(ApiResponse.success("Tải tệp ảnh thành công", response));
     }
 }

@@ -50,7 +50,8 @@ public class SecurityConfig {
                                 "/api/v1/public/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/ws/**"
+                                "/ws/**",
+                                "/uploads/**"
                         ).permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/branches").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/services/**").permitAll()
