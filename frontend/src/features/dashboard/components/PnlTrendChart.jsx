@@ -180,9 +180,15 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
               return (
                 <g
                   key={d.date || idx}
-                  className="cursor-pointer transition-opacity duration-150"
+                  className="cursor-pointer transition-opacity duration-150 outline-none"
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`Ngày ${dateStr}: doanh thu ${totalNet.toLocaleString("vi-VN")} đồng, chi phí ${totalCost.toLocaleString("vi-VN")} đồng, lợi nhuận ${opProfit.toLocaleString("vi-VN")} đồng`}
                   onMouseEnter={() => setHoveredIdx(idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
+                  onFocus={() => setHoveredIdx(idx)}
+                  onBlur={() => setHoveredIdx(null)}
+                  onClick={() => setHoveredIdx(idx)}
                 >
                   {/* Hover background column */}
                   {isHovered && (

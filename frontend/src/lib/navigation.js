@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Users,
   AlertTriangle,
+  DownloadCloud,
 } from "lucide-react";
 
 export const ADMIN_NAV_GROUPS = [
@@ -31,6 +32,12 @@ export const ADMIN_NAV_GROUPS = [
         to: "/admin?tab=inventory",
         tab: "inventory",
         icon: AlertTriangle,
+      },
+      {
+        label: "Trung tâm Xuất Báo cáo",
+        to: "/admin?tab=export",
+        tab: "export",
+        icon: DownloadCloud,
       },
     ],
   },

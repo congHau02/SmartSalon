@@ -119,7 +119,8 @@ export function CommissionLedgerModal({ staff, isOpen, onClose }) {
               <thead className="bg-slate-50/80 sticky top-0 z-10 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <tr>
                   <th className="py-2.5 px-4">Mã đơn & Thời gian</th>
-                  <th className="py-2.5 px-4">Công đoạn (Step)</th>
+                  <th className="py-2.5 px-4">Dịch vụ / Công đoạn (Step)</th>
+                  <th className="py-2.5 px-4 text-center">Tỷ lệ %</th>
                   <th className="py-2.5 px-4">Công thức tính hoa hồng</th>
                   <th className="py-2.5 px-4 text-center">Trạng thái</th>
                   <th className="py-2.5 px-4 text-right">Hoa hồng thực nhận</th>
@@ -142,6 +143,12 @@ export function CommissionLedgerModal({ staff, isOpen, onClose }) {
                         <Layers className="w-3.5 h-3.5 text-pink-600 shrink-0" />
                         <span>{item.stepName || "Công đoạn dịch vụ"}</span>
                       </div>
+                      {item.serviceName && (
+                        <div className="text-[11px] text-slate-400 mt-0.5">{item.serviceName}</div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center font-mono text-slate-700">
+                      {item.commissionRate != null ? `${Number(item.commissionRate)}%` : "—"}
                     </td>
                     <td className="py-3 px-4 max-w-xs">
                       <div className="text-slate-600 text-[11px] font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/60 inline-block">

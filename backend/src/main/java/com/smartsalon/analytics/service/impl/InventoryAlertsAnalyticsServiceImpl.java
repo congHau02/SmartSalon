@@ -292,17 +292,15 @@ public class InventoryAlertsAnalyticsServiceImpl implements InventoryAlertsAnaly
             BigDecimal varianceVolume = actualTotalVolume.subtract(standardBomVolume).setScale(2, RoundingMode.HALF_UP);
             BigDecimal wastageVolume = varianceVolume.compareTo(BigDecimal.ZERO) > 0 ? varianceVolume : BigDecimal.ZERO;
 
-            // Percentage overrun (%): only non-negative when usage exceeds standard BOM baseline
+            // Percentage variance (%): negative when usage is below the standard BOM baseline (savings)
             BigDecimal wastagePercentage = BigDecimal.ZERO;
-            if (varianceVolume.compareTo(BigDecimal.ZERO) > 0) {
-                if (standardBomVolume.compareTo(BigDecimal.ZERO) > 0) {
-                    wastagePercentage = varianceVolume
-                            .divide(standardBomVolume, 4, RoundingMode.HALF_UP)
-                            .multiply(new BigDecimal("100"))
-                            .setScale(2, RoundingMode.HALF_UP);
-                } else if (actualTotalVolume.compareTo(BigDecimal.ZERO) > 0) {
-                    wastagePercentage = new BigDecimal("100.00");
-                }
+            if (standardBomVolume.compareTo(BigDecimal.ZERO) > 0) {
+                wastagePercentage = varianceVolume
+                        .divide(standardBomVolume, 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"))
+                        .setScale(2, RoundingMode.HALF_UP);
+            } else if (varianceVolume.compareTo(BigDecimal.ZERO) > 0 && actualTotalVolume.compareTo(BigDecimal.ZERO) > 0) {
+                wastagePercentage = new BigDecimal("100.00");
             }
 
             // Prefer immutable unit cost snapshot from transactions in period; fall back to catalog price / volume

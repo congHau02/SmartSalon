@@ -12,7 +12,11 @@ import {
   RefreshCw,
   AlertCircle,
   Building2,
-  Calendar
+  Calendar,
+  FileSpreadsheet,
+  FileText,
+  CheckCircle2,
+  FileSpreadsheet as SheetIcon
 } from "lucide-react";
 import { formatCurrency, formatDate } from "../../../lib/utils";
 import { Badge } from "../../../components/ui/Badge";
@@ -20,6 +24,7 @@ import { Button } from "../../../components/ui/Button";
 import { StaffPerformanceTable } from "./StaffPerformanceTable";
 import { EditBaseSalaryModal } from "./EditBaseSalaryModal";
 import { CommissionLedgerModal } from "./CommissionLedgerModal";
+import { analyticsApi } from "../../../api/analyticsApi";
 
 export function StaffPayrollTab({
   data,
@@ -27,11 +32,46 @@ export function StaffPayrollTab({
   isError,
   error,
   onRefetch,
+  selectedBranch,
+  startDate,
+  endDate,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [editingStaff, setEditingStaff] = useState(null);
   const [viewingLedgerStaff, setViewingLedgerStaff] = useState(null);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportStatus, setExportStatus] = useState(null);
+
+  const handleExport = async (format) => {
+    if (format === "xlsx") setExportingXlsx(true);
+    else setExportingPdf(true);
+    setExportStatus(null);
+
+    try {
+      const res = await analyticsApi.exportReport(
+        "staff-payroll",
+        format,
+        selectedBranch?.id,
+        startDate,
+        endDate
+      );
+      setExportStatus({
+        type: "success",
+        message: `Đã tải về thành công báo cáo ${format.toUpperCase()}: ${res.filename}`
+      });
+      setTimeout(() => setExportStatus(null), 5000);
+    } catch (err) {
+      setExportStatus({
+        type: "error",
+        message: err?.response?.data?.message || err?.message || "Đã xảy ra lỗi khi tạo báo cáo từ máy chủ."
+      });
+    } finally {
+      if (format === "xlsx") setExportingXlsx(false);
+      else setExportingPdf(false);
+    }
+  };
 
   // Filter staff members based on search and role
   const filteredStaff = useMemo(() => {
@@ -92,6 +132,85 @@ export function StaffPayrollTab({
 
   return (
     <div className="space-y-6">
+      {/* Quick Export Action Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                Bảng Lương & Hiệu suất Nhân sự (Payroll & KPI)
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200/60">
+                Lương cứng + Hoa hồng
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Kỳ: <span className="font-semibold text-slate-700">{startDate}</span> đến <span className="font-semibold text-slate-700">{endDate}</span> • Chi nhánh: <span className="font-semibold text-slate-700">{selectedBranch?.name || "Tất cả chi nhánh"}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={exportingXlsx || isLoading}
+            onClick={() => handleExport("xlsx")}
+            className="text-xs font-bold gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50 focus:ring-emerald-500/30"
+          >
+            {exportingXlsx ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            ) : (
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            )}
+            {exportingXlsx ? "Đang xuất Excel..." : "Xuất Excel (.xlsx)"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            disabled={exportingPdf || isLoading}
+            onClick={() => handleExport("pdf")}
+            className="text-xs font-bold gap-2 text-rose-700 border-rose-300 hover:bg-rose-50 focus:ring-rose-500/30"
+          >
+            {exportingPdf ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 text-rose-600" />
+            )}
+            {exportingPdf ? "Đang xuất PDF..." : "Xuất PDF (.pdf)"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Export Status Banner */}
+      {exportStatus && (
+        <div
+          className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs font-medium animate-in fade-in duration-200 ${
+            exportStatus.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          {exportStatus.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span className="flex-1">{exportStatus.message}</span>
+          <button
+            type="button"
+            onClick={() => setExportStatus(null)}
+            className="text-slate-400 hover:text-slate-600 font-bold ml-2 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 6 Top KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {/* 1. Tổng nhân sự */}

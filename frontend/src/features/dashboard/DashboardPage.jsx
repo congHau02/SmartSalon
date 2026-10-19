@@ -7,6 +7,7 @@ import { ExecutiveHeader } from "./components/ExecutiveHeader";
 import { PnlDashboardTab } from "./components/PnlDashboardTab";
 import { StaffPayrollTab } from "./components/StaffPayrollTab";
 import { InventoryAlertsTab } from "./components/InventoryAlertsTab";
+import { DownloadCenterTab } from "./components/DownloadCenterTab";
 import { 
   Users, 
   AlertTriangle, 
@@ -48,7 +49,7 @@ function calculateDatesForPreset(preset) {
 }
 
 export function DashboardPage() {
-  const { selectedBranch, branches, switchBranch } = useBranch();
+  const { selectedBranch, branches, setSelectedBranchId, canSwitchBranch } = useBranch();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "pnl";
 
@@ -127,7 +128,8 @@ export function DashboardPage() {
       <ExecutiveHeader
         selectedBranch={selectedBranch}
         branches={branches}
-        onSelectBranch={switchBranch}
+        onSelectBranch={setSelectedBranchId}
+        canSwitchBranch={canSwitchBranch}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         datePreset={datePreset}
@@ -145,6 +147,9 @@ export function DashboardPage() {
           isError={isPnlError}
           error={pnlError}
           onRefetch={refetchPnl}
+          selectedBranch={selectedBranch}
+          startDate={startDate}
+          endDate={endDate}
         />
       )}
 
@@ -156,6 +161,9 @@ export function DashboardPage() {
           isError={isStaffPayrollError}
           error={staffPayrollError}
           onRefetch={refetchStaffPayroll}
+          selectedBranch={selectedBranch}
+          startDate={startDate}
+          endDate={endDate}
         />
       )}
 
@@ -170,6 +178,17 @@ export function DashboardPage() {
           selectedBranch={selectedBranch}
           startDate={startDate}
           endDate={endDate}
+        />
+      )}
+
+      {/* Tab 4: Trung tâm Xuất Báo cáo (Download Center) */}
+      {activeTab === "export" && (
+        <DownloadCenterTab
+          selectedBranch={selectedBranch}
+          startDate={startDate}
+          endDate={endDate}
+          datePreset={datePreset}
+          onNavigateTab={handleTabChange}
         />
       )}
 

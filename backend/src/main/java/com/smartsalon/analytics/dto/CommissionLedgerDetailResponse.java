@@ -16,7 +16,10 @@ public class CommissionLedgerDetailResponse {
     private Long id;
     private Long orderId;
     private String orderCode;
+    private String serviceName;
     private String stepName;
+    /** Commission rate (percent) snapshotted on the step assignment. */
+    private BigDecimal commissionRate;
     private BigDecimal amount;
     private String status;
     private String calculationNotes;

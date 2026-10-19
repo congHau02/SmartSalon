@@ -4,9 +4,9 @@
 
 **Blocked by:** 01: Realized Profit & Loss (P&L) Engine, Cost Snapshots & Executive Command Center Dashboard (Tab 1), 02: Staff Performance, Base Salary Management, Requested Stylist / Re-booking KPIs & Payroll View (Tab 2)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Server-side Excel export (`xlsx`) generates valid multi-sheet OOXML workbooks for both `staff-payroll` (Payroll & KPI Summary sheet + Itemized `Commission Ledger` sheet) and `pnl` (Dual-Tier Period Summary & Daily Trend sheet + Per-Order P&L Breakdown sheet).
-- [ ] Server-side PDF export (`pdf`) generates valid A4 PDF documents using an embedded Unicode TrueType font supporting full Vietnamese diacritics, formatted currency tables, and signature blocks (`Người lập biểu`, `Kế toán trưởng`, `Chủ Salon / Giám đốc`) for both `staff-payroll` and `pnl`.
-- [ ] The **"Xuất Excel (.xlsx)"** and **"Xuất PDF (.pdf)"** buttons on **Tab 1 (P&L)** and **Tab 2 (Hiệu suất Nhân sự & Hoa hồng)** trigger authenticated binary downloads with descriptive filenames (`Bao_Cao_PL_<Branch>_<Start>_<End>.xlsx/.pdf` and `Bang_Luong_Hoa_Hong_<Branch>_<Start>_<End>.xlsx/.pdf`) and loading states.
-- [ ] Automated backend integration tests verify HTTP 200 responses, `Content-Disposition` headers, valid Apache POI multi-sheet `.xlsx` workbooks, and valid `.pdf` binary headers (`%PDF-`) for both report types, and the frontend compiles cleanly.
+- [x] Server-side Excel export (`xlsx`) generates valid multi-sheet OOXML workbooks for both `staff-payroll` (Payroll & KPI Summary sheet + Itemized `Commission Ledger` sheet) and `pnl` (Dual-Tier Period Summary & Daily Trend sheet + Per-Order P&L Breakdown sheet).
+- [x] Server-side PDF export (`pdf`) generates valid A4 PDF documents using an embedded Unicode TrueType font supporting full Vietnamese diacritics, formatted currency tables, and signature blocks (`Người lập biểu`, `Kế toán trưởng`, `Chủ Salon / Giám đốc`) for both `staff-payroll` and `pnl`.
+- [x] The **"Xuất Excel (.xlsx)"** and **"Xuất PDF (.pdf)"** buttons on **Tab 1 (P&L)** and **Tab 2 (Hiệu suất Nhân sự & Hoa hồng)** trigger authenticated binary downloads with descriptive filenames (`Bao_Cao_PL_<Branch>_<Start>_<End>.xlsx/.pdf` and `Bang_Luong_Hoa_Hong_<Branch>_<Start>_<End>.xlsx/.pdf`) and loading states.
+- [x] Automated backend integration tests verify HTTP 200 responses, `Content-Disposition` headers, valid Apache POI multi-sheet `.xlsx` workbooks, and valid `.pdf` binary headers (`%PDF-`) for both report types, and the frontend compiles cleanly.

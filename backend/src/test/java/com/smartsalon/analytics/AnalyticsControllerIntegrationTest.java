@@ -80,6 +80,9 @@ class AnalyticsControllerIntegrationTest {
     @Autowired
     private CommissionLedgerRepository commissionLedgerRepository;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     private MockMvc mockMvc;
     private BranchEntity branch;
 
@@ -246,6 +249,11 @@ class AnalyticsControllerIntegrationTest {
                     .calculationNotes("850k x 20%")
                     .build());
 
+            entityManager.createNativeQuery("UPDATE orders SET created_at = :cat WHERE id = :id")
+                    .setParameter("cat", t1)
+                    .setParameter("id", saved.getId())
+                    .executeUpdate();
+
             return saved;
         });
 
@@ -310,6 +318,11 @@ class AnalyticsControllerIntegrationTest {
                 .status("EARNED")
                 .calculationNotes("commission")
                 .build());
+
+        entityManager.createNativeQuery("UPDATE orders SET created_at = :cat WHERE id = :id")
+                .setParameter("cat", time)
+                .setParameter("id", saved.getId())
+                .executeUpdate();
     }
 
     @Test

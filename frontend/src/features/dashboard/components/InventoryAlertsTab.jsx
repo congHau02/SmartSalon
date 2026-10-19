@@ -39,6 +39,7 @@ export function InventoryAlertsTab({
   const [stockInModalOpen, setStockInModalOpen] = useState(false);
   const [preselectedProductId, setPreselectedProductId] = useState(null);
   const [targetBranchInfo, setTargetBranchInfo] = useState({ id: null, name: "" });
+  const [stockInError, setStockInError] = useState("");
 
   const stockInMutation = useMutation({
     mutationFn: ({ branchId, data }) => inventoryApi.stockIn(branchId, data),
@@ -68,9 +69,11 @@ export function InventoryAlertsTab({
   const handleStockInSubmit = async (formData) => {
     const branchIdToUse = targetBranchInfo.id || selectedBranch?.id;
     if (!branchIdToUse) {
-      alert("Vui lòng chọn chi nhánh trước khi thực hiện nhập kho.");
+      handleCloseStockIn();
+      setStockInError("Vui lòng chọn chi nhánh trước khi thực hiện nhập kho.");
       return;
     }
+    setStockInError("");
     try {
       await stockInMutation.mutateAsync({ branchId: branchIdToUse, data: formData });
     } catch (err) {
@@ -294,6 +297,23 @@ export function InventoryAlertsTab({
           </div>
         </div>
       </div>
+
+      {stockInError && (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700"
+        >
+          <span>{stockInError}</span>
+          <button
+            type="button"
+            onClick={() => setStockInError("")}
+            aria-label="Đóng thông báo lỗi"
+            className="font-bold text-rose-700 hover:text-rose-900 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Section 1: 3-Tier Stock Alert Table */}
       <StockAlertsTable

@@ -169,7 +169,9 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                         .id(l.getId())
                         .orderId(l.getOrder() != null ? l.getOrder().getId() : null)
                         .orderCode(l.getOrder() != null ? l.getOrder().getOrderCode() : "")
+                        .serviceName(resolveServiceName(l))
                         .stepName(l.getStepAssignment() != null ? l.getStepAssignment().getStepName() : "")
+                        .commissionRate(l.getStepAssignment() != null ? l.getStepAssignment().getCommissionRate() : null)
                         .amount(l.getAmount() != null ? l.getAmount() : BigDecimal.ZERO)
                         .status(l.getStatus())
                         .calculationNotes(l.getCalculationNotes())
@@ -318,6 +320,14 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
             }
         }
         return false;
+    }
+
+    private String resolveServiceName(CommissionLedgerEntity ledger) {
+        OrderStepAssignmentEntity step = ledger.getStepAssignment();
+        if (step == null || step.getOrderItem() == null || step.getOrderItem().getService() == null) {
+            return "";
+        }
+        return step.getOrderItem().getService().getName();
     }
 
     private boolean isIdentifiedCustomer(UserEntity customer, OrderEntity order) {

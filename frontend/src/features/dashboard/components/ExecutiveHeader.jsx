@@ -9,13 +9,15 @@ import {
   TrendingUp, 
   Users, 
   AlertTriangle,
-  ChevronDown
+  ChevronDown,
+  DownloadCloud
 } from "lucide-react";
 
 export function ExecutiveHeader({
   selectedBranch,
   branches = [],
   onSelectBranch,
+  canSwitchBranch = false,
   activeTab,
   onTabChange,
   datePreset,
@@ -45,6 +47,7 @@ export function ExecutiveHeader({
     { id: "pnl", label: "Tổng quan & P&L Thực tế", icon: TrendingUp },
     { id: "staff", label: "Hiệu suất & Lương Nhân sự", icon: Users },
     { id: "inventory", label: "Cảnh báo Kho & Hao hụt BOM", icon: AlertTriangle },
+    { id: "export", label: "Trung tâm Xuất Báo cáo", icon: DownloadCloud },
   ];
 
   return (
@@ -70,9 +73,27 @@ export function ExecutiveHeader({
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
             <Building2 className="w-4 h-4 text-pink-600" />
             <span>Chi nhánh:</span>
-            <span className="font-bold text-slate-900">
-              {selectedBranch?.name || "Chi nhánh Flagship"}
-            </span>
+            {canSwitchBranch && branches.length > 0 ? (
+              <span className="relative inline-flex items-center">
+                <select
+                  aria-label="Chọn chi nhánh"
+                  value={selectedBranch?.id ?? ""}
+                  onChange={(e) => onSelectBranch(Number(e.target.value))}
+                  className="appearance-none bg-transparent pr-5 font-bold text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/40 rounded cursor-pointer"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-0 pointer-events-none" aria-hidden="true" />
+              </span>
+            ) : (
+              <span className="font-bold text-slate-900">
+                {selectedBranch?.name || "Chi nhánh Flagship"}
+              </span>
+            )}
           </div>
 
           {/* Compact Live Health Indicator */}
@@ -133,6 +154,7 @@ export function ExecutiveHeader({
           <div className="flex items-center gap-2 text-xs">
             <input
               type="date"
+              aria-label="Từ ngày"
               value={startDate}
               onChange={(e) => onCustomDateChange(e.target.value, endDate)}
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-500/30"
@@ -140,6 +162,7 @@ export function ExecutiveHeader({
             <span className="text-slate-400 font-bold">→</span>
             <input
               type="date"
+              aria-label="Đến ngày"
               value={endDate}
               onChange={(e) => onCustomDateChange(startDate, e.target.value)}
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-500/30"

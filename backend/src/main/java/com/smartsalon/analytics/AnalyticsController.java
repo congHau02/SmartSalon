@@ -7,6 +7,7 @@ import com.smartsalon.analytics.dto.StaffPerformanceResponse;
 import com.smartsalon.analytics.dto.UpdateBaseSalaryRequest;
 import com.smartsalon.analytics.service.InventoryAlertsAnalyticsService;
 import com.smartsalon.analytics.service.PnlAnalyticsService;
+import com.smartsalon.analytics.service.ReportExportService;
 import com.smartsalon.analytics.service.StaffPayrollService;
 import com.smartsalon.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,11 +15,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,6 +38,7 @@ public class AnalyticsController {
     private final PnlAnalyticsService pnlAnalyticsService;
     private final StaffPayrollService staffPayrollService;
     private final InventoryAlertsAnalyticsService inventoryAlertsAnalyticsService;
+    private final ReportExportService reportExportService;
 
     @Operation(summary = "Get Realized Profit & Loss (P&L) Report", description = "Calculates pro-rated revenue, Chemical COGS, Retail COGS, Commissions, Tier 1 and Tier 2 Net Profit")
     @GetMapping("/pnl")
@@ -49,7 +53,7 @@ public class AnalyticsController {
     }
 
     @Operation(summary = "Get Staff Performance & Payroll Report", description = "Aggregates base salaries, commissions, completed service steps, Requested Stylist Rate and Re-booking Rate")
-    @GetMapping("/staff-payroll")
+    @GetMapping({"/staff-performance", "/staff-payroll"})
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<StaffPayrollSummaryResponse>> getStaffPayrollReport(
             @RequestParam(required = false) Long branchId,
@@ -73,7 +77,7 @@ public class AnalyticsController {
     }
 
     @Operation(summary = "Update Staff Member Base Salary", description = "Allows administrators and managers to configure an employee's monthly base salary")
-    @PutMapping("/staff/{staffId}/base-salary")
+    @PatchMapping("/staff/{staffId}/base-salary")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<StaffPerformanceResponse>> updateBaseSalary(
             @PathVariable Long staffId,
@@ -81,5 +85,28 @@ public class AnalyticsController {
     ) {
         StaffPerformanceResponse response = staffPayrollService.updateStaffBaseSalary(staffId, request.getBaseSalary());
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "Export Analytical Report to Excel (.xlsx) or PDF (.pdf)", description = "Streams multi-sheet OOXML workbook or printable Vietnamese Unicode PDF")
+    @GetMapping("/export/{reportType}/{format}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<byte[]> exportReport(
+            @PathVariable String reportType,
+            @PathVariable String format,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
+        byte[] content = reportExportService.exportReport(reportType, format, branchId, startDate, endDate);
+        String filename = reportExportService.generateFilename(reportType, format, branchId, startDate, endDate);
+
+        MediaType mediaType = "xlsx".equalsIgnoreCase(format)
+                ? MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                : MediaType.APPLICATION_PDF;
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(content);
     }
 }
