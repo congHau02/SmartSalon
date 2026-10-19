@@ -14,11 +14,26 @@ import java.util.List;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class BookingExpirationScheduler {
 
     private final BookingRepository bookingRepository;
     private final RedisLockService redisLockService;
+    private final com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService;
+
+    public BookingExpirationScheduler(BookingRepository bookingRepository, RedisLockService redisLockService) {
+        this(bookingRepository, redisLockService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BookingExpirationScheduler(
+            BookingRepository bookingRepository,
+            RedisLockService redisLockService,
+            com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService
+    ) {
+        this.bookingRepository = bookingRepository;
+        this.redisLockService = redisLockService;
+        this.realtimeNotificationService = realtimeNotificationService;
+    }
 
     @Scheduled(fixedDelay = 30000)
     @Transactional(rollbackFor = Exception.class)
@@ -31,7 +46,8 @@ public class BookingExpirationScheduler {
 
         log.info("Sweeping {} expired booking hold(s)...", expiredList.size());
         for (BookingEntity booking : expiredList) {
-            booking.setStatus(BookingStatus.EXPIRED);
+            BookingStatus oldStatus = booking.getStatus();
+            booking.expireHold();
             bookingRepository.save(booking);
 
             if (booking.getStaff() != null) {
@@ -40,6 +56,9 @@ public class BookingExpirationScheduler {
                         booking.getBookingTime(),
                         booking.getEndTime()
                 );
+            }
+            if (realtimeNotificationService != null) {
+                realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, BookingStatus.EXPIRED);
             }
             log.info("Expired booking hold: code={}, stylistId={}, time={}",
                     booking.getBookingCode(),

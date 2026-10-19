@@ -23,18 +23,16 @@ import { TimelineBoard } from "./TimelineBoard";
 import { WalkInModal } from "./WalkInModal";
 import { PosOrderDrawer } from "./PosOrderDrawer";
 import { CommissionLedgerModal } from "./CommissionLedgerModal";
-import { formatCurrency } from "../../lib/utils";
+import { formatCurrency, toLocalDateISO, shiftLocalDateISO } from "../../lib/utils";
+import { QUERY_KEYS } from "../../lib/queryKeys";
 
 export function DispatchBoardPage() {
   const queryClient = useQueryClient();
   const { selectedBranchId, selectedBranch, branches, setSelectedBranchId, canSwitchBranch } =
     useBranch();
 
-  // Date state (defaults to today)
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
-  });
+  // Date state (defaults to local calendar date today)
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDateISO());
 
   // View state: 'kanban' (default) | 'timeline'
   const [viewMode, setViewMode] = useState("kanban");
@@ -50,19 +48,15 @@ export function DispatchBoardPage() {
 
   // Date navigation handlers
   const handlePrevDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split("T")[0]);
+    setSelectedDate((prev) => shiftLocalDateISO(prev, -1));
   };
 
   const handleNextDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split("T")[0]);
+    setSelectedDate((prev) => shiftLocalDateISO(prev, 1));
   };
 
   const handleToday = () => {
-    setSelectedDate(new Date().toISOString().split("T")[0]);
+    setSelectedDate(toLocalDateISO());
   };
 
   // 1. Fetch Dispatch Board Data
@@ -73,19 +67,19 @@ export function DispatchBoardPage() {
     refetch,
     error: boardError,
   } = useQuery({
-    queryKey: ["dispatch", selectedBranchId, selectedDate],
+    queryKey: [...QUERY_KEYS.dispatch, selectedBranchId, selectedDate],
     queryFn: () => posApi.getDispatchBoard(selectedBranchId, selectedDate),
     enabled: !!selectedBranchId,
   });
 
   // 2. Fetch Catalog Services & Products (for Walk-in modal)
   const { data: services = [] } = useQuery({
-    queryKey: ["pos", "services"],
+    queryKey: [...QUERY_KEYS.pos, "services"],
     queryFn: posApi.getServices,
   });
 
   const { data: products = [] } = useQuery({
-    queryKey: ["pos", "products"],
+    queryKey: [...QUERY_KEYS.pos, "products"],
     queryFn: posApi.getProducts,
   });
 
@@ -101,8 +95,8 @@ export function DispatchBoardPage() {
         type: "success",
         text: `Check-in thành công! Đã tạo đơn POS ${data.orderCode} cho khách ${data.customerName}.`,
       });
-      queryClient.invalidateQueries({ queryKey: ["dispatch"] });
-      queryClient.invalidateQueries({ queryKey: ["booking"] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dispatch });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.booking });
     },
     onError: (err) => {
       setToastMessage({

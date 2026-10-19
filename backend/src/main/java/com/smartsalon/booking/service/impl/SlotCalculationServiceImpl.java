@@ -97,7 +97,7 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                 .map(ServiceEntity::getBasePrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal depositAmount = totalPrice.multiply(new BigDecimal("0.20")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal depositAmount = BookingEntity.calculateDepositAmount(totalPrice);
 
         List<UserEntity> candidates;
         String stylistName;

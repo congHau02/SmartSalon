@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState, useCallback } from "react";
 import {
   X,
   Scissors,
@@ -21,10 +20,10 @@ import {
   CreditCard,
   Save,
 } from "lucide-react";
-import { posApi } from "../../api/posApi";
 import { formatCurrency } from "../../lib/utils";
 import { VisualLogTab } from "./VisualLogTab";
 import { PosCheckoutTab } from "./PosCheckoutTab";
+import { usePosOrder } from "./usePosOrder";
 
 export function PosOrderDrawer({
   isOpen,
@@ -35,12 +34,7 @@ export function PosOrderDrawer({
   services = [],
   products = [],
 }) {
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("cart"); // 'cart' | 'visuallog' | 'checkout'
-
-  // Discount & notes local draft state
-  const [discountInput, setDiscountInput] = useState("");
-  const [notesInput, setNotesInput] = useState("");
   const [isEditingFinancials, setIsEditingFinancials] = useState(false);
 
   // Modals for adding items
@@ -54,130 +48,38 @@ export function PosOrderDrawer({
   // Feedback toast
   const [actionNotice, setActionNotice] = useState(null);
 
-  // 1. Fetch live order details
+  const showNotice = useCallback((notice) => {
+    setActionNotice(notice);
+    setTimeout(() => setActionNotice(null), 4000);
+  }, []);
+
   const {
-    data: order,
-    isLoading: isLoadingOrder,
-    refetch: refetchOrder,
-  } = useQuery({
-    queryKey: ["order", orderId],
-    queryFn: () => posApi.getOrderById(orderId),
-    enabled: !!orderId && isOpen,
-  });
+    order,
+    isLoadingOrder,
+    discountInput,
+    setDiscountInput,
+    notesInput,
+    setNotesInput,
+    liveFinalAmount,
+    completedSteps,
+    inProgressSteps,
+    totalSteps,
+    isAllStepsCompleted,
+    isOrderSettled,
+    invalidateOrderWorkspace,
+    addServiceMutation,
+    addProductMutation,
+    removeItemMutation,
+    updateOrderMutation,
+    updateStepAssignmentMutation,
+    updateStepStatusMutation,
+  } = usePosOrder(orderId, isOpen, { onNotice: showNotice });
 
-  // Sync order state into form drafts
-  useEffect(() => {
-    if (order) {
-      setDiscountInput(order.discountAmount ? order.discountAmount.toString() : "0");
-      setNotesInput(order.notes || "");
-    }
-  }, [order]);
-
-  // Invalidate queries and broadcast feedback
   const invalidateAll = (msg) => {
-    queryClient.invalidateQueries({ queryKey: ["order", orderId] });
-    queryClient.invalidateQueries({ queryKey: ["dispatch"] });
-    if (msg) {
-      setActionNotice({ type: "success", text: msg });
-      setTimeout(() => setActionNotice(null), 4000);
-    }
+    invalidateOrderWorkspace(msg);
   };
 
-  // 2. Mutations
-  const addServiceMutation = useMutation({
-    mutationFn: (data) => posApi.addServiceItem(orderId, data),
-    onSuccess: () => {
-      setIsAddServiceOpen(false);
-      setSelectedAddServiceId("");
-      invalidateAll("Đã thêm dịch vụ vào đơn hàng thành công!");
-    },
-    onError: (err) => {
-      setActionNotice({
-        type: "error",
-        text: err?.response?.data?.message || "Không thể thêm dịch vụ.",
-      });
-    },
-  });
-
-  const addProductMutation = useMutation({
-    mutationFn: (data) => posApi.addProductItem(orderId, data),
-    onSuccess: () => {
-      setIsAddProductOpen(false);
-      setSelectedAddProductId("");
-      setAddProductQty(1);
-      invalidateAll("Đã thêm sản phẩm bán lẻ vào đơn hàng!");
-    },
-    onError: (err) => {
-      setActionNotice({
-        type: "error",
-        text: err?.response?.data?.message || "Không thể thêm sản phẩm.",
-      });
-    },
-  });
-
-  const removeItemMutation = useMutation({
-    mutationFn: (itemId) => posApi.removeOrderItem(orderId, itemId),
-    onSuccess: () => {
-      invalidateAll("Đã xóa mục hàng khỏi đơn!");
-    },
-    onError: (err) => {
-      setActionNotice({
-        type: "error",
-        text: err?.response?.data?.message || "Không thể xóa mục hàng.",
-      });
-    },
-  });
-
-  const updateOrderMutation = useMutation({
-    mutationFn: (data) => posApi.updateOrder(orderId, data),
-    onSuccess: () => {
-      setIsEditingFinancials(false);
-      invalidateAll("Cập nhật giảm giá và ghi chú thành công!");
-    },
-    onError: (err) => {
-      setActionNotice({
-        type: "error",
-        text: err?.response?.data?.message || "Không thể cập nhật đơn.",
-      });
-    },
-  });
-
-  const updateStepAssignmentMutation = useMutation({
-    mutationFn: ({ stepId, data }) => posApi.updateStepAssignment(orderId, stepId, data),
-    onSuccess: () => {
-      invalidateAll("Đã cập nhật phân công và tính lại hoa hồng!");
-    },
-    onError: (err) => {
-      setActionNotice({
-        type: "error",
-        text: err?.response?.data?.message || "Không thể cập nhật phân công bước.",
-      });
-    },
-  });
-
-  const updateStepStatusMutation = useMutation({
-    mutationFn: ({ stepId, data }) => posApi.updateStepStatus(orderId, stepId, data),
-    onSuccess: () => {
-      invalidateAll("Đã cập nhật tiến độ bước kỹ thuật!");
-    },
-    onError: (err) => {
-      setActionNotice({
-        type: "error",
-        text: err?.response?.data?.message || "Không thể cập nhật trạng thái bước.",
-      });
-    },
-  });
-
   if (!isOpen) return null;
-
-  const isOrderSettled = order?.status === "PAID" || order?.status === "CANCELLED";
-
-  // Calculate overall steps progress
-  const allSteps = order?.items?.flatMap((i) => i.steps || []) || [];
-  const completedSteps = allSteps.filter((s) => s.status === "COMPLETED").length;
-  const inProgressSteps = allSteps.filter((s) => s.status === "IN_PROGRESS").length;
-  const totalSteps = allSteps.length;
-  const isAllStepsCompleted = totalSteps > 0 && completedSteps === totalSteps;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-200">
@@ -739,10 +641,15 @@ export function PosOrderDrawer({
                         type="button"
                         onClick={() => {
                           const disc = parseFloat(discountInput) || 0;
-                          updateOrderMutation.mutate({
-                            discountAmount: disc,
-                            notes: notesInput,
-                          });
+                          updateOrderMutation.mutate(
+                            {
+                              discountAmount: disc,
+                              notes: notesInput,
+                            },
+                            {
+                              onSuccess: () => setIsEditingFinancials(false),
+                            }
+                          );
                         }}
                         disabled={updateOrderMutation.isPending}
                         className="px-3 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
@@ -772,10 +679,7 @@ export function PosOrderDrawer({
               order={order}
               stylists={stylists}
               products={products}
-              onNotice={(notice) => {
-                setActionNotice(notice);
-                setTimeout(() => setActionNotice(null), 4000);
-              }}
+              onNotice={showNotice}
             />
           ) : (
             /* ==========================================
@@ -785,10 +689,12 @@ export function PosOrderDrawer({
               orderId={orderId}
               order={order}
               branchId={branchId}
-              onNotice={(notice) => {
-                setActionNotice(notice);
-                setTimeout(() => setActionNotice(null), 4000);
-              }}
+              discountInput={discountInput}
+              setDiscountInput={setDiscountInput}
+              notesInput={notesInput}
+              setNotesInput={setNotesInput}
+              liveFinalAmount={liveFinalAmount}
+              onNotice={showNotice}
               onCheckoutSuccess={() => {
                 invalidateAll("Thanh toán thành công! Hóa đơn đã hoàn tất.");
               }}
@@ -877,10 +783,18 @@ export function PosOrderDrawer({
                 type="button"
                 disabled={!selectedAddServiceId || addServiceMutation.isPending}
                 onClick={() => {
-                  addServiceMutation.mutate({
-                    serviceId: Number(selectedAddServiceId),
-                    staffId: selectedAddStaffId ? Number(selectedAddStaffId) : undefined,
-                  });
+                  addServiceMutation.mutate(
+                    {
+                      serviceId: Number(selectedAddServiceId),
+                      staffId: selectedAddStaffId ? Number(selectedAddStaffId) : undefined,
+                    },
+                    {
+                      onSuccess: () => {
+                        setIsAddServiceOpen(false);
+                        setSelectedAddServiceId("");
+                      },
+                    }
+                  );
                 }}
                 className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
               >
@@ -955,10 +869,19 @@ export function PosOrderDrawer({
                 type="button"
                 disabled={!selectedAddProductId || addProductMutation.isPending}
                 onClick={() => {
-                  addProductMutation.mutate({
-                    productId: Number(selectedAddProductId),
-                    quantity: addProductQty,
-                  });
+                  addProductMutation.mutate(
+                    {
+                      productId: Number(selectedAddProductId),
+                      quantity: addProductQty,
+                    },
+                    {
+                      onSuccess: () => {
+                        setIsAddProductOpen(false);
+                        setSelectedAddProductId("");
+                        setAddProductQty(1);
+                      },
+                    }
+                  );
                 }}
                 className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
               >

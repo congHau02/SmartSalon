@@ -87,4 +87,57 @@ public class BookingEntity extends BaseEntity {
         items.add(item);
         item.setBooking(this);
     }
+
+    public static final BigDecimal DEPOSIT_RATE = new BigDecimal("0.20");
+    public static final int HOLD_TTL_MINUTES = 5;
+
+    public static BigDecimal calculateDepositAmount(BigDecimal totalPrice) {
+        if (totalPrice == null || totalPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return totalPrice.multiply(DEPOSIT_RATE).setScale(0, java.math.RoundingMode.HALF_UP);
+    }
+
+    public boolean isHoldExpired(LocalDateTime now) {
+        LocalDateTime referenceNow = now != null ? now : LocalDateTime.now();
+        return status == BookingStatus.PENDING_PAYMENT
+                && slotLockExpiresAt != null
+                && !slotLockExpiresAt.isAfter(referenceNow);
+    }
+
+    public boolean canTransitionTo(BookingStatus target) {
+        if (status == null || target == null) return false;
+        if (status == target) return true;
+        return switch (status) {
+            case PENDING_PAYMENT -> target == BookingStatus.CONFIRMED || target == BookingStatus.CANCELLED || target == BookingStatus.EXPIRED;
+            case CONFIRMED -> target == BookingStatus.CHECKED_IN || target == BookingStatus.CANCELLED || target == BookingStatus.NO_SHOW;
+            case CHECKED_IN -> target == BookingStatus.IN_PROGRESS || target == BookingStatus.CANCELLED;
+            case IN_PROGRESS -> target == BookingStatus.COMPLETED;
+            case COMPLETED, CANCELLED, EXPIRED, NO_SHOW -> false;
+        };
+    }
+
+    public void confirmDeposit() {
+        this.status = BookingStatus.CONFIRMED;
+        this.depositStatus = DepositStatus.PAID;
+        this.slotLockExpiresAt = null;
+    }
+
+    public void expireHold() {
+        this.status = BookingStatus.EXPIRED;
+    }
+
+    public String resolvedCustomerName() {
+        if (customerName != null && !customerName.isBlank()) {
+            return customerName;
+        }
+        return customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng";
+    }
+
+    public String resolvedCustomerPhone() {
+        if (customerPhone != null && !customerPhone.isBlank()) {
+            return customerPhone;
+        }
+        return customer != null && customer.getPhone() != null ? customer.getPhone() : "";
+    }
 }

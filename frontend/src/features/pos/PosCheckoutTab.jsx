@@ -20,33 +20,43 @@ import {
 } from "lucide-react";
 import { posApi } from "../../api/posApi";
 import { formatCurrency } from "../../lib/utils";
+import { QUERY_KEYS } from "../../lib/queryKeys";
 
 export function PosCheckoutTab({
   orderId,
   order,
   branchId,
+  discountInput: controlledDiscountInput,
+  setDiscountInput: setControlledDiscountInput,
+  notesInput: controlledNotesInput,
+  setNotesInput: setControlledNotesInput,
+  liveFinalAmount: controlledLiveFinalAmount,
   onNotice,
   onCheckoutSuccess,
 }) {
   const [paymentMethod, setPaymentMethod] = useState("CASH"); // 'CASH' | 'VIETQR' | 'CARD'
-  const [discountInput, setDiscountInput] = useState(
+  const [localDiscountInput, setLocalDiscountInput] = useState(
     order?.discountAmount ? order.discountAmount.toString() : "0"
   );
-  const [notesInput, setNotesInput] = useState(order?.notes || "");
+  const [localNotesInput, setLocalNotesInput] = useState(order?.notes || "");
+  const discountInput = controlledDiscountInput ?? localDiscountInput;
+  const setDiscountInput = setControlledDiscountInput ?? setLocalDiscountInput;
+  const notesInput = controlledNotesInput ?? localNotesInput;
+  const setNotesInput = setControlledNotesInput ?? setLocalNotesInput;
   const [copiedField, setCopiedField] = useState(null);
   const [showDeductionPreview, setShowDeductionPreview] = useState(false);
   const [showCommissionPreview, setShowCommissionPreview] = useState(false);
 
   // 1. Fetch VietQR data when VIETQR is selected
   const { data: vietQrData, isLoading: isLoadingVietQr } = useQuery({
-    queryKey: ["pos-vietqr", orderId, parseFloat(discountInput) || 0],
+    queryKey: QUERY_KEYS.posVietQr(orderId, parseFloat(discountInput) || 0),
     queryFn: () => posApi.getPosVietQr(orderId, parseFloat(discountInput) || 0),
     enabled: paymentMethod === "VIETQR" && !!orderId && order?.status !== "PAID",
   });
 
   // 2. Fetch Visual Log to preview actual BOM vs standard BOM
   const { data: visualLogData } = useQuery({
-    queryKey: ["visual-log", orderId],
+    queryKey: QUERY_KEYS.visualLog(orderId),
     queryFn: () => posApi.getVisualLog(orderId),
     enabled: !!orderId && order?.status !== "PAID",
   });
@@ -106,7 +116,9 @@ export function PosCheckoutTab({
   const currentSubtotal = order?.subtotal || 0;
   const currentDiscount = parseFloat(discountInput) || 0;
   const currentDeposit = order?.depositDeducted || 0;
-  const liveFinalAmount = Math.max(0, currentSubtotal - currentDiscount - currentDeposit);
+  const liveFinalAmount =
+    controlledLiveFinalAmount ??
+    Math.max(0, currentSubtotal - currentDiscount - currentDeposit);
 
   /* =========================================================================
      A. VIEW WHEN ORDER IS PAID: PRINTABLE RECEIPT SUMMARY

@@ -67,4 +67,37 @@ public class ProductEntity extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean isActive = true;
+
+    public boolean hasMeasurableVolume() {
+        return volumeOrWeightPerUnit != null && volumeOrWeightPerUnit.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    public BigDecimal calculateVolumeUnitCostSnapshot() {
+        BigDecimal safeCost = costPrice != null ? costPrice : BigDecimal.ZERO;
+        if (!hasMeasurableVolume()) {
+            return BigDecimal.ZERO;
+        }
+        return safeCost.divide(volumeOrWeightPerUnit, 4, java.math.RoundingMode.HALF_UP);
+    }
+
+    public BigDecimal calculateRetailUnitCostSnapshot() {
+        BigDecimal safeCost = costPrice != null ? costPrice : BigDecimal.ZERO;
+        return safeCost.setScale(4, java.math.RoundingMode.HALF_UP);
+    }
+
+    public BigDecimal calculateVolumeCostAmount(BigDecimal volumeAmount) {
+        if (volumeAmount == null || volumeAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO.setScale(2, java.math.RoundingMode.HALF_UP);
+        }
+        return volumeAmount.abs()
+                .multiply(calculateVolumeUnitCostSnapshot())
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    public BigDecimal calculateRetailCostAmount(int quantityUnits) {
+        BigDecimal safeCost = costPrice != null ? costPrice : BigDecimal.ZERO;
+        return BigDecimal.valueOf(Math.abs(quantityUnits))
+                .multiply(safeCost)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+    }
 }

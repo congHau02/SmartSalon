@@ -58,4 +58,51 @@ public class BranchInventoryEntity {
     @CreatedBy
     @Column(name = "created_by", updatable = false)
     private String createdBy;
+
+    public BigDecimal calculateTotalAvailableVolume() {
+        BigDecimal unitVolume = (product != null && product.getVolumeOrWeightPerUnit() != null)
+                ? product.getVolumeOrWeightPerUnit()
+                : BigDecimal.ZERO;
+        BigDecimal safeCurrentVolume = currentVolume != null ? currentVolume : BigDecimal.ZERO;
+        return BigDecimal.valueOf(stockUnits).multiply(unitVolume).add(safeCurrentVolume);
+    }
+
+    public int effectiveMinStockAlertUnits() {
+        if (minStockAlertUnits > 0) {
+            return minStockAlertUnits;
+        }
+        return product != null ? product.getMinStockAlertUnits() : 0;
+    }
+
+    public boolean isLowStock() {
+        return stockUnits <= effectiveMinStockAlertUnits();
+    }
+
+    public Integer calculateEstimatedDaysRemaining(BigDecimal avgDailyConsumptionVolume) {
+        if (avgDailyConsumptionVolume == null || avgDailyConsumptionVolume.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        BigDecimal totalAvailable = calculateTotalAvailableVolume();
+        if (totalAvailable.compareTo(BigDecimal.ZERO) <= 0) {
+            return 0;
+        }
+        return totalAvailable.divide(avgDailyConsumptionVolume, 0, java.math.RoundingMode.FLOOR).intValue();
+    }
+
+    public com.smartsalon.analytics.dto.StockAlertLevel classifyStockAlertLevel(BigDecimal avgDailyConsumptionVolume) {
+        BigDecimal safeCurrentVolume = currentVolume != null ? currentVolume : BigDecimal.ZERO;
+        int minAlert = effectiveMinStockAlertUnits();
+        Integer estimatedDays = calculateEstimatedDaysRemaining(avgDailyConsumptionVolume);
+
+        if (stockUnits == 0 && safeCurrentVolume.compareTo(BigDecimal.ZERO) <= 0) {
+            return com.smartsalon.analytics.dto.StockAlertLevel.OUT_OF_STOCK;
+        }
+        if (stockUnits <= minAlert) {
+            return com.smartsalon.analytics.dto.StockAlertLevel.LOW_STOCK;
+        }
+        if (stockUnits == minAlert + 1 || (estimatedDays != null && estimatedDays <= 7)) {
+            return com.smartsalon.analytics.dto.StockAlertLevel.NEAR_THRESHOLD;
+        }
+        return com.smartsalon.analytics.dto.StockAlertLevel.HEALTHY;
+    }
 }

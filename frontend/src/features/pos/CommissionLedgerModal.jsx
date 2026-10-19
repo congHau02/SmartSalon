@@ -17,13 +17,12 @@ import {
   Percent,
 } from "lucide-react";
 import { posApi } from "../../api/posApi";
-import { formatCurrency } from "../../lib/utils";
+import { formatCurrency, toLocalDateISO } from "../../lib/utils";
+import { QUERY_KEYS } from "../../lib/queryKeys";
+import { CommissionLedgerEntriesTable } from "../../components/shared/CommissionLedgerEntriesTable";
 
 export function CommissionLedgerModal({ isOpen, onClose, branchId, branchName }) {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
-  });
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDateISO());
   const [activeTab, setActiveTab] = useState("staff"); // 'staff' | 'entries'
 
   const {
@@ -32,7 +31,7 @@ export function CommissionLedgerModal({ isOpen, onClose, branchId, branchName })
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: ["commission-ledger", branchId, selectedDate],
+    queryKey: QUERY_KEYS.commissionLedger(branchId, selectedDate),
     queryFn: () => posApi.getCommissionLedger(branchId, selectedDate),
     enabled: isOpen && !!branchId,
   });
@@ -234,62 +233,11 @@ export function CommissionLedgerModal({ isOpen, onClose, branchId, branchName })
               ))}
             </div>
           ) : (
-            /* Itemized Entries Table */
-            <div className="overflow-x-auto rounded-2xl border border-slate-800">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th className="py-2.5 px-3">Thời gian / Mã đơn</th>
-                    <th className="py-2.5 px-3">Kỹ thuật viên</th>
-                    <th className="py-2.5 px-3">Dịch vụ & Bước thực hiện</th>
-                    <th className="py-2.5 px-3 text-right">Tỷ lệ bước</th>
-                    <th className="py-2.5 px-3 text-right">Hoa hồng (VND)</th>
-                    <th className="py-2.5 px-3">Công thức hạch toán</th>
-                    <th className="py-2.5 px-3 text-center">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="font-mono text-slate-400 text-[11px]">
-                          {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
-                        </div>
-                        <div className="font-mono font-bold text-white text-xs">
-                          {entry.orderCode}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-white">
-                        {entry.staffName}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-medium text-slate-200">
-                          {entry.serviceName || "Dịch vụ POS"}
-                        </div>
-                        <div className="text-[11px] text-pink-400 flex items-center gap-1">
-                          <Scissors className="w-3 h-3" />
-                          <span>{entry.stepName}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-400">
-                        {entry.commissionRate != null ? `${entry.commissionRate}%` : "--"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-400">
-                        {formatCurrency(entry.amount)}
-                      </td>
-                      <td className="py-2.5 px-3 text-[11px] text-slate-400 font-mono max-w-xs truncate" title={entry.calculationNotes}>
-                        {entry.calculationNotes || "--"}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          {entry.status || "EARNED"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <CommissionLedgerEntriesTable
+              entries={entries}
+              showStaffColumn
+              variant="dark"
+            />
           )}
         </div>
 

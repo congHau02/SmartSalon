@@ -7,8 +7,6 @@ import com.smartsalon.analytics.dto.PnlAnalyticsResponse;
 import com.smartsalon.analytics.service.PnlAnalyticsService;
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
-import com.smartsalon.catalog.entity.ServiceBomEntity;
-import com.smartsalon.catalog.repository.ServiceBomRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
 import com.smartsalon.inventory.entity.InventoryTransactionEntity;
@@ -22,6 +20,7 @@ import com.smartsalon.pos.entity.OrderStatus;
 import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import com.smartsalon.pos.repository.OrderRepository;
+import com.smartsalon.pos.service.OrderBomResolver;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +34,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -47,7 +45,7 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final CommissionLedgerRepository commissionLedgerRepository;
     private final UserRepository userRepository;
-    private final ServiceBomRepository serviceBomRepository;
+    private final OrderBomResolver orderBomResolver;
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
@@ -93,6 +91,8 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
         BigDecimal totalChemicalCogs = BigDecimal.ZERO;
         BigDecimal totalRetailCogs = BigDecimal.ZERO;
         BigDecimal totalCommissions = BigDecimal.ZERO;
+        BigDecimal totalServiceProfit = BigDecimal.ZERO;
+        BigDecimal totalRetailProfit = BigDecimal.ZERO;
         BigDecimal totalOperationalProfit = BigDecimal.ZERO;
 
         for (OrderEntity order : orders) {
@@ -108,6 +108,8 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
             totalChemicalCogs = totalChemicalCogs.add(orderPnl.getChemicalCogs());
             totalRetailCogs = totalRetailCogs.add(orderPnl.getRetailCogs());
             totalCommissions = totalCommissions.add(orderPnl.getStaffCommissions());
+            totalServiceProfit = totalServiceProfit.add(orderPnl.getServiceNetProfit());
+            totalRetailProfit = totalRetailProfit.add(orderPnl.getRetailNetProfit());
             totalOperationalProfit = totalOperationalProfit.add(orderPnl.getOrderNetProfit());
 
             LocalDate orderDate = order.getCreatedAt().atZone(DEFAULT_ZONE).toLocalDate();
@@ -171,6 +173,8 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                 .totalCogs(totalCogs)
                 .totalCommissions(totalCommissions)
                 .totalCosts(totalCosts)
+                .serviceNetProfit(totalServiceProfit)
+                .retailNetProfit(totalRetailProfit)
                 .operationalNetProfit(totalOperationalProfit)
                 .grossMarginPercentage(grossMarginPercentage)
                 .netProfitMarginPercentage(netProfitMarginPercentage)
@@ -183,35 +187,15 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
     }
 
     private OrderPnlResponse computeOrderPnl(OrderEntity order) {
-        BigDecimal grossServiceRevenue = BigDecimal.ZERO;
-        BigDecimal grossRetailRevenue = BigDecimal.ZERO;
-
-        for (OrderItemEntity item : order.getItems()) {
-            if (item.isDeleted()) continue;
-            BigDecimal price = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
-            if (item.getItemType() == OrderItemType.SERVICE) {
-                grossServiceRevenue = grossServiceRevenue.add(price);
-            } else if (item.getItemType() == OrderItemType.PRODUCT) {
-                grossRetailRevenue = grossRetailRevenue.add(price);
-            }
-        }
-
-        BigDecimal grossTotal = grossServiceRevenue.add(grossRetailRevenue);
-        BigDecimal orderDiscount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
-        BigDecimal effectiveDiscount = orderDiscount.min(grossTotal);
-
-        BigDecimal serviceDiscount = BigDecimal.ZERO;
-        BigDecimal retailDiscount = BigDecimal.ZERO;
-
-        if (grossTotal.compareTo(BigDecimal.ZERO) > 0) {
-            serviceDiscount = effectiveDiscount.multiply(grossServiceRevenue)
-                    .divide(grossTotal, 2, RoundingMode.HALF_UP);
-            retailDiscount = effectiveDiscount.subtract(serviceDiscount);
-        }
-
-        BigDecimal netServiceRevenue = grossServiceRevenue.subtract(serviceDiscount);
-        BigDecimal netRetailRevenue = grossRetailRevenue.subtract(retailDiscount);
-        BigDecimal totalNetRevenue = netServiceRevenue.add(netRetailRevenue);
+        OrderEntity.RevenueBreakdown rev = order.calculateRevenueBreakdown();
+        BigDecimal grossServiceRevenue = rev.grossServiceRevenue();
+        BigDecimal grossRetailRevenue = rev.grossRetailRevenue();
+        BigDecimal serviceDiscount = rev.serviceDiscount();
+        BigDecimal retailDiscount = rev.retailDiscount();
+        BigDecimal effectiveDiscount = rev.totalDiscount();
+        BigDecimal netServiceRevenue = rev.netServiceRevenue();
+        BigDecimal netRetailRevenue = rev.netRetailRevenue();
+        BigDecimal totalNetRevenue = rev.totalNetRevenue();
 
         // Fetch snapshotted inventory transactions for this order
         List<InventoryTransactionEntity> transactions = inventoryTransactionRepository.findAllByReferenceOrderId(order.getId());
@@ -230,10 +214,10 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
 
         // Fallbacks if no inventory transactions exist
         if (chemicalCogs.compareTo(BigDecimal.ZERO) == 0 && grossServiceRevenue.compareTo(BigDecimal.ZERO) > 0) {
-            chemicalCogs = calculateFallbackChemicalCogs(order);
+            chemicalCogs = orderBomResolver.calculateStandardChemicalCogs(order);
         }
         if (retailCogs.compareTo(BigDecimal.ZERO) == 0 && grossRetailRevenue.compareTo(BigDecimal.ZERO) > 0) {
-            retailCogs = calculateFallbackRetailCogs(order);
+            retailCogs = OrderBomResolver.calculateStandardRetailCogs(order);
         }
 
         BigDecimal totalCogs = chemicalCogs.add(retailCogs);
@@ -243,9 +227,7 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
         BigDecimal staffCommissions = BigDecimal.ZERO;
         if (!ledgers.isEmpty()) {
             for (CommissionLedgerEntity l : ledgers) {
-                if (l.getAmount() != null) {
-                    staffCommissions = staffCommissions.add(l.getAmount());
-                }
+                staffCommissions = staffCommissions.add(l.safeAmount());
             }
         } else {
             // Fallback from step assignments
@@ -297,38 +279,6 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                 .orderNetProfit(orderNetProfit)
                 .netProfitMarginPercentage(netProfitMarginPercentage)
                 .build();
-    }
-
-    private BigDecimal calculateFallbackChemicalCogs(OrderEntity order) {
-        BigDecimal sum = BigDecimal.ZERO;
-        for (OrderItemEntity item : order.getItems()) {
-            if (item.isDeleted() || item.getItemType() != OrderItemType.SERVICE || item.getService() == null) continue;
-            List<ServiceBomEntity> boms = serviceBomRepository.findAllByServiceIdAndIsDeletedFalse(item.getService().getId());
-            for (ServiceBomEntity bom : boms) {
-                if (bom.getProduct() != null && bom.getStandardAmount() != null) {
-                    BigDecimal totalAmount = bom.getStandardAmount().multiply(BigDecimal.valueOf(item.getQuantity()));
-                    BigDecimal costPrice = bom.getProduct().getCostPrice() != null ? bom.getProduct().getCostPrice() : BigDecimal.ZERO;
-                    BigDecimal volPerUnit = bom.getProduct().getVolumeOrWeightPerUnit() != null ? bom.getProduct().getVolumeOrWeightPerUnit() : BigDecimal.ZERO;
-                    if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
-                        BigDecimal unitCost = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
-                        BigDecimal lineCost = totalAmount.multiply(unitCost).setScale(2, RoundingMode.HALF_UP);
-                        sum = sum.add(lineCost);
-                    }
-                }
-            }
-        }
-        return sum;
-    }
-
-    private BigDecimal calculateFallbackRetailCogs(OrderEntity order) {
-        BigDecimal sum = BigDecimal.ZERO;
-        for (OrderItemEntity item : order.getItems()) {
-            if (item.isDeleted() || item.getItemType() != OrderItemType.PRODUCT || item.getProduct() == null) continue;
-            BigDecimal costPrice = item.getProduct().getCostPrice() != null ? item.getProduct().getCostPrice() : BigDecimal.ZERO;
-            BigDecimal lineCost = costPrice.multiply(BigDecimal.valueOf(item.getQuantity())).setScale(2, RoundingMode.HALF_UP);
-            sum = sum.add(lineCost);
-        }
-        return sum;
     }
 
     private static class DailyAccumulator {

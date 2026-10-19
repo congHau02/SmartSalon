@@ -165,9 +165,7 @@ public class InventoryService {
         inventory = branchInventoryRepository.save(inventory);
 
         BigDecimal incomingVolume = BigDecimal.valueOf(incomingUnits).multiply(product.getVolumeOrWeightPerUnit());
-        BigDecimal totalAvailableVolume = BigDecimal.valueOf(inventory.getStockUnits())
-                .multiply(product.getVolumeOrWeightPerUnit())
-                .add(inventory.getCurrentVolume());
+        BigDecimal totalAvailableVolume = inventory.calculateTotalAvailableVolume();
 
         recordTransaction(
                 product,
@@ -218,9 +216,7 @@ public class InventoryService {
 
         inventory = branchInventoryRepository.save(inventory);
 
-        BigDecimal totalAvailableVolume = BigDecimal.valueOf(inventory.getStockUnits())
-                .multiply(product.getVolumeOrWeightPerUnit())
-                .add(inventory.getCurrentVolume());
+        BigDecimal totalAvailableVolume = inventory.calculateTotalAvailableVolume();
 
         recordTransaction(
                 product,
@@ -259,9 +255,7 @@ public class InventoryService {
             inventory.setCurrentVolume(remainingVolume);
             inventory = branchInventoryRepository.save(inventory);
 
-            BigDecimal totalAvailable = BigDecimal.valueOf(inventory.getStockUnits())
-                    .multiply(unitVolume)
-                    .add(remainingVolume);
+            BigDecimal totalAvailable = inventory.calculateTotalAvailableVolume();
 
             recordTransaction(
                     product,
@@ -276,7 +270,7 @@ public class InventoryService {
             );
         } else {
             // Trường hợp 2: Thể tích dở dang không đủ, kích hoạt Auto-Unseal
-            if (unitVolume == null || unitVolume.compareTo(BigDecimal.ZERO) <= 0) {
+            if (!product.hasMeasurableVolume()) {
                 throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
             }
 
@@ -299,9 +293,7 @@ public class InventoryService {
             inventory.setCurrentVolume(remainingVolume);
             inventory = branchInventoryRepository.save(inventory);
 
-            BigDecimal totalAvailableAfterConsume = BigDecimal.valueOf(inventory.getStockUnits())
-                    .multiply(unitVolume)
-                    .add(remainingVolume);
+            BigDecimal totalAvailableAfterConsume = inventory.calculateTotalAvailableVolume();
 
             // Audit transaction: Auto-Unseal
             recordTransaction(
@@ -353,10 +345,7 @@ public class InventoryService {
         inventory.setStockUnits(inventory.getStockUnits() - quantityUnits);
         inventory = branchInventoryRepository.save(inventory);
 
-        BigDecimal unitVolume = product.getVolumeOrWeightPerUnit() != null ? product.getVolumeOrWeightPerUnit() : BigDecimal.ZERO;
-        BigDecimal totalAvailable = BigDecimal.valueOf(inventory.getStockUnits())
-                .multiply(unitVolume)
-                .add(inventory.getCurrentVolume() != null ? inventory.getCurrentVolume() : BigDecimal.ZERO);
+        BigDecimal totalAvailable = inventory.calculateTotalAvailableVolume();
 
         recordTransaction(
                 product,
@@ -405,38 +394,29 @@ public class InventoryService {
             Long referenceOrderId,
             String notes
     ) {
-        BigDecimal costPrice = product.getCostPrice() != null ? product.getCostPrice() : BigDecimal.ZERO;
-        BigDecimal volPerUnit = product.getVolumeOrWeightPerUnit() != null ? product.getVolumeOrWeightPerUnit() : BigDecimal.ZERO;
         BigDecimal unitCostSnapshot = BigDecimal.ZERO;
         BigDecimal totalCostAmount = BigDecimal.ZERO;
-
         BigDecimal safeVolAmount = volumeAmount != null ? volumeAmount : BigDecimal.ZERO;
 
         if (type == InventoryTransactionType.SERVICE_CONSUMPTION || type == InventoryTransactionType.AUTO_UNSEAL) {
-            if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
-                unitCostSnapshot = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
-            }
-            totalCostAmount = safeVolAmount.abs().multiply(unitCostSnapshot).setScale(2, RoundingMode.HALF_UP);
+            unitCostSnapshot = product.calculateVolumeUnitCostSnapshot();
+            totalCostAmount = product.calculateVolumeCostAmount(safeVolAmount);
         } else if (type == InventoryTransactionType.RETAIL_SALE || type == InventoryTransactionType.STOCK_IN) {
-            unitCostSnapshot = costPrice.setScale(4, RoundingMode.HALF_UP);
-            totalCostAmount = BigDecimal.valueOf(Math.abs(quantityUnits)).multiply(costPrice).setScale(2, RoundingMode.HALF_UP);
+            unitCostSnapshot = product.calculateRetailUnitCostSnapshot();
+            totalCostAmount = product.calculateRetailCostAmount(quantityUnits);
         } else if (type == InventoryTransactionType.STOCK_ADJUSTMENT) {
             if (quantityUnits != 0 && safeVolAmount.compareTo(BigDecimal.ZERO) == 0) {
-                unitCostSnapshot = costPrice.setScale(4, RoundingMode.HALF_UP);
-                totalCostAmount = BigDecimal.valueOf(Math.abs(quantityUnits)).multiply(costPrice).setScale(2, RoundingMode.HALF_UP);
+                unitCostSnapshot = product.calculateRetailUnitCostSnapshot();
+                totalCostAmount = product.calculateRetailCostAmount(quantityUnits);
             } else if (safeVolAmount.compareTo(BigDecimal.ZERO) != 0 && quantityUnits == 0) {
-                if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
-                    unitCostSnapshot = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
-                }
-                totalCostAmount = safeVolAmount.abs().multiply(unitCostSnapshot).setScale(2, RoundingMode.HALF_UP);
+                unitCostSnapshot = product.calculateVolumeUnitCostSnapshot();
+                totalCostAmount = product.calculateVolumeCostAmount(safeVolAmount);
             } else {
-                if (volPerUnit.compareTo(BigDecimal.ZERO) > 0) {
-                    unitCostSnapshot = costPrice.divide(volPerUnit, 4, RoundingMode.HALF_UP);
-                } else {
-                    unitCostSnapshot = costPrice.setScale(4, RoundingMode.HALF_UP);
-                }
-                BigDecimal unitCost = BigDecimal.valueOf(Math.abs(quantityUnits)).multiply(costPrice);
-                BigDecimal volCost = safeVolAmount.abs().multiply(unitCostSnapshot);
+                unitCostSnapshot = product.hasMeasurableVolume()
+                        ? product.calculateVolumeUnitCostSnapshot()
+                        : product.calculateRetailUnitCostSnapshot();
+                BigDecimal unitCost = product.calculateRetailCostAmount(quantityUnits);
+                BigDecimal volCost = product.calculateVolumeCostAmount(safeVolAmount);
                 totalCostAmount = unitCost.add(volCost).setScale(2, RoundingMode.HALF_UP);
             }
         }
@@ -477,9 +457,7 @@ public class InventoryService {
 
     private BranchInventoryResponse mapToBranchInventoryResponse(BranchInventoryEntity bi) {
         ProductEntity p = bi.getProduct();
-        BigDecimal totalVolume = BigDecimal.valueOf(bi.getStockUnits())
-                .multiply(p.getVolumeOrWeightPerUnit())
-                .add(bi.getCurrentVolume());
+        BigDecimal totalVolume = bi.calculateTotalAvailableVolume();
 
         return BranchInventoryResponse.builder()
                 .id(bi.getId())
@@ -496,7 +474,7 @@ public class InventoryService {
                 .currentVolume(bi.getCurrentVolume())
                 .totalAvailableVolume(totalVolume)
                 .minStockAlertUnits(bi.getMinStockAlertUnits())
-                .isLowStock(bi.getStockUnits() <= bi.getMinStockAlertUnits())
+                .isLowStock(bi.isLowStock())
                 .createdAt(bi.getCreatedAt())
                 .updatedAt(bi.getUpdatedAt())
                 .build();

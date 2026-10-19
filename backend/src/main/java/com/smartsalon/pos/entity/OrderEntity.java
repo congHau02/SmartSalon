@@ -81,4 +81,80 @@ public class OrderEntity extends BaseEntity {
         items.remove(item);
         item.setOrder(null);
     }
+
+    public void recalculateTotals() {
+        BigDecimal computedSubtotal = BigDecimal.ZERO;
+        if (items != null) {
+            for (OrderItemEntity item : items) {
+                if (!item.isDeleted() && item.getTotalPrice() != null) {
+                    computedSubtotal = computedSubtotal.add(item.getTotalPrice());
+                }
+            }
+        }
+        this.subtotal = computedSubtotal;
+        this.finalAmount = calculateFinalAmountWithDraftDiscount(this.discountAmount);
+    }
+
+    public BigDecimal calculateFinalAmountWithDraftDiscount(BigDecimal draftDiscount) {
+        BigDecimal safeSubtotal = this.subtotal != null ? this.subtotal : BigDecimal.ZERO;
+        BigDecimal safeDiscount = draftDiscount != null ? draftDiscount.max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        BigDecimal safeDeposit = this.depositDeducted != null ? this.depositDeducted : BigDecimal.ZERO;
+        return safeSubtotal.subtract(safeDiscount).subtract(safeDeposit).max(BigDecimal.ZERO);
+    }
+
+    public RevenueBreakdown calculateRevenueBreakdown() {
+        BigDecimal grossServiceRevenue = BigDecimal.ZERO;
+        BigDecimal grossRetailRevenue = BigDecimal.ZERO;
+
+        if (items != null) {
+            for (OrderItemEntity item : items) {
+                if (item.isDeleted()) continue;
+                BigDecimal price = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
+                if (item.getItemType() == OrderItemType.SERVICE) {
+                    grossServiceRevenue = grossServiceRevenue.add(price);
+                } else if (item.getItemType() == OrderItemType.PRODUCT) {
+                    grossRetailRevenue = grossRetailRevenue.add(price);
+                }
+            }
+        }
+
+        BigDecimal grossTotal = grossServiceRevenue.add(grossRetailRevenue);
+        BigDecimal rawDiscount = this.discountAmount != null ? this.discountAmount.max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        BigDecimal effectiveDiscount = rawDiscount.min(grossTotal);
+
+        BigDecimal serviceDiscount = BigDecimal.ZERO;
+        BigDecimal retailDiscount = BigDecimal.ZERO;
+
+        if (grossTotal.compareTo(BigDecimal.ZERO) > 0) {
+            serviceDiscount = effectiveDiscount.multiply(grossServiceRevenue)
+                    .divide(grossTotal, 2, java.math.RoundingMode.HALF_UP);
+            retailDiscount = effectiveDiscount.subtract(serviceDiscount);
+        }
+
+        BigDecimal netServiceRevenue = grossServiceRevenue.subtract(serviceDiscount);
+        BigDecimal netRetailRevenue = grossRetailRevenue.subtract(retailDiscount);
+        BigDecimal totalNetRevenue = netServiceRevenue.add(netRetailRevenue);
+
+        return new RevenueBreakdown(
+                grossServiceRevenue,
+                grossRetailRevenue,
+                serviceDiscount,
+                retailDiscount,
+                effectiveDiscount,
+                netServiceRevenue,
+                netRetailRevenue,
+                totalNetRevenue
+        );
+    }
+
+    public record RevenueBreakdown(
+            BigDecimal grossServiceRevenue,
+            BigDecimal grossRetailRevenue,
+            BigDecimal serviceDiscount,
+            BigDecimal retailDiscount,
+            BigDecimal totalDiscount,
+            BigDecimal netServiceRevenue,
+            BigDecimal netRetailRevenue,
+            BigDecimal totalNetRevenue
+    ) {}
 }

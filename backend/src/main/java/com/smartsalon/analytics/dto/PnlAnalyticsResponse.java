@@ -30,6 +30,8 @@ public class PnlAnalyticsResponse {
     private BigDecimal totalCogs;
     private BigDecimal totalCommissions;
     private BigDecimal totalCosts;
+    private BigDecimal serviceNetProfit;
+    private BigDecimal retailNetProfit;
     private BigDecimal operationalNetProfit;
     private BigDecimal grossMarginPercentage;
     private BigDecimal netProfitMarginPercentage;

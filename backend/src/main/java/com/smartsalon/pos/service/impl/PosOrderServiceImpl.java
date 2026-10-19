@@ -7,12 +7,7 @@ import com.smartsalon.booking.entity.DepositStatus;
 import com.smartsalon.booking.repository.BookingRepository;
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartsalon.catalog.entity.ServiceBomEntity;
-import com.smartsalon.catalog.entity.ServiceDefaultStepEntity;
 import com.smartsalon.catalog.entity.ServiceEntity;
-import com.smartsalon.catalog.repository.ServiceBomRepository;
 import com.smartsalon.catalog.repository.ServiceRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
@@ -23,12 +18,12 @@ import com.smartsalon.pos.entity.*;
 import com.smartsalon.pos.repository.OrderRepository;
 import com.smartsalon.pos.repository.OrderStepAssignmentRepository;
 import com.smartsalon.pos.repository.TechnicalLogRepository;
+import com.smartsalon.pos.service.OrderBomResolver;
 import com.smartsalon.pos.service.PosOrderService;
 import com.smartsalon.realtime.service.RealtimeNotificationService;
-import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
-import com.smartsalon.user.repository.RoleRepository;
 import com.smartsalon.user.repository.UserRepository;
+import com.smartsalon.user.service.CustomerIdentityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,15 +37,11 @@ import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -62,17 +53,15 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final BookingRepository bookingRepository;
     private final BranchRepository branchRepository;
     private final ServiceRepository serviceRepository;
-    private final ServiceBomRepository serviceBomRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
     private final TechnicalLogRepository technicalLogRepository;
     private final RealtimeNotificationService realtimeNotificationService;
     private final InventoryService inventoryService;
     private final CommissionLedgerRepository commissionLedgerRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
-    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final CustomerIdentityService customerIdentityService;
+    private final OrderBomResolver orderBomResolver;
 
     @Value("${app.payos.bank-id:MB}")
     private String bankId;
@@ -105,13 +94,8 @@ public class PosOrderServiceImpl implements PosOrderService {
         booking.setStatus(BookingStatus.CHECKED_IN);
         bookingRepository.save(booking);
 
-        String customerName = (booking.getCustomerName() != null && !booking.getCustomerName().isBlank())
-                ? booking.getCustomerName()
-                : (booking.getCustomer() != null ? booking.getCustomer().getFullName() : "Khách hàng");
-
-        String customerPhone = (booking.getCustomerPhone() != null && !booking.getCustomerPhone().isBlank())
-                ? booking.getCustomerPhone()
-                : (booking.getCustomer() != null ? booking.getCustomer().getPhone() : "");
+        String customerName = booking.resolvedCustomerName();
+        String customerPhone = booking.resolvedCustomerPhone();
 
         BigDecimal depositDeducted = BigDecimal.ZERO;
         if (booking.getDepositStatus() == DepositStatus.PAID && booking.getDepositAmount() != null) {
@@ -136,7 +120,6 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .items(new ArrayList<>())
                 .build();
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         UserEntity defaultStaff = booking.getStaff() != null ? booking.getStaff() : resolveDefaultStaff(booking.getBranch());
 
         for (BookingServiceItemEntity item : booking.getItems()) {
@@ -153,17 +136,10 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .build();
 
             order.addItem(orderItem);
-            subtotal = subtotal.add(price);
-
-            populateDefaultStepAssignments(orderItem, service, defaultStaff, price);
+            orderItem.populateDefaultStepAssignments(defaultStaff);
         }
 
-        order.setSubtotal(subtotal);
-        BigDecimal finalAmount = subtotal.subtract(depositDeducted);
-        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
-            finalAmount = BigDecimal.ZERO;
-        }
-        order.setFinalAmount(finalAmount);
+        order.recalculateTotals();
 
         OrderEntity savedOrder = orderRepository.save(order);
 
@@ -179,35 +155,16 @@ public class PosOrderServiceImpl implements PosOrderService {
         BranchEntity branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
 
-        UserEntity customerUser;
-        String customerName = request.getCustomerName();
-        String customerPhone = request.getCustomerPhone();
-
-        if (request.isQuickGuest()) {
-            customerUser = userRepository.findByUsernameAndIsDeletedFalse("walkin.guest")
-                    .orElseGet(this::createWalkInGuestUser);
-            if (customerName == null || customerName.isBlank()) {
-                customerName = "Khách lẻ nhanh";
-            }
-            if (customerPhone == null || customerPhone.isBlank()) {
-                customerPhone = "0000000000";
-            }
-        } else if (customerPhone != null && !customerPhone.isBlank()) {
-            final String cleanPhone = customerPhone.trim();
-            final String finalCustName = (customerName != null && !customerName.isBlank()) ? customerName.trim() : "Khách hàng " + cleanPhone;
-            customerUser = userRepository.findByPhoneAndIsDeletedFalse(cleanPhone)
-                    .orElseGet(() -> createNewCustomerUser(cleanPhone, finalCustName, branch));
-            if (customerName == null || customerName.isBlank()) {
-                customerName = customerUser.getFullName();
-            }
-        } else {
-            customerUser = userRepository.findByUsernameAndIsDeletedFalse("walkin.guest")
-                    .orElseGet(this::createWalkInGuestUser);
-            if (customerName == null || customerName.isBlank()) {
-                customerName = "Khách lẻ vãng lai";
-            }
-            customerPhone = "0000000000";
-        }
+        CustomerIdentityService.ResolvedWalkInCustomer resolvedCustomer =
+                customerIdentityService.resolveForWalkIn(
+                        request.isQuickGuest(),
+                        request.getCustomerPhone(),
+                        request.getCustomerName(),
+                        branch
+                );
+        UserEntity customerUser = resolvedCustomer.user();
+        String customerName = resolvedCustomer.customerName();
+        String customerPhone = resolvedCustomer.customerPhone();
 
         UserEntity assignedStylist = null;
         if (request.getStylistId() != null) {
@@ -235,8 +192,6 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .items(new ArrayList<>())
                 .build();
 
-        BigDecimal subtotal = BigDecimal.ZERO;
-
         if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
             for (Long serviceId : request.getServiceIds()) {
                 ServiceEntity service = serviceRepository.findByIdAndIsDeletedFalse(serviceId)
@@ -253,9 +208,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                         .build();
 
                 order.addItem(orderItem);
-                subtotal = subtotal.add(price);
-
-                populateDefaultStepAssignments(orderItem, service, assignedStylist, price);
+                orderItem.populateDefaultStepAssignments(assignedStylist);
             }
         }
 
@@ -276,12 +229,10 @@ public class PosOrderServiceImpl implements PosOrderService {
                         .build();
 
                 order.addItem(prodItem);
-                subtotal = subtotal.add(totalPrice);
             }
         }
 
-        order.setSubtotal(subtotal);
-        order.setFinalAmount(subtotal);
+        order.recalculateTotals();
 
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyWalkInCreated(savedOrder);
@@ -316,12 +267,8 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .toList();
 
             String staffName = b.getStaff() != null ? b.getStaff().getFullName() : "Stylist bất kỳ";
-            String cName = (b.getCustomerName() != null && !b.getCustomerName().isBlank())
-                    ? b.getCustomerName()
-                    : (b.getCustomer() != null ? b.getCustomer().getFullName() : "Khách hàng");
-            String cPhone = (b.getCustomerPhone() != null && !b.getCustomerPhone().isBlank())
-                    ? b.getCustomerPhone()
-                    : (b.getCustomer() != null ? b.getCustomer().getPhone() : "");
+            String cName = b.resolvedCustomerName();
+            String cPhone = b.resolvedCustomerPhone();
 
             DispatchBoardBookingDto bDto = DispatchBoardBookingDto.builder()
                     .id(b.getId())
@@ -468,10 +415,9 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .build();
 
         order.addItem(orderItem);
+        orderItem.populateDefaultStepAssignments(assignedStaff);
 
-        populateDefaultStepAssignments(orderItem, service, assignedStaff, price);
-
-        recalculateOrderTotals(order);
+        order.recalculateTotals();
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -505,7 +451,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order.addItem(prodItem);
 
-        recalculateOrderTotals(order);
+        order.recalculateTotals();
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -529,7 +475,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             order.setNotes(request.getNotes());
         }
 
-        recalculateOrderTotals(order);
+        order.recalculateTotals();
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -553,7 +499,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order.removeItem(itemToRemove);
 
-        recalculateOrderTotals(order);
+        order.recalculateTotals();
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -587,16 +533,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             step.setCommissionRate(request.getCommissionRate());
         }
 
-        OrderItemEntity orderItem = step.getOrderItem();
-        ServiceEntity service = orderItem.getService();
-        BigDecimal poolRate = (service != null && service.getCommissionPoolRate() != null)
-                ? service.getCommissionPoolRate()
-                : new BigDecimal("20.00");
-        BigDecimal stepRate = step.getCommissionRate() != null ? step.getCommissionRate() : BigDecimal.ZERO;
-        BigDecimal itemPrice = orderItem.getTotalPrice() != null ? orderItem.getTotalPrice() : BigDecimal.ZERO;
-
-        BigDecimal commissionAmount = calculateCommissionAmount(itemPrice, poolRate, stepRate);
-        step.setCommissionAmount(commissionAmount);
+        step.recalculateCommissionAmount();
 
         OrderStepAssignmentEntity savedStep = stepAssignmentRepository.save(step);
         realtimeNotificationService.notifyStepUpdated(order);
@@ -664,35 +601,6 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
     }
 
-    private BigDecimal calculateCommissionAmount(BigDecimal price, BigDecimal poolRate, BigDecimal stepRate) {
-        if (price == null || poolRate == null || stepRate == null) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal poolAmount = price.multiply(poolRate).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
-        return poolAmount.multiply(stepRate).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
-    }
-
-    private void recalculateOrderTotals(OrderEntity order) {
-        BigDecimal subtotal = BigDecimal.ZERO;
-        if (order.getItems() != null) {
-            for (OrderItemEntity item : order.getItems()) {
-                if (!item.isDeleted() && item.getTotalPrice() != null) {
-                    subtotal = subtotal.add(item.getTotalPrice());
-                }
-            }
-        }
-        order.setSubtotal(subtotal);
-
-        BigDecimal discount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
-        BigDecimal deposit = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
-
-        BigDecimal finalAmount = subtotal.subtract(discount).subtract(deposit);
-        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
-            finalAmount = BigDecimal.ZERO;
-        }
-        order.setFinalAmount(finalAmount);
-    }
-
     private PosStepAssignmentResponse mapToStepResponse(OrderStepAssignmentEntity s) {
         return PosStepAssignmentResponse.builder()
                 .id(s.getId())
@@ -717,68 +625,8 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .orElse(null);
     }
 
-    private UserEntity createWalkInGuestUser() {
-        RoleEntity customerRole = roleRepository.findByName("CUSTOMER")
-                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
-
-        UserEntity user = UserEntity.builder()
-                .username("walkin.guest")
-                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
-                .fullName("Khách vãng lai (Walk-in)")
-                .phone("0000000000")
-                .email("walkin@smartsalon.vn")
-                .isActive(true)
-                .roles(Set.of(customerRole))
-                .build();
-
-        return userRepository.save(user);
-    }
-
-    private UserEntity createNewCustomerUser(String phone, String name, BranchEntity branch) {
-        RoleEntity customerRole = roleRepository.findByName("CUSTOMER")
-                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
-
-        UserEntity user = UserEntity.builder()
-                .branch(branch)
-                .username("guest_" + phone)
-                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
-                .fullName(name)
-                .phone(phone)
-                .isActive(true)
-                .roles(Set.of(customerRole))
-                .build();
-
-        return userRepository.save(user);
-    }
-
     private String generateOrderCode() {
         return "ORD-" + (System.currentTimeMillis() % 100000000);
-    }
-
-    private void populateDefaultStepAssignments(OrderItemEntity orderItem, ServiceEntity service, UserEntity staff, BigDecimal price) {
-        if (service.getDefaultSteps() == null) {
-            return;
-        }
-        for (ServiceDefaultStepEntity stepDef : service.getDefaultSteps()) {
-            BigDecimal poolRate = service.getCommissionPoolRate() != null
-                    ? service.getCommissionPoolRate()
-                    : new BigDecimal("20.00");
-            BigDecimal stepRate = stepDef.getCommissionRate() != null
-                    ? stepDef.getCommissionRate()
-                    : BigDecimal.ZERO;
-
-            BigDecimal commissionAmount = calculateCommissionAmount(price, poolRate, stepRate);
-
-            OrderStepAssignmentEntity stepAssignment = OrderStepAssignmentEntity.builder()
-                    .stepName(stepDef.getStepName())
-                    .staff(staff)
-                    .commissionRate(stepRate)
-                    .commissionAmount(commissionAmount)
-                    .status(StepAssignmentStatus.PENDING)
-                    .build();
-
-            orderItem.addStepAssignment(stepAssignment);
-        }
     }
 
     @Override
@@ -791,15 +639,8 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         if (existingLogOpt.isPresent()) {
             TechnicalLogEntity techLogEntity = existingLogOpt.get();
-            if (StringUtils.hasText(techLogEntity.getActualBomJson())) {
-                List<ActualBomItemDto> bomItems;
-                try {
-                    bomItems = objectMapper.readValue(techLogEntity.getActualBomJson(), new TypeReference<List<ActualBomItemDto>>() {});
-                } catch (Exception e) {
-                    log.warn("Failed to deserialize actual_bom_json for order {}: {}", orderId, e.getMessage());
-                    bomItems = new ArrayList<>();
-                }
-
+            List<ActualBomItemDto> bomItems = orderBomResolver.parseActualBomJson(techLogEntity.getActualBomJson(), orderId);
+            if (!bomItems.isEmpty() || StringUtils.hasText(techLogEntity.getActualBomJson())) {
                 return TechnicalLogResponse.builder()
                         .id(techLogEntity.getId())
                         .orderId(order.getId())
@@ -820,44 +661,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             }
         }
 
-        // Synthesize baseline consumable chemical rows from the standard BOM of all active services
-        Map<Long, ActualBomItemDto> bomMap = new LinkedHashMap<>();
-
-        if (order.getItems() != null) {
-            for (OrderItemEntity item : order.getItems()) {
-                if (item.isDeleted() || item.getItemType() != OrderItemType.SERVICE || item.getService() == null) {
-                    continue;
-                }
-                Long serviceId = item.getService().getId();
-                int qty = item.getQuantity();
-                List<ServiceBomEntity> serviceBoms = serviceBomRepository.findAllByServiceIdAndIsDeletedFalse(serviceId);
-
-                for (ServiceBomEntity bom : serviceBoms) {
-                    if (bom.getProduct() == null) continue;
-                    ProductEntity product = bom.getProduct();
-                    Long prodId = product.getId();
-                    BigDecimal itemAmount = bom.getStandardAmount() != null
-                            ? bom.getStandardAmount().multiply(BigDecimal.valueOf(qty))
-                            : BigDecimal.ZERO;
-
-                    if (bomMap.containsKey(prodId)) {
-                        ActualBomItemDto existing = bomMap.get(prodId);
-                        BigDecimal updatedStd = existing.getStandardAmount().add(itemAmount);
-                        existing.setStandardAmount(updatedStd);
-                        existing.setActualAmount(updatedStd);
-                    } else {
-                        bomMap.put(prodId, ActualBomItemDto.builder()
-                                .productId(prodId)
-                                .productName(product.getName())
-                                .productSku(product.getSku())
-                                .standardAmount(itemAmount)
-                                .actualAmount(itemAmount)
-                                .unit(bom.getUnit() != null ? bom.getUnit() : "ml")
-                                .build());
-                    }
-                }
-            }
-        }
+        List<ActualBomItemDto> synthesizedBomItems = orderBomResolver.buildStandardBomItems(order);
 
         // Suggest staff: from existing log, or first step assignment stylist, or null
         Long suggestedStaffId = null;
@@ -885,7 +689,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .hairConditionNotes(existingLogOpt.map(TechnicalLogEntity::getHairConditionNotes).orElse(null))
                 .beforeImageUrl(existingLogOpt.map(TechnicalLogEntity::getBeforeImageUrl).orElse(null))
                 .afterImageUrl(existingLogOpt.map(TechnicalLogEntity::getAfterImageUrl).orElse(null))
-                .bomItems(new ArrayList<>(bomMap.values()))
+                .bomItems(synthesizedBomItems)
                 .isSaved(false)
                 .createdAt(existingLogOpt.map(TechnicalLogEntity::getCreatedAt).orElse(null))
                 .updatedAt(existingLogOpt.map(TechnicalLogEntity::getUpdatedAt).orElse(null))
@@ -900,9 +704,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         UserEntity customer = order.getCustomer();
         if (customer == null) {
-            customer = userRepository.findByUsernameAndIsDeletedFalse("walkin.guest")
-                    .orElseGet(() -> userRepository.findAllActiveStylists().stream().findFirst()
-                            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND)));
+            customer = customerIdentityService.resolveWalkInGuest();
         }
 
         UserEntity staff = null;
@@ -947,7 +749,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         try {
-            techLog.setActualBomJson(objectMapper.writeValueAsString(items));
+            techLog.setActualBomJson(orderBomResolver.serializeActualBomJson(items, orderId));
         } catch (Exception e) {
             log.error("Failed to serialize bomItems for order {}: {}", orderId, e.getMessage());
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
@@ -1069,7 +871,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             order.setNotes(request.getNotes());
         }
 
-        recalculateOrderTotals(order);
+        order.recalculateTotals();
 
         String paymentMethod = StringUtils.hasText(request.getPaymentMethod())
                 ? request.getPaymentMethod().trim().toUpperCase()
@@ -1102,8 +904,12 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         if (order.getBooking() != null) {
             BookingEntity booking = order.getBooking();
+            BookingStatus oldBookingStatus = booking.getStatus();
             booking.setStatus(BookingStatus.COMPLETED);
             bookingRepository.save(booking);
+            if (realtimeNotificationService != null && oldBookingStatus != BookingStatus.COMPLETED) {
+                realtimeNotificationService.notifyBookingStatusChanged(booking, oldBookingStatus, BookingStatus.COMPLETED);
+            }
         }
 
         // 6. Broadcast realtime WebSocket event
@@ -1115,46 +921,11 @@ public class PosOrderServiceImpl implements PosOrderService {
     private void deductChemicalConsumables(OrderEntity order) {
         Long branchId = order.getBranch().getId();
         Optional<TechnicalLogEntity> techLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(order.getId());
-        List<ActualBomItemDto> bomToDeduct = new ArrayList<>();
+        Map<Long, BigDecimal> effectiveBom = orderBomResolver.resolveEffectiveDeductionVolumes(order, techLogOpt);
 
-        if (techLogOpt.isPresent() && StringUtils.hasText(techLogOpt.get().getActualBomJson())) {
-            try {
-                List<ActualBomItemDto> parsed = objectMapper.readValue(
-                        techLogOpt.get().getActualBomJson(),
-                        new TypeReference<List<ActualBomItemDto>>() {}
-                );
-                if (parsed != null && !parsed.isEmpty()) {
-                    bomToDeduct.addAll(parsed);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse actualBomJson for order {}: {}", order.getId(), e.getMessage());
-            }
-        }
-
-        if (!bomToDeduct.isEmpty()) {
-            for (ActualBomItemDto item : bomToDeduct) {
-                if (item.getProductId() != null && item.getActualAmount() != null && item.getActualAmount().compareTo(BigDecimal.ZERO) > 0) {
-                    inventoryService.deductConsumables(branchId, item.getProductId(), item.getActualAmount(), order.getId());
-                }
-            }
-        } else {
-            Map<Long, BigDecimal> aggregatedBom = new HashMap<>();
-            for (OrderItemEntity item : order.getItems()) {
-                if (!item.isDeleted() && item.getItemType() == OrderItemType.SERVICE && item.getService() != null) {
-                    List<ServiceBomEntity> standardBoms = serviceBomRepository.findAllByServiceIdAndIsDeletedFalse(item.getService().getId());
-                    for (ServiceBomEntity bom : standardBoms) {
-                        if (bom.getProduct() != null && bom.getStandardAmount() != null) {
-                            BigDecimal totalAmount = bom.getStandardAmount().multiply(BigDecimal.valueOf(item.getQuantity()));
-                            aggregatedBom.merge(bom.getProduct().getId(), totalAmount, BigDecimal::add);
-                        }
-                    }
-                }
-            }
-
-            for (Map.Entry<Long, BigDecimal> entry : aggregatedBom.entrySet()) {
-                if (entry.getValue().compareTo(BigDecimal.ZERO) > 0) {
-                    inventoryService.deductConsumables(branchId, entry.getKey(), entry.getValue(), order.getId());
-                }
+        for (Map.Entry<Long, BigDecimal> entry : effectiveBom.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                inventoryService.deductConsumables(branchId, entry.getKey(), entry.getValue(), order.getId());
             }
         }
     }
@@ -1175,12 +946,6 @@ public class PosOrderServiceImpl implements PosOrderService {
                 continue;
             }
 
-            ServiceEntity service = item.getService();
-            BigDecimal poolRate = (service != null && service.getCommissionPoolRate() != null)
-                    ? service.getCommissionPoolRate()
-                    : new BigDecimal("20.00");
-            BigDecimal itemPrice = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
-
             for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
                 if (step.getStartedAt() == null) {
                     step.setStartedAt(now);
@@ -1190,20 +955,11 @@ public class PosOrderServiceImpl implements PosOrderService {
                 }
                 step.setStatus(StepAssignmentStatus.COMPLETED);
 
-                BigDecimal stepRate = step.getCommissionRate() != null ? step.getCommissionRate() : BigDecimal.ZERO;
-                BigDecimal commissionAmount = calculateCommissionAmount(itemPrice, poolRate, stepRate);
-                step.setCommissionAmount(commissionAmount);
+                BigDecimal commissionAmount = step.recalculateCommissionAmount();
                 stepAssignmentRepository.save(step);
 
                 UserEntity staff = step.getStaff() != null ? step.getStaff() : resolveOrderStaff(order);
-                String calculationNotes = String.format(
-                        "Hoa hồng bước '%s' - Dịch vụ '%s' (%s x Pool %.1f%% x Bước %.1f%%)",
-                        step.getStepName(),
-                        service != null ? service.getName() : "",
-                        itemPrice.stripTrailingZeros().toPlainString(),
-                        poolRate.doubleValue(),
-                        stepRate.doubleValue()
-                );
+                String calculationNotes = step.formatCalculationNotes();
 
                 CommissionLedgerEntity ledger = CommissionLedgerEntity.builder()
                         .staff(staff)
@@ -1234,25 +990,10 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
         }
 
-        BigDecimal finalAmount = order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO;
-        if (draftDiscountAmount != null) {
-            BigDecimal subtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
-            BigDecimal deposit = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
-            finalAmount = subtotal.subtract(draftDiscountAmount.max(BigDecimal.ZERO)).subtract(deposit)
-                    .max(BigDecimal.ZERO);
-        }
+        BigDecimal finalAmount = order.calculateFinalAmountWithDraftDiscount(draftDiscountAmount);
         String desc = order.getOrderCode();
-        String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String encodedDesc = URLEncoder.encode(desc, StandardCharsets.UTF_8);
-
-        String qrCodeUrl = String.format(
-                "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
-                bankId,
-                accountNo,
-                finalAmount.longValue(),
-                encodedDesc,
-                encodedAccountName
-        );
+        String qrCodeUrl = com.smartsalon.payment.VietQrUrlBuilder.buildCompactQrUrl(
+                bankId, accountNo, accountName, finalAmount, desc);
 
         return PosVietQrResponse.builder()
                 .orderId(order.getId())
@@ -1283,7 +1024,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         List<CommissionLedgerEntryDto> entryDtos = new ArrayList<>();
 
         for (CommissionLedgerEntity ledger : ledgers) {
-            BigDecimal amt = ledger.getAmount() != null ? ledger.getAmount() : BigDecimal.ZERO;
+            BigDecimal amt = ledger.safeAmount();
             totalCommission = totalCommission.add(amt);
 
             UserEntity staff = ledger.getStaff();
@@ -1300,27 +1041,15 @@ public class PosOrderServiceImpl implements PosOrderService {
                 summary.setStepCount(summary.getStepCount() + 1);
             }
 
-            OrderStepAssignmentEntity step = ledger.getStepAssignment();
-            String serviceName = null;
-            String stepName = null;
-            BigDecimal commissionRate = null;
-            if (step != null) {
-                stepName = step.getStepName();
-                commissionRate = step.getCommissionRate();
-                if (step.getOrderItem() != null && step.getOrderItem().getService() != null) {
-                    serviceName = step.getOrderItem().getService().getName();
-                }
-            }
-
             entryDtos.add(CommissionLedgerEntryDto.builder()
                     .id(ledger.getId())
                     .staffId(staff != null ? staff.getId() : null)
                     .staffName(staff != null ? staff.getFullName() : null)
                     .orderId(ledger.getOrder() != null ? ledger.getOrder().getId() : null)
                     .orderCode(ledger.getOrder() != null ? ledger.getOrder().getOrderCode() : null)
-                    .serviceName(serviceName)
-                    .stepName(stepName)
-                    .commissionRate(commissionRate)
+                    .serviceName(ledger.resolveServiceName())
+                    .stepName(ledger.resolveStepName())
+                    .commissionRate(ledger.resolveCommissionRate())
                     .amount(amt)
                     .status(ledger.getStatus())
                     .calculationNotes(ledger.getCalculationNotes())

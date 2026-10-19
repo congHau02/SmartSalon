@@ -304,8 +304,8 @@ public class ReportExportServiceImpl implements ReportExportService {
             Cell ot9 = otRow.createCell(9); ot9.setCellValue(data.getChemicalCogs().doubleValue()); ot9.setCellStyle(currencyTotalStyle);
             Cell ot10 = otRow.createCell(10); ot10.setCellValue(data.getRetailCogs().doubleValue()); ot10.setCellStyle(currencyTotalStyle);
             Cell ot11 = otRow.createCell(11); ot11.setCellValue(data.getTotalCommissions().doubleValue()); ot11.setCellStyle(currencyTotalStyle);
-            BigDecimal totalSvcProfit = data.getNetServiceRevenue().subtract(data.getChemicalCogs()).subtract(data.getTotalCommissions());
-            BigDecimal totalRetProfit = data.getNetRetailRevenue().subtract(data.getRetailCogs());
+            BigDecimal totalSvcProfit = data.getServiceNetProfit() != null ? data.getServiceNetProfit() : BigDecimal.ZERO;
+            BigDecimal totalRetProfit = data.getRetailNetProfit() != null ? data.getRetailNetProfit() : BigDecimal.ZERO;
             Cell ot12 = otRow.createCell(12); ot12.setCellValue(totalSvcProfit.doubleValue()); ot12.setCellStyle(currencyTotalStyle);
             Cell ot13 = otRow.createCell(13); ot13.setCellValue(totalRetProfit.doubleValue()); ot13.setCellStyle(currencyTotalStyle);
             Cell ot14 = otRow.createCell(14); ot14.setCellValue(data.getOperationalNetProfit().doubleValue()); ot14.setCellStyle(currencyTotalStyle);
@@ -444,10 +444,8 @@ public class ReportExportServiceImpl implements ReportExportService {
                 Cell c = sTotalRow.createCell(i); c.setCellValue(""); c.setCellStyle(totalStyle);
             }
             Cell st6 = sTotalRow.createCell(6); st6.setCellValue(data.getTotalBaseSalary() != null ? data.getTotalBaseSalary().doubleValue() : 0.0); st6.setCellStyle(currencyTotalStyle);
-            int totalBookingsSum = staffList.stream().mapToInt(StaffPerformanceResponse::getCompletedOrderCount).sum();
-            int totalStepsSum = staffList.stream().mapToInt(StaffPerformanceResponse::getCompletedStepCount).sum();
-            Cell st7 = sTotalRow.createCell(7); st7.setCellValue(totalBookingsSum); st7.setCellStyle(totalStyle);
-            Cell st8 = sTotalRow.createCell(8); st8.setCellValue(totalStepsSum); st8.setCellStyle(totalStyle);
+            Cell st7 = sTotalRow.createCell(7); st7.setCellValue(data.getTotalCompletedOrders()); st7.setCellStyle(totalStyle);
+            Cell st8 = sTotalRow.createCell(8); st8.setCellValue(data.getTotalCompletedSteps()); st8.setCellStyle(totalStyle);
             Cell st9 = sTotalRow.createCell(9); st9.setCellValue(data.getTotalCommission() != null ? data.getTotalCommission().doubleValue() : 0.0); st9.setCellStyle(currencyTotalStyle);
             Cell st10 = sTotalRow.createCell(10); st10.setCellValue(data.getTotalPayrollPayout() != null ? data.getTotalPayrollPayout().doubleValue() : 0.0); st10.setCellStyle(currencyTotalStyle);
             Cell st11 = sTotalRow.createCell(11); st11.setCellValue(data.getAverageRequestedStylistRate() != null ? data.getAverageRequestedStylistRate().doubleValue() : 0.0); st11.setCellStyle(percentStyle);
@@ -485,7 +483,6 @@ public class ReportExportServiceImpl implements ReportExportService {
             }
 
             int ledgerStt = 1;
-            BigDecimal sumLedgerAmount = BigDecimal.ZERO;
 
             for (StaffPerformanceResponse staff : staffList) {
                 if (staff.getCommissionLedgers() != null) {
@@ -513,9 +510,6 @@ public class ReportExportServiceImpl implements ReportExportService {
                         double amt = ledger.getAmount() != null ? ledger.getAmount().doubleValue() : 0.0;
                         c9.setCellValue(amt);
                         c9.setCellStyle(ccs);
-                        if (ledger.getAmount() != null) {
-                            sumLedgerAmount = sumLedgerAmount.add(ledger.getAmount());
-                        }
                         Cell c10 = lRow.createCell(10); c10.setCellValue(ledger.getCalculationNotes() != null ? ledger.getCalculationNotes() : ""); c10.setCellStyle(cs);
                     }
                 }
@@ -528,7 +522,8 @@ public class ReportExportServiceImpl implements ReportExportService {
             for (int i = 2; i <= 8; i++) {
                 Cell c = ltRow.createCell(i); c.setCellValue(""); c.setCellStyle(totalStyle);
             }
-            Cell lt9 = ltRow.createCell(9); lt9.setCellValue(sumLedgerAmount.doubleValue()); lt9.setCellStyle(currencyTotalStyle);
+            BigDecimal totalLedgerCommission = data.getTotalCommission() != null ? data.getTotalCommission() : BigDecimal.ZERO;
+            Cell lt9 = ltRow.createCell(9); lt9.setCellValue(totalLedgerCommission.doubleValue()); lt9.setCellStyle(currencyTotalStyle);
             Cell lt10 = ltRow.createCell(10); lt10.setCellValue(""); lt10.setCellStyle(totalStyle);
 
             for (int i = 0; i < ledgerHeaders.length; i++) {
@@ -576,8 +571,9 @@ public class ReportExportServiceImpl implements ReportExportService {
                     "DV thuần: " + CURRENCY_FMT.format(data.getNetServiceRevenue()) + " | Bán lẻ: " + CURRENCY_FMT.format(data.getNetRetailRevenue()),
                     new Color(239, 246, 255), new Color(29, 78, 216)); // Blue
 
+            BigDecimal totalDirectCosts = data.getTotalCosts() != null ? data.getTotalCosts() : BigDecimal.ZERO;
             addKpiCell(kpiTable, fonts, "TỔNG GIÁ VỐN & HOA HỒNG (COGS + COMMISSIONS)",
-                    CURRENCY_FMT.format(data.getChemicalCogs().add(data.getRetailCogs()).add(data.getTotalCommissions())),
+                    CURRENCY_FMT.format(totalDirectCosts),
                     "Hóa chất: " + CURRENCY_FMT.format(data.getChemicalCogs()) + " | Bán lẻ: " + CURRENCY_FMT.format(data.getRetailCogs()) + " | Hoa hồng: " + CURRENCY_FMT.format(data.getTotalCommissions()),
                     new Color(254, 242, 242), new Color(185, 28, 28)); // Red
 

@@ -4,6 +4,7 @@ import SockJS from "sockjs-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBranch } from "../branch/useBranch";
 import { playNotificationChime } from "./audioChime";
+import { invalidateRealtimeCaches } from "../../lib/queryKeys";
 
 const RealtimeContext = createContext(null);
 
@@ -72,11 +73,7 @@ export function RealtimeProvider({ children }) {
       }, 6000);
 
       // 4. Invalidate TanStack Query caches so UI updates immediately
-      queryClient.invalidateQueries({ queryKey: ["booking"] });
-      queryClient.invalidateQueries({ queryKey: ["pos"] });
-      queryClient.invalidateQueries({ queryKey: ["dispatch"] });
-      queryClient.invalidateQueries({ queryKey: ["order"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      invalidateRealtimeCaches(queryClient);
     },
     [queryClient, dismissToast]
   );

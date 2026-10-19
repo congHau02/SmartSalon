@@ -47,19 +47,18 @@ import java.util.*;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
 
-    public static final BigDecimal DEPOSIT_RATE = new BigDecimal("0.20");
-    public static final int HOLD_TTL_MINUTES = 5;
+    public static final BigDecimal DEPOSIT_RATE = BookingEntity.DEPOSIT_RATE;
+    public static final int HOLD_TTL_MINUTES = BookingEntity.HOLD_TTL_MINUTES;
 
     private final BookingRepository bookingRepository;
     private final BranchRepository branchRepository;
     private final ServiceRepository serviceRepository;
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
     private final RedisLockService redisLockService;
-    private final PasswordEncoder passwordEncoder;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final BookingMapper bookingMapper;
     private final RealtimeNotificationService realtimeNotificationService;
+    private final com.smartsalon.user.service.CustomerIdentityService customerIdentityService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -99,7 +98,7 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal totalPrice = services.stream()
                 .map(ServiceEntity::getBasePrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal depositAmount = totalPrice.multiply(DEPOSIT_RATE).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal depositAmount = BookingEntity.calculateDepositAmount(totalPrice);
 
         String datePart = startTime.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String bookingCode;
@@ -196,24 +195,8 @@ public class BookingServiceImpl implements BookingService {
 
         String phone = request.customerPhone().trim();
         if (customer == null) {
-            Optional<UserEntity> phoneUser = userRepository.findByPhoneAndIsDeletedFalse(phone);
-            if (phoneUser.isPresent()) {
-                customer = phoneUser.get();
-            } else {
-                String username = userRepository.existsByUsername(phone) ? "guest_" + phone : phone;
-                RoleEntity customerRole = roleRepository.findByName("CUSTOMER")
-                        .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
-                UserEntity newGuest = UserEntity.builder()
-                        .username(username)
-                        .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
-                        .fullName(request.customerName().trim())
-                        .phone(phone)
-                        .branch(branch)
-                        .isActive(true)
-                        .roles(Set.of(customerRole))
-                        .build();
-                customer = userRepository.save(newGuest);
-            }
+            customer = customerIdentityService.resolveForBooking(
+                    phone, request.customerName(), branch);
         }
 
         BookingEntity booking = BookingEntity.builder()
@@ -315,7 +298,7 @@ public class BookingServiceImpl implements BookingService {
         BookingStatus newStatus = request.status();
         BookingStatus oldStatus = booking.getStatus();
 
-        if (!isValidStatusTransition(oldStatus, newStatus)) {
+        if (!booking.canTransitionTo(newStatus)) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
@@ -323,17 +306,25 @@ public class BookingServiceImpl implements BookingService {
             if (oldStatus == BookingStatus.PENDING_PAYMENT && booking.getStaff() != null) {
                 redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
             }
+            if (newStatus == BookingStatus.EXPIRED) {
+                booking.expireHold();
+            } else {
+                booking.setStatus(newStatus);
+            }
         } else if (newStatus == BookingStatus.CONFIRMED) {
-            booking.setSlotLockExpiresAt(null);
             if (oldStatus == BookingStatus.PENDING_PAYMENT) {
-                booking.setDepositStatus(DepositStatus.PAID);
+                booking.confirmDeposit();
                 if (booking.getStaff() != null) {
                     redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
                 }
+            } else {
+                booking.setSlotLockExpiresAt(null);
+                booking.setStatus(BookingStatus.CONFIRMED);
             }
+        } else {
+            booking.setStatus(newStatus);
         }
 
-        booking.setStatus(newStatus);
         if (request.notes() != null && !request.notes().isBlank()) {
             booking.setNotes(request.notes().trim());
         }
@@ -343,16 +334,5 @@ public class BookingServiceImpl implements BookingService {
             realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, newStatus);
         }
         return bookingMapper.toResponse(booking);
-    }
-
-    private boolean isValidStatusTransition(BookingStatus from, BookingStatus to) {
-        if (from == to) return true;
-        return switch (from) {
-            case PENDING_PAYMENT -> to == BookingStatus.CONFIRMED || to == BookingStatus.CANCELLED || to == BookingStatus.EXPIRED;
-            case CONFIRMED -> to == BookingStatus.CHECKED_IN || to == BookingStatus.CANCELLED || to == BookingStatus.NO_SHOW;
-            case CHECKED_IN -> to == BookingStatus.IN_PROGRESS || to == BookingStatus.CANCELLED;
-            case IN_PROGRESS -> to == BookingStatus.COMPLETED;
-            case COMPLETED, CANCELLED, EXPIRED, NO_SHOW -> false;
-        };
     }
 }

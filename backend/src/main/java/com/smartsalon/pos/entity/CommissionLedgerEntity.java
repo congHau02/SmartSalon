@@ -54,4 +54,25 @@ public class CommissionLedgerEntity {
     @LastModifiedDate
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    public BigDecimal safeAmount() {
+        return amount != null ? amount : BigDecimal.ZERO;
+    }
+
+    public String resolveServiceName() {
+        if (stepAssignment != null
+                && stepAssignment.getOrderItem() != null
+                && stepAssignment.getOrderItem().getService() != null) {
+            return stepAssignment.getOrderItem().getService().getName();
+        }
+        return null;
+    }
+
+    public String resolveStepName() {
+        return stepAssignment != null ? stepAssignment.getStepName() : null;
+    }
+
+    public BigDecimal resolveCommissionRate() {
+        return stepAssignment != null ? stepAssignment.getCommissionRate() : null;
+    }
 }

@@ -48,8 +48,6 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
     private final CommissionLedgerRepository commissionLedgerRepository;
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
-    private static final String WALKIN_USERNAME = "walkin.guest";
-    private static final String WALKIN_PHONE = "0000000000";
     private static final String STATUS_CANCELLED = "CANCELLED";
 
     @Override
@@ -84,6 +82,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
 
         List<StaffPerformanceResponse> staffResponses = new ArrayList<>();
 
+        int totalCompletedOrdersSum = 0;
+        int totalCompletedStepsSum = 0;
         BigDecimal totalBaseSalarySum = BigDecimal.ZERO;
         BigDecimal totalCommissionSum = BigDecimal.ZERO;
         BigDecimal totalPayrollPayoutSum = BigDecimal.ZERO;
@@ -100,6 +100,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
             );
             staffResponses.add(staffResp);
 
+            totalCompletedOrdersSum += staffResp.getCompletedOrderCount();
+            totalCompletedStepsSum += staffResp.getCompletedStepCount();
             totalBaseSalarySum = totalBaseSalarySum.add(staffResp.getBaseSalary());
             totalCommissionSum = totalCommissionSum.add(staffResp.getTotalCommission());
             totalPayrollPayoutSum = totalPayrollPayoutSum.add(staffResp.getTotalPayout());
@@ -131,6 +133,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .startDate(actualStart)
                 .endDate(actualEnd)
                 .totalStaffCount(staffResponses.size())
+                .totalCompletedOrders(totalCompletedOrdersSum)
+                .totalCompletedSteps(totalCompletedStepsSum)
                 .totalBaseSalary(totalBaseSalarySum)
                 .totalCommission(totalCommissionSum)
                 .totalPayrollPayout(totalPayrollPayoutSum)
@@ -157,7 +161,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .toList();
 
         BigDecimal totalCommission = staffLedgers.stream()
-                .map(l -> l.getAmount() != null ? l.getAmount() : BigDecimal.ZERO)
+                .map(CommissionLedgerEntity::safeAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<CommissionLedgerDetailResponse> ledgerDetails = staffLedgers.stream()
@@ -165,10 +169,10 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                         .id(l.getId())
                         .orderId(l.getOrder() != null ? l.getOrder().getId() : null)
                         .orderCode(l.getOrder() != null ? l.getOrder().getOrderCode() : "")
-                        .serviceName(resolveServiceName(l))
-                        .stepName(l.getStepAssignment() != null ? l.getStepAssignment().getStepName() : "")
-                        .commissionRate(l.getStepAssignment() != null ? l.getStepAssignment().getCommissionRate() : null)
-                        .amount(l.getAmount() != null ? l.getAmount() : BigDecimal.ZERO)
+                        .serviceName(l.resolveServiceName() != null ? l.resolveServiceName() : "")
+                        .stepName(l.resolveStepName() != null ? l.resolveStepName() : "")
+                        .commissionRate(l.resolveCommissionRate())
+                        .amount(l.safeAmount())
                         .status(l.getStatus())
                         .calculationNotes(l.getCalculationNotes())
                         .createdAt(l.getCreatedAt())
@@ -236,13 +240,13 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
         for (OrderEntity order : orders) {
             if (!isStaffInOrder(order, staffId)) continue;
             UserEntity cust = order.getCustomer();
-            if (isIdentifiedCustomer(cust, order)) {
+            if (com.smartsalon.user.service.CustomerIdentityService.isIdentifiedCustomer(cust, order.getCustomerPhone())) {
                 identifiedCustomerIdsInPeriod.add(cust.getId());
             }
         }
         for (BookingEntity b : stylistBookings) {
             UserEntity cust = b.getCustomer();
-            if (isIdentifiedCustomer(cust, null)) {
+            if (com.smartsalon.user.service.CustomerIdentityService.isIdentifiedCustomer(cust, b.getCustomerPhone())) {
                 identifiedCustomerIdsInPeriod.add(cust.getId());
             }
         }
@@ -316,23 +320,6 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
             }
         }
         return false;
-    }
-
-    private String resolveServiceName(CommissionLedgerEntity ledger) {
-        OrderStepAssignmentEntity step = ledger.getStepAssignment();
-        if (step == null || step.getOrderItem() == null || step.getOrderItem().getService() == null) {
-            return "";
-        }
-        return step.getOrderItem().getService().getName();
-    }
-
-    private boolean isIdentifiedCustomer(UserEntity customer, OrderEntity order) {
-        if (customer == null) return false;
-        if (WALKIN_USERNAME.equalsIgnoreCase(customer.getUsername())) return false;
-        if (WALKIN_PHONE.equals(customer.getPhone())) return false;
-        if (customer.getFullName() != null && customer.getFullName().toLowerCase().contains("walk-in")) return false;
-        if (order != null && order.getCustomerPhone() != null && WALKIN_PHONE.equals(order.getCustomerPhone())) return false;
-        return true;
     }
 
     @Override

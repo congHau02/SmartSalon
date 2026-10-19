@@ -112,28 +112,23 @@ public class PayOSServiceImpl implements PayOSService {
             throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
         }
 
-        if (booking.getStatus() == BookingStatus.PENDING_PAYMENT
-                && booking.getSlotLockExpiresAt() != null
-                && booking.getSlotLockExpiresAt().isBefore(LocalDateTime.now())) {
-            booking.setStatus(BookingStatus.EXPIRED);
+        if (booking.isHoldExpired(LocalDateTime.now())) {
+            BookingStatus oldStatus = booking.getStatus();
+            booking.expireHold();
             bookingRepository.save(booking);
             if (booking.getStaff() != null) {
                 redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
+            }
+            if (realtimeNotificationService != null) {
+                realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, BookingStatus.EXPIRED);
             }
             throw new AppException(ErrorCode.BOOKING_EXPIRED);
         }
 
         BigDecimal depositAmount = booking.getDepositAmount();
         String description = booking.getBookingCode();
-        String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String vietQrUrl = String.format(
-                "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
-                bankId,
-                accountNo,
-                depositAmount.longValue(),
-                description,
-                encodedAccountName
-        );
+        String vietQrUrl = com.smartsalon.payment.VietQrUrlBuilder.buildCompactQrUrl(
+                bankId, accountNo, accountName, depositAmount, description);
 
         String paymentUrl = vietQrUrl;
         String qrCodeUrl = vietQrUrl;
@@ -323,11 +318,15 @@ public class PayOSServiceImpl implements PayOSService {
             throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
         }
 
-        if (booking.getSlotLockExpiresAt() != null && booking.getSlotLockExpiresAt().isBefore(LocalDateTime.now())) {
-            booking.setStatus(BookingStatus.EXPIRED);
+        if (booking.isHoldExpired(LocalDateTime.now())) {
+            BookingStatus oldStatus = booking.getStatus();
+            booking.expireHold();
             bookingRepository.save(booking);
             if (booking.getStaff() != null) {
                 redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
+            }
+            if (realtimeNotificationService != null) {
+                realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, BookingStatus.EXPIRED);
             }
             throw new AppException(ErrorCode.BOOKING_EXPIRED);
         }
@@ -355,9 +354,7 @@ public class PayOSServiceImpl implements PayOSService {
     }
 
     private BookingEntity confirmBookingAndReleaseLock(BookingEntity booking) {
-        booking.setStatus(BookingStatus.CONFIRMED);
-        booking.setDepositStatus(DepositStatus.PAID);
-        booking.setSlotLockExpiresAt(null);
+        booking.confirmDeposit();
         BookingEntity confirmed = bookingRepository.save(booking);
 
         if (confirmed.getStaff() != null) {

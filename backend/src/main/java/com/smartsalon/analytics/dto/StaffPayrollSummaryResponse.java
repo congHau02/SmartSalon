@@ -21,6 +21,8 @@ public class StaffPayrollSummaryResponse {
     private LocalDate endDate;
 
     private int totalStaffCount;
+    private int totalCompletedOrders;
+    private int totalCompletedSteps;
     private BigDecimal totalBaseSalary;
     private BigDecimal totalCommission;
     private BigDecimal totalPayrollPayout;

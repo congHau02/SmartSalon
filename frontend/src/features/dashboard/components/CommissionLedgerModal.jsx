@@ -1,17 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { formatCurrency, formatDate } from "../../../lib/utils";
+import { formatCurrency } from "../../../lib/utils";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
-import { 
-  X, 
-  Receipt, 
-  Search, 
-  Sparkles, 
-  Calendar,
-  Layers,
-  Calculator,
-  ArrowUpRight,
-  TrendingUp
+import { CommissionLedgerEntriesTable } from "../../../components/shared/CommissionLedgerEntriesTable";
+import {
+  X,
+  Receipt,
+  Search,
 } from "lucide-react";
 
 export function CommissionLedgerModal({ staff, isOpen, onClose }) {
@@ -115,61 +110,11 @@ export function CommissionLedgerModal({ staff, isOpen, onClose }) {
               </p>
             </div>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50/80 sticky top-0 z-10 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <tr>
-                  <th className="py-2.5 px-4">Mã đơn & Thời gian</th>
-                  <th className="py-2.5 px-4">Dịch vụ / Công đoạn (Step)</th>
-                  <th className="py-2.5 px-4 text-center">Tỷ lệ %</th>
-                  <th className="py-2.5 px-4">Công thức tính hoa hồng</th>
-                  <th className="py-2.5 px-4 text-center">Trạng thái</th>
-                  <th className="py-2.5 px-4 text-right">Hoa hồng thực nhận</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {ledgers.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 font-mono">
-                        {item.orderCode || `#ORD-${item.orderId}`}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-300" />
-                        {formatDate(item.createdAt)}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                        <Layers className="w-3.5 h-3.5 text-pink-600 shrink-0" />
-                        <span>{item.stepName || "Công đoạn dịch vụ"}</span>
-                      </div>
-                      {item.serviceName && (
-                        <div className="text-[11px] text-slate-400 mt-0.5">{item.serviceName}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center font-mono text-slate-700">
-                      {item.commissionRate != null ? `${Number(item.commissionRate)}%` : "—"}
-                    </td>
-                    <td className="py-3 px-4 max-w-xs">
-                      <div className="text-slate-600 text-[11px] font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/60 inline-block">
-                        <Calculator className="w-3 h-3 inline mr-1 text-slate-400" />
-                        {item.calculationNotes || "20% commission pool"}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge variant="success" className="text-[10px] uppercase font-bold">
-                        {item.status || "EARNED"}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span className="font-black text-emerald-600 text-sm">
-                        +{formatCurrency(item.amount)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <CommissionLedgerEntriesTable
+              entries={ledgers}
+              showStaffColumn={false}
+              variant="light"
+            />
           )}
         </div>
 

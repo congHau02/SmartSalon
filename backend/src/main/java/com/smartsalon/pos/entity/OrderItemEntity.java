@@ -75,4 +75,35 @@ public class OrderItemEntity {
         stepAssignments.add(step);
         step.setOrderItem(this);
     }
+
+    public BigDecimal resolveCommissionPoolRate() {
+        return (service != null && service.getCommissionPoolRate() != null)
+                ? service.getCommissionPoolRate()
+                : OrderStepAssignmentEntity.DEFAULT_COMMISSION_POOL_RATE;
+    }
+
+    public void populateDefaultStepAssignments(com.smartsalon.user.entity.UserEntity defaultStaff) {
+        if (service == null || service.getDefaultSteps() == null) {
+            return;
+        }
+        BigDecimal poolRate = resolveCommissionPoolRate();
+        BigDecimal itemPrice = this.totalPrice != null ? this.totalPrice : BigDecimal.ZERO;
+
+        for (com.smartsalon.catalog.entity.ServiceDefaultStepEntity stepDef : service.getDefaultSteps()) {
+            BigDecimal stepRate = stepDef.getCommissionRate() != null
+                    ? stepDef.getCommissionRate()
+                    : BigDecimal.ZERO;
+            BigDecimal commissionAmount = OrderStepAssignmentEntity.calculateCommissionAmount(itemPrice, poolRate, stepRate);
+
+            OrderStepAssignmentEntity stepAssignment = OrderStepAssignmentEntity.builder()
+                    .stepName(stepDef.getStepName())
+                    .staff(defaultStaff)
+                    .commissionRate(stepRate)
+                    .commissionAmount(commissionAmount)
+                    .status(StepAssignmentStatus.PENDING)
+                    .build();
+
+            addStepAssignment(stepAssignment);
+        }
+    }
 }

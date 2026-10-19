@@ -111,6 +111,21 @@ class BookingServiceTest {
                 .roles(new HashSet<>(Set.of(stylistRole)))
                 .build();
         stylist.setId(20L);
+
+        com.smartsalon.user.service.CustomerIdentityService customerIdentityService =
+                new com.smartsalon.user.service.CustomerIdentityServiceImpl(
+                        userRepository, roleRepository, passwordEncoder);
+        bookingService = new BookingServiceImpl(
+                bookingRepository,
+                branchRepository,
+                serviceRepository,
+                userRepository,
+                redisLockService,
+                paymentTransactionRepository,
+                bookingMapper,
+                null,
+                customerIdentityService
+        );
     }
 
     @Test
