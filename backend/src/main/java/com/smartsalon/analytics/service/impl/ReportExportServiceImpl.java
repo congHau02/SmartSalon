@@ -1,5 +1,8 @@
 package com.smartsalon.analytics.service.impl;
 
+import com.smartsalon.analytics.AnalyticsPeriod;
+import com.smartsalon.analytics.ReportFormat;
+import com.smartsalon.analytics.ReportType;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
@@ -73,34 +76,19 @@ public class ReportExportServiceImpl implements ReportExportService {
 
     @Override
     public byte[] exportReport(String reportType, String format, Long branchId, LocalDate startDate, LocalDate endDate) {
-        if (reportType == null || format == null) {
-            throw new AppException(ErrorCode.VALIDATION_ERROR);
-        }
+        ReportType type = ReportType.parse(reportType);
+        ReportFormat fmt = ReportFormat.parse(format);
 
-        String normalizedReport = reportType.trim().toLowerCase();
-        String normalizedFormat = format.trim().toLowerCase();
-
-        if (!normalizedFormat.equals("xlsx") && !normalizedFormat.equals("pdf")) {
-            throw new AppException(ErrorCode.VALIDATION_ERROR);
-        }
-
-        if (normalizedReport.equals("pnl")) {
-            PnlAnalyticsResponse pnlData = pnlAnalyticsService.getPnlReport(branchId, startDate, endDate);
-            if (normalizedFormat.equals("xlsx")) {
-                return generatePnlExcel(pnlData);
-            } else {
-                return generatePnlPdf(pnlData);
+        return switch (type) {
+            case PNL -> {
+                PnlAnalyticsResponse pnlData = pnlAnalyticsService.getPnlReport(branchId, startDate, endDate);
+                yield fmt == ReportFormat.XLSX ? generatePnlExcel(pnlData) : generatePnlPdf(pnlData);
             }
-        } else if (normalizedReport.equals("staff-payroll")) {
-            StaffPayrollSummaryResponse payrollData = staffPayrollService.getStaffPayrollReport(branchId, startDate, endDate);
-            if (normalizedFormat.equals("xlsx")) {
-                return generateStaffPayrollExcel(payrollData);
-            } else {
-                return generateStaffPayrollPdf(payrollData);
+            case STAFF_PAYROLL -> {
+                StaffPayrollSummaryResponse payrollData = staffPayrollService.getStaffPayrollReport(branchId, startDate, endDate);
+                yield fmt == ReportFormat.XLSX ? generateStaffPayrollExcel(payrollData) : generateStaffPayrollPdf(payrollData);
             }
-        } else {
-            throw new AppException(ErrorCode.VALIDATION_ERROR);
-        }
+        };
     }
 
     @Override
@@ -112,17 +100,9 @@ public class ReportExportServiceImpl implements ReportExportService {
                     .orElse("Chi_Nhanh_" + branchId);
         }
 
-        String startStr = (startDate != null) ? startDate.toString() : LocalDate.now().withDayOfMonth(1).toString();
-        String endStr = (endDate != null) ? endDate.toString() : LocalDate.now().toString();
-
-        String prefix = "Bao_Cao_";
-        if ("pnl".equalsIgnoreCase(reportType)) {
-            prefix = "Bao_Cao_PL_";
-        } else if ("staff-payroll".equalsIgnoreCase(reportType)) {
-            prefix = "Bang_Luong_Hoa_Hong_";
-        }
-
-        return prefix + branchSlug + "_" + startStr + "_" + endStr + "." + format.toLowerCase();
+        AnalyticsPeriod period = AnalyticsPeriod.of(startDate, endDate);
+        return ReportType.parse(reportType).filenamePrefix() + branchSlug + "_" + period.start() + "_" + period.end()
+                + "." + ReportFormat.parse(format).extension();
     }
 
     // =========================================================================

@@ -1,5 +1,6 @@
 package com.smartsalon.analytics.service.impl;
 
+import com.smartsalon.analytics.AnalyticsPeriod;
 import com.smartsalon.analytics.dto.CommissionLedgerDetailResponse;
 import com.smartsalon.analytics.dto.StaffPayrollSummaryResponse;
 import com.smartsalon.analytics.dto.StaffPerformanceResponse;
@@ -54,14 +55,9 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
     @Override
     @Transactional(readOnly = true)
     public StaffPayrollSummaryResponse getStaffPayrollReport(Long branchId, LocalDate startDate, LocalDate endDate) {
-        LocalDate actualStart = (startDate != null) ? startDate : LocalDate.now().withDayOfMonth(1);
-        LocalDate actualEnd = (endDate != null) ? endDate : LocalDate.now();
-
-        if (actualStart.isAfter(actualEnd)) {
-            LocalDate temp = actualStart;
-            actualStart = actualEnd;
-            actualEnd = temp;
-        }
+        AnalyticsPeriod period = AnalyticsPeriod.of(startDate, endDate);
+        LocalDate actualStart = period.start();
+        LocalDate actualEnd = period.end();
 
         BranchEntity branch = null;
         if (branchId != null) {

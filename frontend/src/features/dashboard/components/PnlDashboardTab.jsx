@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { PnlSummaryCards } from "./PnlSummaryCards";
 import { PnlTrendChart } from "./PnlTrendChart";
 import { OrderPnlTable } from "./OrderPnlTable";
@@ -12,7 +12,7 @@ import {
   FileBarChart2
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
-import { analyticsApi } from "../../../api/analyticsApi";
+import { useReportExport } from "../hooks/useReportExport";
 
 export function PnlDashboardTab({ 
   data, 
@@ -24,38 +24,8 @@ export function PnlDashboardTab({
   startDate,
   endDate
 }) {
-  const [exportingXlsx, setExportingXlsx] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
-  const [exportStatus, setExportStatus] = useState(null);
-
-  const handleExport = async (format) => {
-    if (format === "xlsx") setExportingXlsx(true);
-    else setExportingPdf(true);
-    setExportStatus(null);
-
-    try {
-      const res = await analyticsApi.exportReport(
-        "pnl",
-        format,
-        selectedBranch?.id,
-        startDate,
-        endDate
-      );
-      setExportStatus({
-        type: "success",
-        message: `Đã tải về thành công báo cáo ${format.toUpperCase()}: ${res.filename}`
-      });
-      setTimeout(() => setExportStatus(null), 5000);
-    } catch (err) {
-      setExportStatus({
-        type: "error",
-        message: err?.response?.data?.message || err?.message || "Đã xảy ra lỗi khi tạo báo cáo từ máy chủ."
-      });
-    } finally {
-      if (format === "xlsx") setExportingXlsx(false);
-      else setExportingPdf(false);
-    }
-  };
+  const { exportingXlsx, exportingPdf, exportStatus, clearExportStatus, exportReport: handleExport } =
+    useReportExport({ reportType: "pnl", branchId: selectedBranch?.id, startDate, endDate });
 
   if (isError) {
     return (
@@ -150,7 +120,7 @@ export function PnlDashboardTab({
           <span className="flex-1">{exportStatus.message}</span>
           <button
             type="button"
-            onClick={() => setExportStatus(null)}
+            onClick={clearExportStatus}
             className="text-slate-400 hover:text-slate-600 font-bold ml-2 cursor-pointer"
           >
             ✕

@@ -1,5 +1,6 @@
 package com.smartsalon.analytics.service.impl;
 
+import com.smartsalon.analytics.AnalyticsPeriod;
 import com.smartsalon.analytics.dto.BomWastageItemResponse;
 import com.smartsalon.analytics.dto.InventoryAlertsAnalyticsResponse;
 import com.smartsalon.analytics.dto.StockAlertItemResponse;
@@ -51,14 +52,9 @@ public class InventoryAlertsAnalyticsServiceImpl implements InventoryAlertsAnaly
     @Override
     @Transactional(readOnly = true)
     public InventoryAlertsAnalyticsResponse getInventoryAlertsReport(Long branchId, LocalDate startDate, LocalDate endDate) {
-        LocalDate actualStart = (startDate != null) ? startDate : LocalDate.now().withDayOfMonth(1);
-        LocalDate actualEnd = (endDate != null) ? endDate : LocalDate.now();
-
-        if (actualStart.isAfter(actualEnd)) {
-            LocalDate temp = actualStart;
-            actualStart = actualEnd;
-            actualEnd = temp;
-        }
+        AnalyticsPeriod period = AnalyticsPeriod.of(startDate, endDate);
+        LocalDate actualStart = period.start();
+        LocalDate actualEnd = period.end();
 
         BranchEntity branch = null;
         if (branchId != null) {

@@ -100,9 +100,7 @@ public class AnalyticsController {
         byte[] content = reportExportService.exportReport(reportType, format, branchId, startDate, endDate);
         String filename = reportExportService.generateFilename(reportType, format, branchId, startDate, endDate);
 
-        MediaType mediaType = "xlsx".equalsIgnoreCase(format)
-                ? MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                : MediaType.APPLICATION_PDF;
+        MediaType mediaType = ReportFormat.parse(format).mediaType();
 
         return ResponseEntity.ok()
                 .contentType(mediaType)

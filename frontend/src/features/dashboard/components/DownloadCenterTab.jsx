@@ -37,17 +37,7 @@ export function DownloadCenterTab({
     "staff-pdf": false,
   });
 
-  const [downloadHistory, setDownloadHistory] = useState([
-    {
-      id: "sample-1",
-      title: "Báo cáo Lãi / Lỗ Thực tế",
-      filename: `Bao_Cao_PL_${selectedBranch?.name ? selectedBranch.name.replace(/\s+/g, "_") : "Flagship"}_${startDate}_${endDate}.xlsx`,
-      format: "xlsx",
-      reportType: "pnl",
-      timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-      status: "READY"
-    }
-  ]);
+  const [downloadHistory, setDownloadHistory] = useState([]);
 
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -378,6 +368,13 @@ export function DownloadCenterTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
+              {downloadHistory.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 px-4 text-center text-slate-400 font-medium">
+                    Chưa có tệp nào được xuất trong phiên làm việc này.
+                  </td>
+                </tr>
+              )}
               {downloadHistory.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4 font-semibold text-slate-900">
