@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingApi } from "./bookingApi";
+import { axiosClient } from "../../api/axiosClient";
 
 export const BOOKING_QUERY_KEYS = {
+  branches: ["branches", "active"],
+  services: ["services", "active"],
   stylists: (branchId) => ["booking", "stylists", branchId],
   availableSlots: (branchId, date, serviceIds, stylistId) => [
     "booking",
@@ -16,6 +19,32 @@ export const BOOKING_QUERY_KEYS = {
   lookup: (phone) => ["booking", "lookup", phone],
   adminList: (filters) => ["booking", "admin-list", filters],
 };
+
+// Hook lấy danh sách Chi nhánh đang hoạt động
+export function useActiveBranches() {
+  return useQuery({
+    queryKey: BOOKING_QUERY_KEYS.branches,
+    queryFn: async () => {
+      const res = await axiosClient.get("/branches");
+      const list = res?.result || res?.data || [];
+      return list.filter((b) => !b.isDeleted);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// Hook lấy danh sách Dịch vụ đang hoạt động
+export function useActiveServices() {
+  return useQuery({
+    queryKey: BOOKING_QUERY_KEYS.services,
+    queryFn: async () => {
+      const res = await axiosClient.get("/services");
+      const list = res?.result || res?.data || [];
+      return list.filter((s) => s.isActive !== false);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 // Hook lấy danh sách Stylist theo chi nhánh
 export function useBookingStylists(branchId) {

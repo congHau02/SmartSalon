@@ -1,30 +1,20 @@
 import React, { useState, useMemo } from "react";
 import { 
   Users, 
-  DollarSign, 
-  Wallet, 
-  Award, 
-  Sparkles, 
-  HeartHandshake, 
-  TrendingUp, 
   Search, 
-  Filter, 
   RefreshCw,
   AlertCircle,
-  Building2,
-  Calendar,
   FileSpreadsheet,
   FileText,
   CheckCircle2,
-  FileSpreadsheet as SheetIcon
 } from "lucide-react";
-import { formatCurrency, formatDate } from "../../../lib/utils";
-import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { StaffPerformanceTable } from "./StaffPerformanceTable";
 import { EditBaseSalaryModal } from "./EditBaseSalaryModal";
 import { CommissionLedgerModal } from "./CommissionLedgerModal";
 import { useReportExport } from "../hooks/useReportExport";
+import { StaffPayrollKpis } from "./StaffPayrollKpis";
+import { StaffPayrollActionBar } from "./StaffPayrollActionBar";
 
 export function StaffPayrollTab({
   data,
@@ -43,7 +33,6 @@ export function StaffPayrollTab({
   const { exportingXlsx, exportingPdf, exportStatus, clearExportStatus, exportReport: handleExport } =
     useReportExport({ reportType: "staff-payroll", branchId: selectedBranch?.id, startDate, endDate });
 
-  // Filter staff members based on search and role
   const filteredStaff = useMemo(() => {
     if (!data || !data.staffMembers) return [];
     let list = data.staffMembers;
@@ -102,195 +91,19 @@ export function StaffPayrollTab({
 
   return (
     <div className="space-y-6">
-      {/* Quick Export Action Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                Bảng Lương & Hiệu suất Nhân sự (Payroll & KPI)
-              </span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200/60">
-                Lương cứng + Hoa hồng
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Kỳ: <span className="font-semibold text-slate-700">{startDate}</span> đến <span className="font-semibold text-slate-700">{endDate}</span> • Chi nhánh: <span className="font-semibold text-slate-700">{selectedBranch?.name || "Tất cả chi nhánh"}</span>
-            </p>
-          </div>
-        </div>
+      <StaffPayrollActionBar
+        startDate={startDate}
+        endDate={endDate}
+        selectedBranch={selectedBranch}
+        isLoading={isLoading}
+        exportingXlsx={exportingXlsx}
+        exportingPdf={exportingPdf}
+        handleExport={handleExport}
+        exportStatus={exportStatus}
+        clearExportStatus={clearExportStatus}
+      />
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={exportingXlsx || isLoading}
-            onClick={() => handleExport("xlsx")}
-            className="text-xs font-bold gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50 focus:ring-emerald-500/30"
-          >
-            {exportingXlsx ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-            ) : (
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            )}
-            {exportingXlsx ? "Đang xuất Excel..." : "Xuất Excel (.xlsx)"}
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            disabled={exportingPdf || isLoading}
-            onClick={() => handleExport("pdf")}
-            className="text-xs font-bold gap-2 text-rose-700 border-rose-300 hover:bg-rose-50 focus:ring-rose-500/30"
-          >
-            {exportingPdf ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
-            ) : (
-              <FileText className="w-3.5 h-3.5 text-rose-600" />
-            )}
-            {exportingPdf ? "Đang xuất PDF..." : "Xuất PDF (.pdf)"}
-          </Button>
-        </div>
-      </div>
-
-      {/* Export Status Banner */}
-      {exportStatus && (
-        <div
-          className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs font-medium animate-in fade-in duration-200 ${
-            exportStatus.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
-          }`}
-        >
-          {exportStatus.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          )}
-          <span className="flex-1">{exportStatus.message}</span>
-          <button
-            type="button"
-            onClick={clearExportStatus}
-            className="text-slate-400 hover:text-slate-600 font-bold ml-2 cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* 6 Top KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
-        {/* 1. Tổng nhân sự */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Tổng nhân sự
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Users className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {data.totalStaffCount || 0} <span className="text-xs font-normal text-slate-500">nhân sự</span>
-            </div>
-            <span className="text-[10px] text-slate-400">Đang hoạt động tại chi nhánh</span>
-          </div>
-        </div>
-
-        {/* 2. Tổng lương cứng (Base Salary) */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Tổng lương cứng
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-slate-900 tracking-tight">
-              {formatCurrency(data.totalBaseSalary)}
-            </div>
-            <span className="text-[10px] text-slate-400">Định mức chi phí cố định</span>
-          </div>
-        </div>
-
-        {/* 3. Tổng hoa hồng lũy kế */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Tổng hoa hồng
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Award className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-emerald-600 tracking-tight">
-              +{formatCurrency(data.totalCommission)}
-            </div>
-            <span className="text-[10px] text-slate-400">Từ Commission Ledger</span>
-          </div>
-        </div>
-
-        {/* 4. Tổng chi trả lương & hoa hồng */}
-        <div className="bg-white rounded-2xl border border-pink-200/90 bg-linear-to-br from-white to-pink-50/30 p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black text-pink-700 uppercase tracking-wider">
-              Tổng chi trả (Payout)
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-700 flex items-center justify-center">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-slate-900 tracking-tight">
-              {formatCurrency(data.totalPayrollPayout)}
-            </div>
-            <span className="text-[10px] text-pink-600 font-semibold">Lương cứng + Hoa hồng</span>
-          </div>
-        </div>
-
-        {/* 5. Tỷ lệ chỉ định stylist TB */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Chỉ định thợ TB
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {(data.averageRequestedStylistRate || 0).toFixed(1)}%
-            </div>
-            <span className="text-[10px] text-slate-400">Khách đặt thợ đích danh</span>
-          </div>
-        </div>
-
-        {/* 6. Tỷ lệ khách quay lại TB */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Khách quen TB
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-              <HeartHandshake className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {(data.averageRebookingRate || 0).toFixed(1)}%
-            </div>
-            <span className="text-[10px] text-slate-400">Khách thực hiện ≥2 đơn</span>
-          </div>
-        </div>
-      </div>
+      <StaffPayrollKpis data={data} />
 
       {/* Filter and Search Bar */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -306,7 +119,6 @@ export function StaffPayrollTab({
             />
           </div>
 
-          {/* Role Filter Pills */}
           <div className="flex items-center gap-1">
             {[
               { id: "ALL", label: "Tất cả vai trò" },

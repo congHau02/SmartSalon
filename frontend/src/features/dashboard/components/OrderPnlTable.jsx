@@ -1,19 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { formatCurrency, formatDate } from "../../../lib/utils";
-import { 
-  Search, 
-  ChevronDown, 
-  ChevronUp, 
-  Receipt, 
-  CreditCard, 
-  ArrowUpDown, 
-  Filter,
-  CheckCircle2,
-  Tag,
-  Scissors,
-  ShoppingBag,
-  ExternalLink
-} from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUpDown } from "lucide-react";
+import { OrderPnlTableHeader } from "./OrderPnlTableHeader";
+import { OrderPnlExpandedRow } from "./OrderPnlExpandedRow";
 
 export function OrderPnlTable({ orders = [], isLoading }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,38 +69,12 @@ export function OrderPnlTable({ orders = [], isLoading }) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-      {/* Header & Search */}
-      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-pink-600" />
-            <h3 className="text-sm font-black text-slate-900 tracking-tight">
-              Bảng Kê Chi Tiết Lãi/Lỗ Từng Đơn Hàng (Per-Order P&L)
-            </h3>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Bóc tách Doanh thu thuần, Giá vốn hóa chất (Chemical COGS), Giá vốn bán lẻ, Hoa hồng & Lợi nhuận từng đơn
-          </p>
-        </div>
+      <OrderPnlTableHeader
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        count={filteredOrders.length}
+      />
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Tìm theo mã đơn, khách hàng..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-pink-500/20 w-56 sm:w-64"
-            />
-          </div>
-          <span className="text-xs font-semibold text-slate-400">
-            {filteredOrders.length} đơn
-          </span>
-        </div>
-      </div>
-
-      {/* Table */}
       {filteredOrders.length === 0 ? (
         <div className="p-8 text-center text-slate-400 text-xs">
           Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.
@@ -157,7 +120,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                     <tr className={`hover:bg-slate-50/70 transition-colors ${
                       isExpanded ? "bg-pink-50/20" : ""
                     }`}>
-                      {/* Mã đơn & Thời gian */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900 font-mono text-[11px] flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
@@ -168,7 +130,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         </div>
                       </td>
 
-                      {/* Khách hàng */}
                       <td className="py-3 px-4">
                         <div className="font-semibold text-slate-800">
                           {order.customerName || "Khách vãng lai"}
@@ -183,7 +144,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         </div>
                       </td>
 
-                      {/* Doanh thu thuần */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">
                           {formatCurrency(order.totalNetRevenue)}
@@ -195,7 +155,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         )}
                       </td>
 
-                      {/* Giá vốn (Hóa chất + Bán lẻ) */}
                       <td className="py-3 px-4">
                         <div className="font-semibold text-slate-800">
                           {formatCurrency(order.totalCogs)}
@@ -207,7 +166,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         </div>
                       </td>
 
-                      {/* Hoa hồng thợ */}
                       <td className="py-3 px-4">
                         <div className="font-semibold text-purple-700">
                           {formatCurrency(order.staffCommissions)}
@@ -217,7 +175,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         </div>
                       </td>
 
-                      {/* Lợi nhuận ròng đơn hàng */}
                       <td className="py-3 px-4">
                         <div className={`font-black ${
                           isProfitable ? "text-emerald-700" : "text-rose-600"
@@ -226,7 +183,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         </div>
                       </td>
 
-                      {/* Biên LN % */}
                       <td className="py-3 px-4 text-center">
                         <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
                           isProfitable 
@@ -237,7 +193,6 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                         </span>
                       </td>
 
-                      {/* Expand Button */}
                       <td className="py-3 px-3 text-right">
                         <button
                           type="button"
@@ -254,84 +209,7 @@ export function OrderPnlTable({ orders = [], isLoading }) {
                       </td>
                     </tr>
 
-                    {/* Expanded Detail Panel */}
-                    {isExpanded && (
-                      <tr className="bg-slate-50/80">
-                        <td colSpan="8" className="p-4 border-y border-slate-200/80">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                            {/* Dịch vụ */}
-                            <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
-                              <div className="flex items-center gap-1.5 font-bold text-slate-800 border-b border-slate-100 pb-2">
-                                <Scissors className="w-3.5 h-3.5 text-pink-600" />
-                                <span>Phân khúc Dịch vụ (Salon Services)</span>
-                              </div>
-                              <div className="space-y-1 text-slate-600 text-[11px]">
-                                <div className="flex justify-between">
-                                  <span>Doanh thu dịch vụ gốc:</span>
-                                  <span className="font-semibold text-slate-800">{formatCurrency(order.grossServiceRevenue)}</span>
-                                </div>
-                                <div className="flex justify-between text-pink-600">
-                                  <span>Chiết khấu phân bổ cho dịch vụ:</span>
-                                  <span>-{formatCurrency(order.serviceDiscount)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-slate-900 border-t border-slate-100 pt-1">
-                                  <span>Doanh thu thuần dịch vụ:</span>
-                                  <span>{formatCurrency(order.netServiceRevenue)}</span>
-                                </div>
-                                <div className="flex justify-between text-amber-700">
-                                  <span>Giá vốn hóa chất (Chemical COGS):</span>
-                                  <span>-{formatCurrency(order.chemicalCogs)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-emerald-700 border-t border-slate-100 pt-1">
-                                  <span>Lợi nhuận ròng dịch vụ (trước hoa hồng):</span>
-                                  <span>{formatCurrency(order.serviceNetProfit)}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Hàng bán lẻ */}
-                            <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
-                              <div className="flex items-center gap-1.5 font-bold text-slate-800 border-b border-slate-100 pb-2">
-                                <ShoppingBag className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Phân khúc Bán lẻ Mỹ phẩm (Retail Products)</span>
-                              </div>
-                              <div className="space-y-1 text-slate-600 text-[11px]">
-                                <div className="flex justify-between">
-                                  <span>Doanh thu bán lẻ gốc:</span>
-                                  <span className="font-semibold text-slate-800">{formatCurrency(order.grossRetailRevenue)}</span>
-                                </div>
-                                <div className="flex justify-between text-pink-600">
-                                  <span>Chiết khấu phân bổ cho bán lẻ:</span>
-                                  <span>-{formatCurrency(order.retailDiscount)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-slate-900 border-t border-slate-100 pt-1">
-                                  <span>Doanh thu thuần bán lẻ:</span>
-                                  <span>{formatCurrency(order.netRetailRevenue)}</span>
-                                </div>
-                                <div className="flex justify-between text-amber-700">
-                                  <span>Giá vốn hàng bán lẻ (Retail COGS):</span>
-                                  <span>-{formatCurrency(order.retailCogs)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-emerald-700 border-t border-slate-100 pt-1">
-                                  <span>Lợi nhuận bán lẻ (trước hoa hồng):</span>
-                                  <span>{formatCurrency(order.retailNetProfit)}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Summary Row inside expanded */}
-                          <div className="mt-3 px-3 py-2 bg-pink-50/50 rounded-lg border border-pink-100 flex flex-wrap items-center justify-between text-[11px]">
-                            <span className="text-slate-600">
-                              Công thức tính: <strong>LN Đơn hàng = Doanh thu thuần ({formatCurrency(order.totalNetRevenue)}) - Tổng COGS ({formatCurrency(order.totalCogs)}) - Hoa hồng thợ ({formatCurrency(order.staffCommissions)})</strong>
-                            </span>
-                            <span className="font-bold text-slate-900">
-                              = {formatCurrency(order.orderNetProfit)} ({order.netProfitMarginPercentage}%)
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                    {isExpanded && <OrderPnlExpandedRow order={order} />}
                   </React.Fragment>
                 );
               })}

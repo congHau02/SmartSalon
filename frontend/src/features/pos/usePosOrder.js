@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { posApi } from "../../api/posApi";
 import { QUERY_KEYS, invalidateRealtimeCaches } from "../../lib/queryKeys";
+import { calculateClampedDiscount } from "../../lib/utils";
 
 export function usePosOrder(orderId, isOpen = true, { onNotice } = {}) {
   const queryClient = useQueryClient();
   const [discountInput, setDiscountInput] = useState("0");
   const [notesInput, setNotesInput] = useState("");
+  const serverBaselineRef = useRef({ id: null, discountAmount: null, notes: null });
 
   const {
     data: order,
@@ -18,12 +20,47 @@ export function usePosOrder(orderId, isOpen = true, { onNotice } = {}) {
     enabled: !!orderId && isOpen,
   });
 
+  // Reset baseline when drawer is closed so reopening the same order syncs fresh
   useEffect(() => {
-    if (order) {
+    if (!isOpen) {
+      serverBaselineRef.current = { id: null, discountAmount: null, notes: null };
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!order) return;
+
+    const isDifferentOrder = order.id !== serverBaselineRef.current.id;
+    if (isDifferentOrder) {
+      serverBaselineRef.current = {
+        id: order.id,
+        discountAmount: order.discountAmount != null ? order.discountAmount : 0,
+        notes: order.notes || "",
+      };
       setDiscountInput(order.discountAmount ? String(order.discountAmount) : "0");
       setNotesInput(order.notes || "");
+      return;
     }
-  }, [order]);
+
+    // On background refetch of same order:
+    // If the local input matches baseline (user is not typing dirty draft), update to server changes
+    const currentServerDiscount = order.discountAmount != null ? order.discountAmount : 0;
+    const currentServerNotes = order.notes || "";
+
+    const isDiscountUntouched =
+      discountInput === String(serverBaselineRef.current.discountAmount || 0);
+    const isNotesUntouched = notesInput === (serverBaselineRef.current.notes || "");
+
+    if (isDiscountUntouched && currentServerDiscount !== serverBaselineRef.current.discountAmount) {
+      serverBaselineRef.current.discountAmount = currentServerDiscount;
+      setDiscountInput(currentServerDiscount ? String(currentServerDiscount) : "0");
+    }
+
+    if (isNotesUntouched && currentServerNotes !== serverBaselineRef.current.notes) {
+      serverBaselineRef.current.notes = currentServerNotes;
+      setNotesInput(currentServerNotes);
+    }
+  }, [order, discountInput, notesInput]);
 
   const invalidateOrderWorkspace = useCallback(
     (successText) => {
@@ -68,7 +105,19 @@ export function usePosOrder(orderId, isOpen = true, { onNotice } = {}) {
 
   const updateOrderMutation = useMutation({
     mutationFn: (data) => posApi.updateOrder(orderId, data),
-    onSuccess: () => invalidateOrderWorkspace("Cập nhật giảm giá và ghi chú thành công!"),
+    onSuccess: (updated) => {
+      const newDiscount =
+        updated?.discountAmount != null ? updated.discountAmount : order?.discountAmount;
+      const newNotes = updated?.notes != null ? updated.notes : order?.notes;
+      serverBaselineRef.current = {
+        id: orderId,
+        discountAmount: newDiscount != null ? newDiscount : 0,
+        notes: newNotes || "",
+      };
+      setDiscountInput(newDiscount != null ? String(newDiscount) : "0");
+      setNotesInput(newNotes || "");
+      invalidateOrderWorkspace("Cập nhật giảm giá và ghi chú thành công!");
+    },
     onError: (err) => notifyError(err, "Không thể cập nhật đơn."),
   });
 
@@ -85,8 +134,8 @@ export function usePosOrder(orderId, isOpen = true, { onNotice } = {}) {
   });
 
   const currentSubtotal = Number(order?.subtotal || 0);
-  const currentDiscount = Math.max(0, parseFloat(discountInput) || 0);
   const currentDeposit = Number(order?.depositDeducted || 0);
+  const currentDiscount = calculateClampedDiscount(discountInput, currentSubtotal, currentDeposit);
   const liveFinalAmount = Math.max(0, currentSubtotal - currentDiscount - currentDeposit);
 
   const allSteps = order?.items?.flatMap((i) => i.steps || []) || [];

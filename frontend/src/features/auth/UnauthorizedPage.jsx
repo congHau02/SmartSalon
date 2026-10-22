@@ -2,10 +2,19 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShieldAlert, ArrowLeft, Home } from "lucide-react";
 import { useAuth } from "./useAuth";
+import { ROLES } from "../../lib/roles";
 
 export function UnauthorizedPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/login");
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-pink-50/30 to-purple-50/20 p-4">
@@ -39,7 +48,7 @@ export function UnauthorizedPage() {
           </button>
 
           <Link
-            to={user?.roles?.includes("CUSTOMER") ? "/customer" : "/"}
+            to={user?.roles?.includes(ROLES.CUSTOMER) ? "/customer" : "/"}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-medium text-sm shadow-sm active:scale-[0.98] transition-all cursor-pointer"
           >
             <Home className="w-4 h-4" />
@@ -49,7 +58,7 @@ export function UnauthorizedPage() {
 
         <div className="mt-8 pt-6 border-t border-slate-100">
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="text-xs text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
           >
             Đăng xuất tài khoản này

@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Sparkles, Calendar, Scissors, Search, User, LogIn } from "lucide-react";
 import { useAuth } from "../../features/auth/useAuth";
 import { BookingLookupModal } from "../../features/booking/components/BookingLookupModal";
+import { ErrorBoundary } from "../common/ErrorBoundary";
 
 export function CustomerLayout() {
   const { user } = useAuth();
@@ -81,7 +82,9 @@ export function CustomerLayout() {
       </header>
 
       <main className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-6">
-        <Outlet />
+        <ErrorBoundary title="Cổng Khách hàng" resetKeys={[location.pathname]}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <footer className="border-t border-pink-100/60 bg-white/60 py-6 text-center text-xs text-slate-400">

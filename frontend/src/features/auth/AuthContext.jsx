@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { axiosClient } from "../../api/axiosClient";
+import { axiosClient, refreshAccessToken } from "../../api/axiosClient";
 import { tokenStorage } from "../../lib/tokenStorage";
 import { AuthContext } from "./context";
 
@@ -93,27 +93,21 @@ export function AuthProvider({ children }) {
   const refreshToken = useCallback(async () => {
     const currentRefresh = tokenStorage.getRefreshToken();
     if (!currentRefresh) {
-      tokenStorage.clearTokens();
       setUser(null);
       setAccessToken(null);
       return null;
     }
 
     try {
-      const response = await axiosClient.post("/auth/refresh", {
-        refreshToken: currentRefresh,
-      });
-
-      const { accessToken: newAccess, refreshToken: newRefresh, user: authUser } = response.result;
-      tokenStorage.setTokens(newAccess, newRefresh, authUser);
+      const newAccess = await refreshAccessToken();
+      const freshUser = tokenStorage.getUserInfo();
       setAccessToken(newAccess);
-      if (authUser) setUser(authUser);
+      if (freshUser) setUser(freshUser);
       return newAccess;
     } catch (err) {
-      tokenStorage.clearTokens();
       setUser(null);
       setAccessToken(null);
-      throw err;
+      return null;
     }
   }, []);
 

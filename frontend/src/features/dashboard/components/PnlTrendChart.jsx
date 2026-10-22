@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { formatCurrency } from "../../../lib/utils";
-import { BarChart3, TrendingUp, Info } from "lucide-react";
+import { BarChart3, TrendingUp } from "lucide-react";
+import { PnlChartTooltip } from "./PnlChartTooltip";
 
 export function PnlTrendChart({ dailySeries = [], isLoading }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
@@ -26,10 +27,9 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
     );
   }
 
-  // Calculate scales
   const maxVal = Math.max(
     ...dailySeries.map((d) => Math.max(d.totalNetRevenue || 0, (d.chemicalCogs || 0) + (d.retailCogs || 0) + (d.totalCommissions || 0))),
-    1000000 // default minimum floor 1M for aesthetic proportions
+    1000000
   );
 
   const chartHeight = 220;
@@ -74,49 +74,7 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
 
       {/* Interactive SVG Chart */}
       <div className="relative">
-        {/* Tooltip floating card */}
-        {hoveredData && (
-          <div 
-            className="absolute top-0 right-4 z-10 bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1.5 pointer-events-none border border-slate-800 backdrop-blur-sm min-w-56"
-          >
-            <div className="font-bold border-b border-slate-700 pb-1 text-slate-200 flex justify-between">
-              <span>{hoveredData.date}</span>
-              <span className="text-slate-400 font-normal">{hoveredData.orderCount} đơn hàng</span>
-            </div>
-            <div className="flex justify-between text-blue-300">
-              <span>Doanh thu thuần:</span>
-              <span className="font-bold">{formatCurrency(hoveredData.totalNetRevenue)}</span>
-            </div>
-            <div className="flex justify-between text-amber-300">
-              <span>Tổng chi phí:</span>
-              <span className="font-bold">
-                {formatCurrency((hoveredData.chemicalCogs || 0) + (hoveredData.retailCogs || 0) + (hoveredData.totalCommissions || 0))}
-              </span>
-            </div>
-            <div className="pl-2 text-[10px] text-slate-400 space-y-0.5 border-l border-slate-700">
-              <div className="flex justify-between">
-                <span>- Giá vốn hóa chất:</span>
-                <span>{formatCurrency(hoveredData.chemicalCogs)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>- Giá vốn bán lẻ:</span>
-                <span>{formatCurrency(hoveredData.retailCogs)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>- Hoa hồng thợ:</span>
-                <span>{formatCurrency(hoveredData.totalCommissions)}</span>
-              </div>
-            </div>
-            <div className="flex justify-between pt-1 border-t border-slate-700 font-bold">
-              <span className={hoveredData.operationalNetProfit >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                Lợi nhuận vận hành:
-              </span>
-              <span className={hoveredData.operationalNetProfit >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                {formatCurrency(hoveredData.operationalNetProfit)}
-              </span>
-            </div>
-          </div>
-        )}
+        <PnlChartTooltip hoveredData={hoveredData} />
 
         <div className="overflow-x-auto pb-2 scrollbar-thin">
           <svg
@@ -173,8 +131,6 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
               const profitY = chartPaddingTop + usableHeight - profitHeight;
 
               const isHovered = hoveredIdx === idx;
-
-              // Format date label (e.g., "18/10")
               const dateStr = d.date ? d.date.split("-").slice(1).reverse().join("/") : "";
 
               return (
@@ -190,7 +146,6 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
                   onBlur={() => setHoveredIdx(null)}
                   onClick={() => setHoveredIdx(idx)}
                 >
-                  {/* Hover background column */}
                   {isHovered && (
                     <rect
                       x={idx * colWidth + 2}
@@ -202,7 +157,6 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
                     />
                   )}
 
-                  {/* Revenue Bar */}
                   <rect
                     x={groupCenterX - barWidth * 1.6}
                     y={revY}
@@ -212,7 +166,6 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
                     rx="3"
                   />
 
-                  {/* Cost Bar */}
                   <rect
                     x={groupCenterX - barWidth * 0.5}
                     y={costY}
@@ -222,7 +175,6 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
                     rx="3"
                   />
 
-                  {/* Profit Bar */}
                   <rect
                     x={groupCenterX + barWidth * 0.6}
                     y={profitY}
@@ -232,7 +184,6 @@ export function PnlTrendChart({ dailySeries = [], isLoading }) {
                     rx="3"
                   />
 
-                  {/* Date label at bottom */}
                   <text
                     x={groupCenterX}
                     y={chartHeight - 10}

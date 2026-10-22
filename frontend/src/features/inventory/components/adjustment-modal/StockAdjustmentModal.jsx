@@ -1,17 +1,10 @@
 import React, { useEffect, useId } from "react";
-import {
-  X,
-  Scale,
-  Building2,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useProducts } from "../../useInventory";
 import { ADJUSTMENT_REASONS } from "../../constants";
 import { useStockAdjustmentForm } from "./useStockAdjustmentForm";
+import { StockAdjustmentHeader } from "./StockAdjustmentHeader";
+import { StockAdjustmentComparison } from "./StockAdjustmentComparison";
 
 function StockAdjustmentInner({
   branchName,
@@ -45,37 +38,13 @@ function StockAdjustmentInner({
 
   return (
     <>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/60">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-            <Scale className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 id={titleId} className="text-lg font-bold text-slate-900 leading-tight">
-              Kiểm kê & Điều chỉnh Tồn kho Thực tế
-            </h2>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-              <span>
-                Kho chi nhánh: <strong className="text-slate-700">{branchName || "Chi nhánh hiện tại"}</strong>
-              </span>
-            </div>
-          </div>
-        </div>
+      <StockAdjustmentHeader
+        branchName={branchName}
+        titleId={titleId}
+        onClose={onClose}
+        isSubmitting={isSubmitting}
+      />
 
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isSubmitting}
-          aria-label="Đóng cửa sổ"
-          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-        >
-          <X className="w-5 h-5" aria-hidden="true" />
-        </button>
-      </div>
-
-      {/* Errors Banner */}
       {hasErrors && (
         <div
           role="alert"
@@ -88,9 +57,7 @@ function StockAdjustmentInner({
         </div>
       )}
 
-      {/* Form Content */}
       <form id="adjustment-form" onSubmit={onFormSubmit} className="flex-1 overflow-y-auto p-6 space-y-4.5">
-        {/* Product Selection */}
         <div>
           <label
             htmlFor="adj-product"
@@ -121,109 +88,13 @@ function StockAdjustmentInner({
           )}
         </div>
 
-        {/* Comparison System vs Actual */}
-        {selectedItem && (
-          <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-amber-900">Số liệu hệ thống đang ghi nhận:</span>
-              <span className="font-extrabold text-slate-800">
-                {selectedItem.isExistingInBranch ? (
-                  `${selectedItem.stockUnits} ${selectedItem.packagingUnit} nguyên seal + ${selectedItem.currentVolume} ${selectedItem.volumeUnit} dở dang`
-                ) : (
-                  `Chưa có tồn kho (0 ${selectedItem.packagingUnit} nguyên seal + 0 ${selectedItem.volumeUnit} dở)`
-                )}
-              </span>
-            </div>
+        <StockAdjustmentComparison
+          selectedItem={selectedItem}
+          register={register}
+          errors={errors}
+          volumeDelta={volumeDelta}
+        />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-              {/* Actual Sealed Units */}
-              <div>
-                <label
-                  htmlFor="adj-actual-units"
-                  className="block text-[11px] font-bold text-slate-700 uppercase mb-1"
-                >
-                  Số {selectedItem.packagingUnit} nguyên seal thực đếm <span className="text-amber-600">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    id="adj-actual-units"
-                    type="number"
-                    min="0"
-                    step="1"
-                    {...register("actualStockUnits")}
-                    aria-invalid={Boolean(errors.actualStockUnits)}
-                    aria-describedby={errors.actualStockUnits ? "adj-actual-units-error" : undefined}
-                    className={`w-full h-10 pl-3 pr-14 rounded-xl border text-xs text-slate-900 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 ${
-                      errors.actualStockUnits ? "border-rose-400" : "border-slate-200"
-                    }`}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                    {selectedItem.packagingUnit}
-                  </div>
-                </div>
-                {errors.actualStockUnits && (
-                  <p id="adj-actual-units-error" className="mt-1 text-[11px] text-rose-600 font-medium">
-                    {errors.actualStockUnits.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Actual In-Use Volume */}
-              <div>
-                <label
-                  htmlFor="adj-actual-volume"
-                  className="block text-[11px] font-bold text-slate-700 uppercase mb-1"
-                >
-                  Dung tích chai đang dùng dở <span className="text-amber-600">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    id="adj-actual-volume"
-                    type="number"
-                    min="0"
-                    step="1"
-                    {...register("actualVolume")}
-                    aria-invalid={Boolean(errors.actualVolume)}
-                    aria-describedby={errors.actualVolume ? "adj-actual-volume-error" : undefined}
-                    className={`w-full h-10 pl-3 pr-14 rounded-xl border text-xs text-slate-900 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 ${
-                      errors.actualVolume ? "border-rose-400" : "border-slate-200"
-                    }`}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                    {selectedItem.volumeUnit}
-                  </div>
-                </div>
-                {errors.actualVolume && (
-                  <p id="adj-actual-volume-error" className="mt-1 text-[11px] text-rose-600 font-medium">
-                    {errors.actualVolume.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Discrepancy / Variance Indicator */}
-            <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-xs">
-              <span className="text-slate-600 font-medium">Chênh lệch sau kiểm kê:</span>
-              <div className="flex items-center gap-1.5 font-bold">
-                {volumeDelta === 0 ? (
-                  <span className="text-emerald-700">Khớp số liệu hoàn hảo (0 {selectedItem.volumeUnit})</span>
-                ) : volumeDelta > 0 ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-700">
-                    <TrendingUp className="w-3.5 h-3.5" aria-hidden="true" />
-                    +{new Intl.NumberFormat("vi-VN").format(volumeDelta)} {selectedItem.volumeUnit} (Thừa kho)
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-rose-700">
-                    <TrendingDown className="w-3.5 h-3.5" aria-hidden="true" />
-                    {new Intl.NumberFormat("vi-VN").format(volumeDelta)} {selectedItem.volumeUnit} (Hao hụt)
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Reason Selection */}
         <div>
           <label
             htmlFor="adj-reason"
@@ -274,7 +145,6 @@ function StockAdjustmentInner({
         </div>
       </form>
 
-      {/* Footer */}
       <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-slate-100 bg-slate-50/80">
         <button
           type="button"

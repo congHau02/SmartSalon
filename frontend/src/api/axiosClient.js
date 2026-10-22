@@ -12,19 +12,111 @@ export const axiosClient = axios.create({
 });
 
 // Queue handling for concurrent requests while refreshing
-let isRefreshing = false;
-let failedQueue = [];
+/**
+ * Create a single-flight token refresh coordinator.
+ */
+export function createSingleFlightRefresher(refreshFn) {
+  let isRefreshing = false;
+  let failedQueue = [];
 
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
+  const processQueue = (error, token = null) => {
+    failedQueue.forEach((prom) => {
+      if (error) {
+        prom.reject(error);
+      } else {
+        prom.resolve(token);
+      }
+    });
+    failedQueue = [];
+  };
+
+  const refreshAccessToken = async () => {
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      });
     }
-  });
-  failedQueue = [];
+
+    isRefreshing = true;
+
+    try {
+      const newToken = await refreshFn();
+      processQueue(null, newToken);
+      return newToken;
+    } catch (err) {
+      processQueue(err, null);
+      throw err;
+    } finally {
+      isRefreshing = false;
+    }
+  };
+
+  return {
+    refreshAccessToken,
+    isRefreshing: () => isRefreshing,
+  };
+}
+
+export const isAuthEndpoint = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url, "http://localhost");
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+    return (
+      pathname.endsWith("/auth/login") ||
+      pathname.endsWith("/auth/refresh") ||
+      pathname.endsWith("/auth/register")
+    );
+  } catch {
+    const clean = url.split("?")[0].replace(/\/+$/, "");
+    return (
+      clean.endsWith("/auth/login") ||
+      clean.endsWith("/auth/refresh") ||
+      clean.endsWith("/auth/register")
+    );
+  }
 };
+
+const singleFlightManager = createSingleFlightRefresher(async () => {
+  const currentRefresh = tokenStorage.getRefreshToken();
+  if (!currentRefresh) {
+    throw new Error("No refresh token available");
+  }
+
+  const refreshResponse = await axios.post(`${BASE_URL}/auth/refresh`, {
+    refreshToken: currentRefresh,
+  });
+
+  const authResult = refreshResponse.data?.result;
+  if (!authResult?.accessToken) {
+    throw new Error("Không nhận được token mới từ máy chủ");
+  }
+
+  const newAccessToken = authResult.accessToken;
+  const newRefreshToken = authResult.refreshToken;
+
+  tokenStorage.setTokens(newAccessToken, newRefreshToken, authResult.user);
+  return newAccessToken;
+});
+
+/**
+ * Shared single-flight access token refresher coordinating both 401 interceptor
+ * retries and explicit AuthContext refresh calls without Redis token rotation collisions.
+ */
+export async function refreshAccessToken() {
+  const currentRefresh = tokenStorage.getRefreshToken();
+  if (!currentRefresh) {
+    tokenStorage.clearTokens();
+    return Promise.reject(new Error("No refresh token available"));
+  }
+
+  try {
+    return await singleFlightManager.refreshAccessToken();
+  } catch (refreshErr) {
+    tokenStorage.clearTokens();
+    return Promise.reject(refreshErr);
+  }
+}
 
 // Request interceptor: attach bearer token
 axiosClient.interceptors.request.use(
@@ -57,66 +149,23 @@ axiosClient.interceptors.response.use(
 
     // Handle 401 Unauthorized
     if (status === 401 && !originalRequest._retry) {
-      if (
-        originalRequest.url.includes("/auth/login") ||
-        originalRequest.url.includes("/auth/refresh") ||
-        originalRequest.url.includes("/auth/register")
-      ) {
+      if (isAuthEndpoint(originalRequest.url)) {
         return Promise.reject(data || error);
-      }
-
-      const refreshToken = tokenStorage.getRefreshToken();
-      if (!refreshToken) {
-        tokenStorage.clearTokens();
-        window.dispatchEvent(new Event("auth:logout"));
-        if (!window.location.pathname.includes("/login")) {
-          window.location.href = "/login";
-        }
-        return Promise.reject(data || error);
-      }
-
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return axiosClient(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
-      isRefreshing = true;
-
       try {
-        const refreshResponse = await axios.post(`${BASE_URL}/auth/refresh`, {
-          refreshToken,
-        });
-
-        const authResult = refreshResponse.data?.result;
-        if (!authResult?.accessToken) {
-          throw new Error("Không nhận được token mới từ máy chủ");
-        }
-
-        const newAccessToken = authResult.accessToken;
-        const newRefreshToken = authResult.refreshToken;
-
-        tokenStorage.setTokens(newAccessToken, newRefreshToken, authResult.user);
-
-        processQueue(null, newAccessToken);
+        const newAccessToken = await refreshAccessToken();
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return axiosClient(originalRequest);
       } catch (refreshErr) {
-        processQueue(refreshErr, null);
-        tokenStorage.clearTokens();
-        window.dispatchEvent(new Event("auth:logout"));
-        if (!window.location.pathname.includes("/login")) {
-          window.location.href = "/login";
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("auth:logout"));
+          if (!window.location.pathname.includes("/login")) {
+            window.location.href = "/login";
+          }
         }
         return Promise.reject(refreshErr);
-      } finally {
-        isRefreshing = false;
       }
     }
 

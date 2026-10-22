@@ -1,19 +1,12 @@
 import React, { useEffect, useId } from "react";
-import {
-  X,
-  AlertCircle,
-  FlaskConical,
-  Layers,
-  Sparkles,
-  Info,
-  CheckCircle2,
-  Loader2,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useMasterProducts } from "../../useServices";
 import { useServiceForm } from "./useServiceForm";
 import { ServiceBasicInfoFields } from "./ServiceBasicInfoFields";
 import { ServiceBomTable } from "./ServiceBomTable";
 import { ServiceStepsTable } from "./ServiceStepsTable";
+import { ServiceModalTabs } from "./ServiceModalTabs";
+import { ServiceModalHeader } from "./ServiceModalHeader";
 
 function ServiceFormInner({
   initialData,
@@ -56,34 +49,13 @@ function ServiceFormInner({
 
   return (
     <>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/60">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-700 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 id={titleId} className="text-lg font-bold text-slate-900 leading-tight">
-              {isEditMode ? "Chỉnh sửa Dịch vụ & Định mức BOM" : "Thêm Dịch vụ Mới vào Danh mục"}
-            </h2>
-            <p className="text-xs text-slate-500">
-              Thiết lập định lượng hoá chất tiêu hao và tỷ lệ chia hoa hồng cho từng thợ
-            </p>
-          </div>
-        </div>
+      <ServiceModalHeader
+        isEditMode={isEditMode}
+        titleId={titleId}
+        onClose={onClose}
+        isSubmitting={isSubmitting}
+      />
 
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isSubmitting}
-          aria-label="Đóng cửa sổ"
-          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
-        >
-          <X className="w-5 h-5" aria-hidden="true" />
-        </button>
-      </div>
-
-      {/* Global Error Banner if any validation fails */}
       {hasErrors && (
         <div
           role="alert"
@@ -96,56 +68,14 @@ function ServiceFormInner({
         </div>
       )}
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center px-6 pt-3 border-b border-slate-200/80 gap-2 bg-white">
-        <button
-          type="button"
-          onClick={() => setActiveTab("basic")}
-          className={`flex items-center gap-2 py-3 px-3.5 border-b-2 text-xs font-bold transition-all cursor-pointer min-h-[44px] ${
-            activeTab === "basic"
-              ? "border-pink-600 text-pink-700"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Info className="w-4 h-4" />
-          <span>Thông tin cơ bản</span>
-          {hasBasicErrors && <span className="w-2 h-2 rounded-full bg-rose-500" />}
-        </button>
+      <ServiceModalTabs
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        counts={{ bom: bomFields.length, steps: stepFields.length }}
+        commission={{ total: totalCommission, isExceeded: isCommissionExceeded }}
+        errors={{ basic: hasBasicErrors, bom: hasBomErrors, steps: hasStepErrors }}
+      />
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("bom")}
-          className={`flex items-center gap-2 py-3 px-3.5 border-b-2 text-xs font-bold transition-all cursor-pointer min-h-[44px] ${
-            activeTab === "bom"
-              ? "border-pink-600 text-pink-700"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <FlaskConical className="w-4 h-4" />
-          <span>Định mức BOM ({bomFields.length})</span>
-          {hasBomErrors && <span className="w-2 h-2 rounded-full bg-rose-500" />}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("steps")}
-          className={`flex items-center gap-2 py-3 px-3.5 border-b-2 text-xs font-bold transition-all cursor-pointer min-h-[44px] ${
-            activeTab === "steps"
-              ? "border-pink-600 text-pink-700"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>
-            Bước kỹ thuật & Hoa hồng ({stepFields.length} bước - {totalCommission}%)
-          </span>
-          {(isCommissionExceeded || hasStepErrors) && (
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
-          )}
-        </button>
-      </div>
-
-      {/* Tab Contents Form Body */}
       <form id="service-form" onSubmit={onFormSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
         {activeTab === "basic" && (
           <ServiceBasicInfoFields
@@ -184,7 +114,6 @@ function ServiceFormInner({
         )}
       </form>
 
-      {/* Modal Footer Controls */}
       <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/80">
         <div className="text-xs text-slate-500">
           {activeTab === "basic" && "Bước 1/3: Thông tin cơ bản"}
@@ -236,7 +165,6 @@ export function ServiceFormModal({
 }) {
   const titleId = useId();
 
-  // Handle ESC key to dismiss
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape" && isOpen && !isSubmitting) {

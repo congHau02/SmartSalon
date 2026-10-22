@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  // SockJS and STOMP client require 'global' defined in browser environments
+  define: {
+    global: 'window',
+  },
   server: {
     port: 5173,
     host: true,

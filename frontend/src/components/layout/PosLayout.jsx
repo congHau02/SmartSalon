@@ -1,9 +1,12 @@
 import React from "react";
-import { Outlet, Link } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import { Scissors, ArrowLeft } from "lucide-react";
 import { WebSocketStatusBadge, NotificationBell } from "../../features/realtime";
+import { ErrorBoundary } from "../common/ErrorBoundary";
 
 export function PosLayout() {
+  const location = useLocation();
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
       <header className="h-14 bg-slate-800 border-b border-slate-700 px-6 flex items-center justify-between">
@@ -23,7 +26,9 @@ export function PosLayout() {
         </div>
       </header>
       <main className="flex-1 p-6">
-        <Outlet />
+        <ErrorBoundary title="Cổng POS & Điều phối Thời Gian Thực" resetKeys={[location.pathname]}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

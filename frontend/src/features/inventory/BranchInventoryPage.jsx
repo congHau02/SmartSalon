@@ -1,14 +1,5 @@
 import React, { useState, useMemo } from "react";
-import {
-  ArrowDownToLine,
-  Scale,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  Building2,
-  RefreshCw,
-  Loader2,
-} from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useBranch } from "../branch/useBranch";
 import {
   useBranchInventory,
@@ -23,6 +14,8 @@ import {
   InventoryTable,
   InventoryEmptyState,
 } from "./components/branch-inventory";
+import { BranchInventoryHeader } from "./components/branch-inventory/BranchInventoryHeader";
+import { BranchInventoryToast } from "./components/branch-inventory/BranchInventoryToast";
 
 export function BranchInventoryPage() {
   const { selectedBranch, isLoadingBranches } = useBranch();
@@ -31,7 +24,6 @@ export function BranchInventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState("ALL"); // ALL or LOW_STOCK
 
-  // TanStack Query: Fetch branch inventory
   const {
     data: rawInventory = [],
     isLoading,
@@ -43,7 +35,6 @@ export function BranchInventoryPage() {
   const stockInMutation = useStockIn(branchId);
   const stockAdjustmentMutation = useStockAdjustment(branchId);
 
-  // Modals state
   const [isStockInOpen, setIsStockInOpen] = useState(false);
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState(null);
@@ -58,7 +49,6 @@ export function BranchInventoryPage() {
     }
   };
 
-  // Client-side filtering & search
   const inventoryList = useMemo(() => {
     if (!Array.isArray(rawInventory)) return [];
     let list = rawInventory;
@@ -82,7 +72,6 @@ export function BranchInventoryPage() {
     return list;
   }, [rawInventory, filterMode, searchQuery]);
 
-  // Statistics
   const stats = useMemo(() => {
     if (!Array.isArray(rawInventory)) {
       return { totalItems: 0, lowStockCount: 0, totalSealedUnits: 0, activeInUseCount: 0 };
@@ -157,86 +146,18 @@ export function BranchInventoryPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold tracking-wide transition-all animate-in slide-in-from-top-4 duration-200 ${
-            toast.type === "success"
-              ? "bg-emerald-600 text-white shadow-emerald-600/25"
-              : "bg-rose-600 text-white shadow-rose-600/25"
-          }`}
-        >
-          {toast.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-          )}
-          <span>{toast.message}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            aria-label="Đóng thông báo"
-            className="ml-2 w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg flex items-center justify-center hover:bg-white/20 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            <X className="w-4 h-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      <BranchInventoryToast toast={toast} onClose={() => setToast(null)} />
 
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Tồn kho Chi nhánh
-            </h1>
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-pink-50 text-pink-700 border border-pink-200/80">
-              <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{selectedBranch?.name || "Chưa chọn chi nhánh"}</span>
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Theo dõi tồn kho 2 tầng: Số kiện nguyên seal và dung tích ml/gram đang mở nắp sử dụng dở
-          </p>
-        </div>
+      <BranchInventoryHeader
+        branchName={selectedBranch?.name}
+        isLoading={isLoading}
+        onRefresh={() => refetch()}
+        onOpenStockIn={() => handleOpenStockIn()}
+        onOpenAdjustment={() => handleOpenAdjustment()}
+      />
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => refetch()}
-            aria-label="Tải lại dữ liệu"
-            className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-colors cursor-pointer shadow-xs min-h-[44px] min-w-[44px]"
-            title="Tải lại tồn kho"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleOpenStockIn()}
-            className="h-10 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer min-h-[44px]"
-          >
-            <ArrowDownToLine className="w-4 h-4" aria-hidden="true" />
-            <span>Nhập kho</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleOpenAdjustment()}
-            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md shadow-slate-900/10 active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer min-h-[44px]"
-          >
-            <Scale className="w-4 h-4" aria-hidden="true" />
-            <span>Kiểm kê</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Metrics Cards */}
       <InventoryMetricCards stats={stats} />
 
-      {/* Main Content Card: Filter Bar + Table */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
         <InventoryFilterBar
           rawInventory={rawInventory}
@@ -248,7 +169,6 @@ export function BranchInventoryPage() {
           branchId={branchId}
         />
 
-        {/* Content Body */}
         {isLoading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-pink-600" aria-hidden="true" />
@@ -288,7 +208,6 @@ export function BranchInventoryPage() {
         )}
       </div>
 
-      {/* Stock In Modal */}
       <StockInModal
         isOpen={isStockInOpen}
         onClose={handleCloseModals}
@@ -298,7 +217,6 @@ export function BranchInventoryPage() {
         isSubmitting={stockInMutation.isPending}
       />
 
-      {/* Stock Adjustment Modal */}
       <StockAdjustmentModal
         isOpen={isAdjustmentOpen}
         onClose={handleCloseModals}

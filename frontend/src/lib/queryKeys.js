@@ -2,10 +2,13 @@ export const QUERY_KEYS = {
   booking: ["booking"],
   pos: ["pos"],
   dispatch: ["dispatch"],
+  posBoard: (branchId, date) => ["pos-board", branchId, date],
   order: (orderId) => (orderId != null ? ["order", orderId] : ["order"]),
   visualLog: (orderId) => (orderId != null ? ["visual-log", orderId] : ["visual-log"]),
   posVietQr: (orderId, discountAmount = 0) => ["pos-vietqr", orderId, discountAmount],
   commissionLedger: (branchId, date) =>
+    branchId != null ? ["commission-ledger", branchId, date] : ["commission-ledger"],
+  commissionLedgerDaily: (branchId, date) =>
     branchId != null ? ["commission-ledger", branchId, date] : ["commission-ledger"],
   analyticsPnl: ["analytics-pnl"],
   analyticsStaffPayroll: ["analytics-staff-payroll"],

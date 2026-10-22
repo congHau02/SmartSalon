@@ -88,6 +88,23 @@ export function useStockIn(branchId) {
   });
 }
 
+export function useDirectStockIn({ onSuccess, onError } = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ branchId, data }) => inventoryApi.stockIn(branchId, data),
+    onSuccess: (result, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["analytics-inventory-alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["branchInventory"] });
+      queryClient.invalidateQueries({ queryKey: ["inventoryTransactions", variables.branchId] });
+      if (onSuccess) onSuccess(result, variables, context);
+    },
+    onError: (err, variables, context) => {
+      if (onError) onError(err, variables, context);
+    },
+  });
+}
+
 export function useStockAdjustment(branchId) {
   const queryClient = useQueryClient();
 
