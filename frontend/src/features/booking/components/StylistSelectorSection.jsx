@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Star } from "lucide-react";
 
 export function StylistSelectorSection({
   isLoadingStylists,
@@ -64,6 +64,9 @@ export function StylistSelectorSection({
                   .join("")
               : "ST";
 
+            const rating = Number(st.averageRating) || 0;
+            const reviewCount = Number(st.reviewCount) || 0;
+
             return (
               <div
                 key={st.id}
@@ -85,8 +88,18 @@ export function StylistSelectorSection({
                 </div>
                 <div className="min-w-0">
                   <div className="font-bold text-sm text-slate-900 truncate">{st.fullName}</div>
-                  <div className="text-xs text-slate-500 truncate">
-                    {st.phone ? `KTV • ${st.phone.slice(-4)}` : "Chuyên viên"}
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 truncate mt-0.5">
+                    {rating > 0 ? (
+                      <span className="flex items-center gap-0.5 text-amber-600 font-bold">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                        <span>{rating.toFixed(1)}</span>
+                        {reviewCount > 0 && (
+                          <span className="text-[10px] text-slate-400 font-normal">({reviewCount})</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span>{st.phone ? `KTV • ${st.phone.slice(-4)}` : "Chuyên viên"}</span>
+                    )}
                   </div>
                 </div>
               </div>

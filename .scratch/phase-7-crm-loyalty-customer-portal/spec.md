@@ -1,6 +1,6 @@
 # Specification: Phase 7 - Customer Portal, Spend-Based Membership Tiers, Retained Deposit & Service Reviews
 
-Status: ready-for-agent
+Status: done
 
 ## Problem Statement
 

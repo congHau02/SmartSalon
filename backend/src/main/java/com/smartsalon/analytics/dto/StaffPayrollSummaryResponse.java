@@ -29,6 +29,8 @@ public class StaffPayrollSummaryResponse {
 
     private BigDecimal averageRequestedStylistRate;
     private BigDecimal averageRebookingRate;
+    @Builder.Default
+    private BigDecimal averageRating = BigDecimal.ZERO.setScale(1);
 
     @Builder.Default
     private List<StaffPerformanceResponse> staffMembers = new ArrayList<>();

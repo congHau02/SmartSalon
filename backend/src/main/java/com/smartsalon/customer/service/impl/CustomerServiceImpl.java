@@ -6,14 +6,21 @@ import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.entity.DepositStatus;
 import com.smartsalon.booking.repository.BookingRepository;
 import com.smartsalon.booking.service.RedisLockService;
-import com.smartsalon.customer.dto.CustomerBookingResponse;
-import com.smartsalon.customer.dto.CustomerLoyaltyDto;
-import com.smartsalon.customer.dto.CustomerSummaryDto;
+import com.smartsalon.customer.dto.*;
 import com.smartsalon.customer.service.CustomerService;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.pos.entity.OrderEntity;
+import com.smartsalon.pos.entity.OrderItemEntity;
+import com.smartsalon.pos.entity.OrderItemType;
+import com.smartsalon.pos.entity.OrderStatus;
+import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
+import com.smartsalon.pos.entity.TechnicalLogEntity;
 import com.smartsalon.pos.repository.OrderRepository;
+import com.smartsalon.pos.repository.TechnicalLogRepository;
 import com.smartsalon.realtime.service.RealtimeNotificationService;
+import com.smartsalon.review.entity.ServiceReviewEntity;
+import com.smartsalon.review.repository.ServiceReviewRepository;
 import com.smartsalon.user.entity.MembershipTier;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
@@ -37,6 +44,8 @@ public class CustomerServiceImpl implements CustomerService {
     private final OrderRepository orderRepository;
     private final RedisLockService redisLockService;
     private final RealtimeNotificationService realtimeNotificationService;
+    private final TechnicalLogRepository technicalLogRepository;
+    private final ServiceReviewRepository serviceReviewRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -257,5 +266,220 @@ public class CustomerServiceImpl implements CustomerService {
                 .creditBalance(BigDecimal.ZERO)
                 .isProvisional(true)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CustomerOrderResponse> getCustomerOrders(String username) {
+        UserEntity user = resolveUserByUsername(username);
+        List<OrderEntity> orders = orderRepository.findCustomerOrdersByStatus(user.getId(), user.getPhone(), OrderStatus.PAID);
+        return orders.stream()
+                .map(this::mapToCustomerOrderResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CustomerReviewDto submitServiceReview(String username, Long orderId, CreateServiceReviewRequest request) {
+        UserEntity customer = resolveUserByUsername(username);
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        boolean isOwner = (order.getCustomer() != null && order.getCustomer().getId().equals(customer.getId()))
+                || (order.getCustomerPhone() != null && order.getCustomerPhone().equals(customer.getPhone()));
+        if (!isOwner) {
+            throw new AppException(ErrorCode.FORBIDDEN);
+        }
+
+        if (order.getStatus() != OrderStatus.PAID) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Chỉ có thể đánh giá đơn hàng đã hoàn tất thanh toán");
+        }
+
+        boolean hasService = order.getItems() != null && order.getItems().stream()
+                .anyMatch(i -> !i.isDeleted() && i.getItemType() == OrderItemType.SERVICE);
+        if (!hasService) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Đơn hàng chỉ mua sản phẩm bán lẻ không thể đánh giá dịch vụ");
+        }
+
+        if (serviceReviewRepository.findByOrderIdAndIsDeletedFalse(orderId).isPresent()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Đơn hàng này đã được đánh giá dịch vụ");
+        }
+
+        UserEntity stylist;
+        if (request.getStylistId() != null) {
+            stylist = userRepository.findByIdAndIsDeletedFalse(request.getStylistId())
+                    .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND));
+        } else {
+            CustomerOrderResponse orderResp = mapToCustomerOrderResponse(order);
+            if (orderResp.getPrimaryStylist() != null) {
+                stylist = userRepository.findByIdAndIsDeletedFalse(orderResp.getPrimaryStylist().getId())
+                        .orElse(null);
+            } else if (order.getBooking() != null && order.getBooking().getStaff() != null) {
+                stylist = order.getBooking().getStaff();
+            } else {
+                stylist = null;
+            }
+            if (stylist == null) {
+                throw new AppException(ErrorCode.STYLIST_NOT_FOUND, "Không xác định được kỹ thuật viên phục vụ đơn hàng");
+            }
+        }
+
+        ServiceReviewEntity review = ServiceReviewEntity.builder()
+                .order(order)
+                .customer(customer)
+                .stylist(stylist)
+                .branch(order.getBranch())
+                .rating(request.getRating())
+                .comment(request.getComment() != null ? request.getComment().trim() : null)
+                .build();
+        review = serviceReviewRepository.save(review);
+
+        return CustomerReviewDto.builder()
+                .id(review.getId())
+                .orderId(order.getId())
+                .customerId(customer.getId())
+                .stylistId(stylist.getId())
+                .stylistName(stylist.getFullName())
+                .stylistAvatarUrl(stylist.getAvatarUrl())
+                .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
+                .rating(review.getRating())
+                .comment(review.getComment())
+                .createdAt(review.getCreatedAt())
+                .build();
+    }
+
+    private CustomerOrderResponse mapToCustomerOrderResponse(OrderEntity order) {
+        List<CustomerOrderItemDto> items = (order.getItems() != null)
+                ? order.getItems().stream()
+                .filter(i -> !i.isDeleted())
+                .map(i -> CustomerOrderItemDto.builder()
+                        .id(i.getId())
+                        .itemType(i.getItemType() != null ? i.getItemType().name() : null)
+                        .serviceId(i.getService() != null ? i.getService().getId() : null)
+                        .productId(i.getProduct() != null ? i.getProduct().getId() : null)
+                        .name(i.getService() != null ? i.getService().getName() : (i.getProduct() != null ? i.getProduct().getName() : ""))
+                        .unitPrice(i.getUnitPrice())
+                        .quantity(i.getQuantity())
+                        .totalPrice(i.getTotalPrice())
+                        .build())
+                .toList()
+                : java.util.List.of();
+
+        // 1. Resolve participating stylists and primary stylist by earned step commission
+        java.util.Map<Long, StylistAccumulator> stylistMap = new java.util.LinkedHashMap<>();
+
+        if (order.getItems() != null) {
+            for (OrderItemEntity item : order.getItems()) {
+                if (item.isDeleted() || item.getStepAssignments() == null) continue;
+                for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                    if (step.getStaff() != null) {
+                        UserEntity staff = step.getStaff();
+                        BigDecimal comm = step.getCommissionAmount() != null ? step.getCommissionAmount() : BigDecimal.ZERO;
+                        stylistMap.computeIfAbsent(staff.getId(), id -> new StylistAccumulator(staff))
+                                .addCommission(comm);
+                    }
+                }
+            }
+        }
+
+        if (order.getBooking() != null && order.getBooking().getStaff() != null) {
+            UserEntity bookingStaff = order.getBooking().getStaff();
+            stylistMap.computeIfAbsent(bookingStaff.getId(), id -> new StylistAccumulator(bookingStaff));
+        }
+
+        Optional<TechnicalLogEntity> techLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(order.getId());
+        if (techLogOpt.isPresent() && techLogOpt.get().getStaff() != null) {
+            UserEntity techStaff = techLogOpt.get().getStaff();
+            stylistMap.computeIfAbsent(techStaff.getId(), id -> new StylistAccumulator(techStaff));
+        }
+
+        java.util.List<StylistAccumulator> accumulators = new java.util.ArrayList<>(stylistMap.values());
+        accumulators.sort((a, b) -> {
+            int cmp = b.commissionAmount.compareTo(a.commissionAmount);
+            if (cmp != 0) return cmp;
+            boolean aIsBooking = order.getBooking() != null && order.getBooking().getStaff() != null && order.getBooking().getStaff().getId().equals(a.staff.getId());
+            boolean bIsBooking = order.getBooking() != null && order.getBooking().getStaff() != null && order.getBooking().getStaff().getId().equals(b.staff.getId());
+            if (aIsBooking && !bIsBooking) return -1;
+            if (!aIsBooking && bIsBooking) return 1;
+            return a.staff.getId().compareTo(b.staff.getId());
+        });
+
+        List<CustomerStylistDto> participatingStylists = accumulators.stream()
+                .map(acc -> CustomerStylistDto.builder()
+                        .id(acc.staff.getId())
+                        .fullName(acc.staff.getFullName())
+                        .phone(acc.staff.getPhone())
+                        .avatarUrl(acc.staff.getAvatarUrl())
+                        .totalCommission(acc.commissionAmount)
+                        .build())
+                .toList();
+
+        CustomerStylistDto primaryStylist = !participatingStylists.isEmpty() ? participatingStylists.get(0) : null;
+
+        // 2. Visual Log (Privacy: NO actualBomJson)
+        CustomerVisualLogDto visualLogDto = techLogOpt.map(t -> CustomerVisualLogDto.builder()
+                .id(t.getId())
+                .beforeImageUrl(t.getBeforeImageUrl())
+                .afterImageUrl(t.getAfterImageUrl())
+                .hairConditionNotes(t.getHairConditionNotes())
+                .formulaNotes(t.getFormulaNotes())
+                .createdAt(t.getCreatedAt())
+                .build()).orElse(null);
+
+        // 3. Service Review
+        Optional<ServiceReviewEntity> reviewOpt = serviceReviewRepository.findByOrderIdAndIsDeletedFalse(order.getId());
+        CustomerReviewDto reviewDto = reviewOpt.map(r -> CustomerReviewDto.builder()
+                .id(r.getId())
+                .orderId(r.getOrder() != null ? r.getOrder().getId() : null)
+                .customerId(r.getCustomer() != null ? r.getCustomer().getId() : null)
+                .stylistId(r.getStylist() != null ? r.getStylist().getId() : null)
+                .stylistName(r.getStylist() != null ? r.getStylist().getFullName() : null)
+                .stylistAvatarUrl(r.getStylist() != null ? r.getStylist().getAvatarUrl() : null)
+                .branchId(r.getBranch() != null ? r.getBranch().getId() : null)
+                .rating(r.getRating())
+                .comment(r.getComment())
+                .createdAt(r.getCreatedAt())
+                .build()).orElse(null);
+
+        boolean hasService = (order.getItems() != null) && order.getItems().stream()
+                .anyMatch(i -> !i.isDeleted() && i.getItemType() == OrderItemType.SERVICE);
+        boolean canReview = (reviewDto == null) && (order.getStatus() == OrderStatus.PAID) && hasService;
+
+        OrderEntity.RevenueBreakdown breakdown = order.calculateRevenueBreakdown();
+
+        return CustomerOrderResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
+                .branchName(order.getBranch() != null ? order.getBranch().getName() : "")
+                .createdAt(order.getCreatedAt())
+                .status(order.getStatus())
+                .subtotal(order.getSubtotal())
+                .discountAmount(order.getDiscountAmount())
+                .depositDeducted(order.getDepositDeducted())
+                .finalAmount(order.getFinalAmount())
+                .netRevenue(breakdown.totalNetRevenue())
+                .items(items)
+                .participatingStylists(participatingStylists)
+                .primaryStylist(primaryStylist)
+                .visualLog(visualLogDto)
+                .review(reviewDto)
+                .canReview(canReview)
+                .build();
+    }
+
+    private static class StylistAccumulator {
+        private final UserEntity staff;
+        private BigDecimal commissionAmount = BigDecimal.ZERO;
+
+        public StylistAccumulator(UserEntity staff) {
+            this.staff = staff;
+        }
+
+        public void addCommission(BigDecimal amount) {
+            if (amount != null) {
+                this.commissionAmount = this.commissionAmount.add(amount);
+            }
+        }
     }
 }

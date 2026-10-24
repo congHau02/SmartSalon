@@ -23,5 +23,14 @@ export const customerApi = {
     const response = await axiosClient.post(`/customer/me/bookings/${bookingId}/cancel`);
     return response?.result || response?.data || response;
   },
-};
 
+  getMyOrders: async () => {
+    const response = await axiosClient.get("/customer/me/orders");
+    return response?.result || response?.data || response || [];
+  },
+
+  submitServiceReview: async (orderId, payload) => {
+    const response = await axiosClient.post(`/customer/me/orders/${orderId}/review`, payload);
+    return response?.result || response?.data || response;
+  },
+};

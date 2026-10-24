@@ -12,6 +12,8 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
+    Optional<UserEntity> findByIdAndIsDeletedFalse(Long id);
+
     Optional<UserEntity> findByUsernameAndIsDeletedFalse(String username);
 
     Optional<UserEntity> findByPhoneAndIsDeletedFalse(String phone);

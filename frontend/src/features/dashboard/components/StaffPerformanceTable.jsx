@@ -1,35 +1,14 @@
 import React from "react";
 import { formatCurrency } from "../../../lib/utils";
-import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
+import { RateProgressBar } from "./RateProgressBar";
 import { 
-  DollarSign, 
   Receipt, 
   Edit3, 
   Users, 
-  Sparkles, 
   Scissors, 
-  CheckCircle2, 
-  HeartHandshake, 
-  Layers,
-  ChevronRight
+  Star 
 } from "lucide-react";
-
-function getProgressColor(rate, highThreshold = 80, midThreshold = 50) {
-  const num = Number(rate) || 0;
-  if (num >= highThreshold) return "bg-emerald-500";
-  if (num >= midThreshold) return "bg-blue-500";
-  if (num > 0) return "bg-amber-500";
-  return "bg-slate-300";
-}
-
-function getBadgeVariant(rate, highThreshold = 80, midThreshold = 50) {
-  const num = Number(rate) || 0;
-  if (num >= highThreshold) return "success";
-  if (num >= midThreshold) return "pink";
-  if (num > 0) return "warning";
-  return "default";
-}
 
 export function StaffPerformanceTable({
   staffMembers = [],
@@ -53,7 +32,7 @@ export function StaffPerformanceTable({
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse min-w-[950px]">
+        <table className="w-full text-left text-xs border-collapse min-w-[1050px]">
           <thead className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             <tr>
               <th className="py-3 px-4">Nhân sự</th>
@@ -61,8 +40,9 @@ export function StaffPerformanceTable({
               <th className="py-3 px-3 text-center">Đơn / Công đoạn</th>
               <th className="py-3 px-4 text-right">Tổng hoa hồng</th>
               <th className="py-3 px-4 text-right">Tổng thực lĩnh</th>
-              <th className="py-3 px-4 min-w-[170px]">Tỷ lệ yêu cầu đích danh</th>
-              <th className="py-3 px-4 min-w-[170px]">Tỷ lệ khách quay lại</th>
+              <th className="py-3 px-3 text-center">Đánh giá TB (★)</th>
+              <th className="py-3 px-4 min-w-[160px]">Tỷ lệ yêu cầu đích danh</th>
+              <th className="py-3 px-4 min-w-[160px]">Tỷ lệ khách quay lại</th>
               <th className="py-3 px-4 text-center">Hành động</th>
             </tr>
           </thead>
@@ -70,6 +50,8 @@ export function StaffPerformanceTable({
             {staffMembers.map((staff) => {
               const reqRate = Number(staff.requestedStylistRate) || 0;
               const rebookRate = Number(staff.rebookingRate) || 0;
+              const avgRating = Number(staff.averageRating) || 0;
+              const reviewCount = Number(staff.reviewCount) || 0;
               const isStylist = staff.roles?.includes("STYLIST");
 
               return (
@@ -104,104 +86,67 @@ export function StaffPerformanceTable({
                     </div>
                   </td>
 
-                  {/* Base Salary with Edit Trigger */}
-                  <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-slate-800 text-sm">
-                        {formatCurrency(staff.baseSalary)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onEditBaseSalary(staff)}
-                        title="Chỉnh sửa lương cứng"
-                        className="p-1 rounded-md text-slate-400 hover:text-pink-600 hover:bg-pink-50 transition-colors cursor-pointer"
-                        aria-label={`Sửa lương của ${staff.fullName}`}
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <span className="text-[10px] text-slate-400">Lương cố định tháng</span>
+                  {/* Base Salary */}
+                  <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
+                    {formatCurrency(staff.baseSalary || 0)}
                   </td>
 
-                  {/* Completed Orders & Steps */}
+                  {/* Orders & Steps */}
                   <td className="py-3.5 px-3 text-center">
-                    <div className="font-bold text-slate-900">
-                      {staff.completedOrderCount} <span className="text-[11px] font-normal text-slate-500">đơn</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 flex items-center justify-center gap-1 mt-0.5">
-                      <Layers className="w-3 h-3 text-slate-300" />
-                      <span>{staff.completedStepCount} bước</span>
+                    <div className="inline-flex items-center gap-1 font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                      <span>{staff.completedOrderCount}</span>
+                      <span className="text-slate-400">/</span>
+                      <span className="text-purple-700">{staff.completedStepCount}</span>
                     </div>
                   </td>
 
                   {/* Total Commission */}
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="font-bold text-emerald-600 text-sm">
-                      +{formatCurrency(staff.totalCommission)}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onViewCommissionLedgers(staff);
-                      }}
-                      className="text-[10px] font-bold text-pink-600 hover:underline mt-0.5 inline-flex items-center gap-0.5 cursor-pointer"
-                    >
-                      <Receipt className="w-3 h-3" />
-                      <span>{staff.commissionLedgers?.length || 0} bút toán</span>
-                    </button>
+                  <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-600">
+                    +{formatCurrency(staff.totalCommission || 0)}
                   </td>
 
-                  {/* Total Payout (Base + Commission) */}
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="font-black text-slate-900 text-sm">
-                      {formatCurrency(staff.totalPayout)}
-                    </div>
-                    <span className="text-[10px] font-semibold text-slate-400">
-                      Lương + Hoa hồng
-                    </span>
+                  {/* Total Payout */}
+                  <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 text-sm">
+                    {formatCurrency(staff.totalPayout || 0)}
+                  </td>
+
+                  {/* Star Rating & Review Count */}
+                  <td className="py-3.5 px-3 text-center">
+                    {avgRating > 0 ? (
+                      <div className="inline-flex flex-col items-center">
+                        <span className="font-bold text-amber-600 flex items-center gap-1 text-xs">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span>{avgRating.toFixed(1)}</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          {reviewCount} đánh giá
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-300 text-xs">-</span>
+                    )}
                   </td>
 
                   {/* Requested Stylist Rate */}
                   <td className="py-3.5 px-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 font-medium">Chỉ định:</span>
-                        <Badge variant={getBadgeVariant(reqRate, 80, 50)} className="text-[10px] font-bold">
-                          {reqRate.toFixed(1)}%
-                        </Badge>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-500 ${getProgressColor(reqRate, 80, 50)}`}
-                          style={{ width: `${Math.min(reqRate, 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {staff.requestedBookingCount} / {staff.completedBookingCount} lịch hẹn
-                      </div>
-                    </div>
+                    <RateProgressBar
+                      rate={reqRate}
+                      label="Đích danh"
+                      detail={`${staff.requestedBookingCount} / ${staff.completedBookingCount} lịch hẹn`}
+                      high={80}
+                      mid={50}
+                    />
                   </td>
 
                   {/* Re-booking Rate */}
                   <td className="py-3.5 px-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 font-medium">Khách quay lại:</span>
-                        <Badge variant={getBadgeVariant(rebookRate, 60, 30)} className="text-[10px] font-bold">
-                          {rebookRate.toFixed(1)}%
-                        </Badge>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-500 ${getProgressColor(rebookRate, 60, 30)}`}
-                          style={{ width: `${Math.min(rebookRate, 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {staff.repeatCustomerCount} / {staff.totalIdentifiedCustomers} khách (≥2 đơn)
-                      </div>
-                    </div>
+                    <RateProgressBar
+                      rate={rebookRate}
+                      label="Khách quay lại"
+                      detail={`${staff.repeatCustomerCount} / ${staff.totalIdentifiedCustomers} khách (≥2 đơn)`}
+                      high={60}
+                      mid={30}
+                    />
                   </td>
 
                   {/* Action Buttons */}

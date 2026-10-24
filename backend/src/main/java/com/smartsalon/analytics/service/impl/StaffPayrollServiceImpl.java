@@ -19,6 +19,7 @@ import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
 import com.smartsalon.pos.entity.StepAssignmentStatus;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import com.smartsalon.pos.repository.OrderRepository;
+import com.smartsalon.review.repository.ServiceReviewRepository;
 import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
@@ -46,6 +47,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
     private final OrderRepository orderRepository;
     private final BookingRepository bookingRepository;
     private final CommissionLedgerRepository commissionLedgerRepository;
+    private final ServiceReviewRepository serviceReviewRepository;
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String STATUS_CANCELLED = "CANCELLED";
@@ -127,6 +129,11 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
             averageRebookingRate = sumRebookingRate.divide(BigDecimal.valueOf(totalStylistsWithCustomers), 2, RoundingMode.HALF_UP);
         }
 
+        Double branchAvgRating = serviceReviewRepository.getAverageRatingByBranchId(branchId);
+        BigDecimal overallAvgRating = branchAvgRating != null
+                ? BigDecimal.valueOf(branchAvgRating).setScale(1, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(1);
+
         return StaffPayrollSummaryResponse.builder()
                 .branchId(branch != null ? branch.getId() : null)
                 .branchName(branch != null ? branch.getName() : "Tất cả chi nhánh")
@@ -140,6 +147,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .totalPayrollPayout(totalPayrollPayoutSum)
                 .averageRequestedStylistRate(averageRequestedRate)
                 .averageRebookingRate(averageRebookingRate)
+                .averageRating(overallAvgRating)
                 .staffMembers(staffResponses)
                 .build();
     }
@@ -269,6 +277,12 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                     .divide(BigDecimal.valueOf(totalIdentifiedCustomers), 2, RoundingMode.HALF_UP);
         }
 
+        Double avgRating = serviceReviewRepository.getAverageRatingByStylistId(staffId);
+        BigDecimal safeAvgRating = avgRating != null
+                ? BigDecimal.valueOf(avgRating).setScale(1, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(1);
+        long reviewCount = serviceReviewRepository.countByStylistId(staffId);
+
         BigDecimal baseSalary = staff.getBaseSalary() != null ? staff.getBaseSalary() : BigDecimal.ZERO;
         BigDecimal totalPayout = baseSalary.add(totalCommission);
 
@@ -297,6 +311,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .totalIdentifiedCustomers(totalIdentifiedCustomers)
                 .repeatCustomerCount(repeatCustomerCount)
                 .rebookingRate(rebookingRate)
+                .averageRating(safeAvgRating)
+                .reviewCount(reviewCount)
                 .commissionLedgers(ledgerDetails)
                 .build();
     }

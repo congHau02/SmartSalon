@@ -66,4 +66,10 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
     @Query("SELECT COALESCE(SUM(o.subtotal - o.discountAmount), 0.00) FROM OrderEntity o " +
            "WHERE o.customer.id = :customerId AND o.status = com.smartsalon.pos.entity.OrderStatus.PAID AND o.isDeleted = false")
     java.math.BigDecimal sumTotalSpentByCustomerId(@Param("customerId") Long customerId);
+
+    @Query("SELECT o FROM OrderEntity o WHERE (o.customer.id = :customerId OR (o.customer IS NULL AND o.customerPhone = :phone)) AND o.status = :status AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    List<OrderEntity> findCustomerOrdersByStatus(
+            @Param("customerId") Long customerId,
+            @Param("phone") String phone,
+            @Param("status") OrderStatus status);
 }

@@ -1,11 +1,11 @@
 package com.smartsalon.customer;
 
 import com.smartsalon.common.ApiResponse;
-import com.smartsalon.customer.dto.CustomerBookingResponse;
-import com.smartsalon.customer.dto.CustomerSummaryDto;
+import com.smartsalon.customer.dto.*;
 import com.smartsalon.customer.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -16,7 +16,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Customer Portal Workspace", description = "API Không gian cá nhân khách hàng, lịch hẹn và bảo lưu cọc")
+@Tag(name = "Customer Portal Workspace", description = "API Không gian cá nhân khách hàng, lịch hẹn, lịch sử làm đẹp và đánh giá")
 public class CustomerPortalController {
 
     private final CustomerService customerService;
@@ -47,6 +47,28 @@ public class CustomerPortalController {
         String username = getAuthenticatedUsername();
         CustomerBookingResponse response = customerService.cancelCustomerBooking(username, bookingId);
         return ResponseEntity.ok(ApiResponse.success("Hủy lịch hẹn thành công", response));
+    }
+
+    @GetMapping({"/api/v1/customer/me/orders", "/api/v1/customers/me/orders", "/api/v1/customer/orders"})
+    @Operation(summary = "Lấy danh sách đơn hàng đã hoàn thành kèm hồ sơ Visual Log và đánh giá dịch vụ")
+    public ResponseEntity<ApiResponse<List<CustomerOrderResponse>>> getMyOrders() {
+        String username = getAuthenticatedUsername();
+        List<CustomerOrderResponse> orders = customerService.getCustomerOrders(username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách đơn hàng thành công", orders));
+    }
+
+    @PostMapping({
+            "/api/v1/customer/me/orders/{orderId}/review",
+            "/api/v1/customers/me/orders/{orderId}/review",
+            "/api/v1/customer/orders/{orderId}/review"
+    })
+    @Operation(summary = "Gửi đánh giá dịch vụ và xếp hạng sao cho Stylist phục vụ")
+    public ResponseEntity<ApiResponse<CustomerReviewDto>> submitOrderReview(
+            @PathVariable Long orderId,
+            @Valid @RequestBody CreateServiceReviewRequest request) {
+        String username = getAuthenticatedUsername();
+        CustomerReviewDto review = customerService.submitServiceReview(username, orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Gửi đánh giá dịch vụ thành công", review));
     }
 
     private String getAuthenticatedUsername() {

@@ -14,6 +14,7 @@ import com.smartsalon.catalog.entity.ServiceEntity;
 import com.smartsalon.catalog.repository.ServiceRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.review.repository.ServiceReviewRepository;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
     private final RedisLockService redisLockService;
+    private final ServiceReviewRepository serviceReviewRepository;
 
     public static final LocalTime OPENING_TIME = LocalTime.of(8, 30);
     public static final LocalTime CLOSING_TIME = LocalTime.of(20, 30);
@@ -57,14 +59,23 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
         }
 
         return users.stream()
-                .map(u -> new StylistDto(
-                        u.getId(),
-                        u.getBranch() != null ? u.getBranch().getId() : null,
-                        u.getBranch() != null ? u.getBranch().getName() : null,
-                        u.getFullName(),
-                        u.getPhone(),
-                        u.getAvatarUrl()
-                ))
+                .map(u -> {
+                    Double avg = serviceReviewRepository.getAverageRatingByStylistId(u.getId());
+                    BigDecimal avgRating = avg != null
+                            ? BigDecimal.valueOf(avg).setScale(1, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO.setScale(1);
+                    long reviewCount = serviceReviewRepository.countByStylistId(u.getId());
+                    return new StylistDto(
+                            u.getId(),
+                            u.getBranch() != null ? u.getBranch().getId() : null,
+                            u.getBranch() != null ? u.getBranch().getName() : null,
+                            u.getFullName(),
+                            u.getPhone(),
+                            u.getAvatarUrl(),
+                            avgRating,
+                            reviewCount
+                    );
+                })
                 .toList();
     }
 

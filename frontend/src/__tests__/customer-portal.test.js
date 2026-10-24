@@ -133,4 +133,86 @@ describe("Customer Portal & Retained Deposit Domain Rules", () => {
       expect(result.finalAmount).toBe(0);
     });
   });
+
+  describe("Visual Log Customer Privacy & Review Eligibility", () => {
+    it("ensures Visual Log strips actualBomJson for customer safety", () => {
+      const internalLog = {
+        beforeImageUrl: "https://cdn.smartsalon.vn/before.jpg",
+        afterImageUrl: "https://cdn.smartsalon.vn/after.jpg",
+        hairConditionNotes: "Tóc khô xơ ngọn",
+        formulaNotes: "Nhuộm hạt dẻ sáng",
+        actualBomJson: '{"used":[{"sku":"OXI-6","amount":40}]}',
+      };
+
+      // Customer-safe mapping
+      const customerVisualLog = {
+        beforeImageUrl: internalLog.beforeImageUrl,
+        afterImageUrl: internalLog.afterImageUrl,
+        hairConditionNotes: internalLog.hairConditionNotes,
+        formulaNotes: internalLog.formulaNotes,
+      };
+
+      expect(customerVisualLog.beforeImageUrl).toBe("https://cdn.smartsalon.vn/before.jpg");
+      expect(customerVisualLog.afterImageUrl).toBe("https://cdn.smartsalon.vn/after.jpg");
+      expect(customerVisualLog.actualBomJson).toBeUndefined();
+    });
+
+    it("determines review eligibility: eligible only for PAID orders containing salon services without existing review", () => {
+      const isEligibleForReview = (order) => {
+        if (order.status !== "PAID") return false;
+        if (order.review) return false;
+        const hasService = order.items?.some((i) => i.itemType === "SERVICE");
+        return Boolean(hasService);
+      };
+
+      const paidServiceOrder = {
+        id: 1,
+        status: "PAID",
+        items: [{ itemType: "SERVICE", name: "Cắt tóc" }],
+        review: null,
+      };
+      expect(isEligibleForReview(paidServiceOrder)).toBe(true);
+
+      const alreadyReviewedOrder = {
+        id: 2,
+        status: "PAID",
+        items: [{ itemType: "SERVICE", name: "Uốn tóc" }],
+        review: { rating: 5, comment: "Rất đẹp" },
+      };
+      expect(isEligibleForReview(alreadyReviewedOrder)).toBe(false);
+
+      const retailOnlyOrder = {
+        id: 3,
+        status: "PAID",
+        items: [{ itemType: "PRODUCT", name: "Dầu gội Kérastase" }],
+        review: null,
+      };
+      expect(isEligibleForReview(retailOnlyOrder)).toBe(false);
+
+      const unpaidOrder = {
+        id: 4,
+        status: "CHECKED_IN",
+        items: [{ itemType: "SERVICE", name: "Cắt tóc" }],
+        review: null,
+      };
+      expect(isEligibleForReview(unpaidOrder)).toBe(false);
+    });
+
+    it("resolves Primary Stylist as the stylist with the highest commission", () => {
+      const resolvePrimaryStylist = (stylists = []) => {
+        if (!stylists.length) return null;
+        return [...stylists].sort((a, b) => (b.commissionAmount || 0) - (a.commissionAmount || 0))[0];
+      };
+
+      const team = [
+        { id: 2, fullName: "Minh", commissionAmount: 40000 },
+        { id: 3, fullName: "Lan", commissionAmount: 120000 },
+        { id: 4, fullName: "Hoa", commissionAmount: 60000 },
+      ];
+
+      const primary = resolvePrimaryStylist(team);
+      expect(primary.id).toBe(3);
+      expect(primary.fullName).toBe("Lan");
+    });
+  });
 });

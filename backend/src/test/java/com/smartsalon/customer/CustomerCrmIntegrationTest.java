@@ -99,6 +99,12 @@ class CustomerCrmIntegrationTest {
     @Autowired
     private PaymentTransactionRepository paymentTransactionRepository;
 
+    @Autowired
+    private com.smartsalon.pos.repository.TechnicalLogRepository technicalLogRepository;
+
+    @Autowired
+    private com.smartsalon.review.repository.ServiceReviewRepository serviceReviewRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     private MockMvc mockMvc;
@@ -600,5 +606,129 @@ class CustomerCrmIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(1000))
                 .andExpect(jsonPath("$.result").isArray());
+    }
+
+    @Test
+    @DisplayName("Visual Log Privacy Guard: Customer orders endpoint returns before/after photos and care notes while stripping actual_bom_json")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldReturnCustomerPaidOrdersEnrichedWithVisualLogAndStripActualBomJson() throws Exception {
+        UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
+        OrderEntity order = OrderEntity.builder()
+                .branch(branch)
+                .customer(custHa)
+                .customerName(custHa.getFullName())
+                .customerPhone(custHa.getPhone())
+                .orderCode("ORD-VISUAL-TEST-" + System.currentTimeMillis())
+                .subtotal(new BigDecimal("500000.00"))
+                .finalAmount(new BigDecimal("500000.00"))
+                .status(com.smartsalon.pos.entity.OrderStatus.PAID)
+                .build();
+        com.smartsalon.pos.entity.OrderItemEntity item = com.smartsalon.pos.entity.OrderItemEntity.builder()
+                .service(service)
+                .itemType(com.smartsalon.pos.entity.OrderItemType.SERVICE)
+                .unitPrice(new BigDecimal("500000.00"))
+                .quantity(1)
+                .totalPrice(new BigDecimal("500000.00"))
+                .build();
+        order.addItem(item);
+        order = orderRepository.save(order);
+
+        com.smartsalon.pos.entity.TechnicalLogEntity techLog = com.smartsalon.pos.entity.TechnicalLogEntity.builder()
+                .order(order)
+                .customer(custHa)
+                .staff(stylist)
+                .beforeImageUrl("https://cdn.smartsalon.vn/logs/before-test.jpg")
+                .afterImageUrl("https://cdn.smartsalon.vn/logs/after-test.jpg")
+                .hairConditionNotes("Tóc sợi mảnh, khô phần ngọn do tẩy nhuộm trước đó")
+                .formulaNotes("Nhuộm cân bằng màu hạt dẻ sáng, phục hồi collagen")
+                .actualBomJson("{\"consumedSkus\":[{\"sku\":\"OXI-6\",\"usedAmount\":45,\"unit\":\"ml\"}]}")
+                .build();
+        technicalLogRepository.save(techLog);
+
+        mockMvc.perform(get("/api/v1/customer/me/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result").isArray())
+                .andExpect(jsonPath("$.result[0].visualLog.beforeImageUrl").value("https://cdn.smartsalon.vn/logs/before-test.jpg"))
+                .andExpect(jsonPath("$.result[0].visualLog.afterImageUrl").value("https://cdn.smartsalon.vn/logs/after-test.jpg"))
+                .andExpect(jsonPath("$.result[0].visualLog.hairConditionNotes").value("Tóc sợi mảnh, khô phần ngọn do tẩy nhuộm trước đó"))
+                .andExpect(jsonPath("$.result[0].visualLog.formulaNotes").value("Nhuộm cân bằng màu hạt dẻ sáng, phục hồi collagen"))
+                .andExpect(jsonPath("$.result[0].visualLog.actualBomJson").doesNotExist())
+                .andExpect(jsonPath("$.result[0].actualBomJson").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Service Review Submission: Enforces single review uniqueness, ownership, unpaid, and retail-only guards")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldSubmitServiceReviewAndEnforceGuards() throws Exception {
+        UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
+        OrderEntity order = OrderEntity.builder()
+                .branch(branch)
+                .customer(custHa)
+                .customerName(custHa.getFullName())
+                .customerPhone(custHa.getPhone())
+                .orderCode("ORD-REV-TEST-" + System.currentTimeMillis())
+                .subtotal(new BigDecimal("500000.00"))
+                .finalAmount(new BigDecimal("500000.00"))
+                .status(com.smartsalon.pos.entity.OrderStatus.PAID)
+                .build();
+        com.smartsalon.pos.entity.OrderItemEntity item = com.smartsalon.pos.entity.OrderItemEntity.builder()
+                .service(service)
+                .itemType(com.smartsalon.pos.entity.OrderItemType.SERVICE)
+                .unitPrice(new BigDecimal("500000.00"))
+                .quantity(1)
+                .totalPrice(new BigDecimal("500000.00"))
+                .build();
+        order.addItem(item);
+        order = orderRepository.save(order);
+
+        com.smartsalon.customer.dto.CreateServiceReviewRequest reviewReq = com.smartsalon.customer.dto.CreateServiceReviewRequest.builder()
+                .stylistId(stylist.getId())
+                .rating(5)
+                .comment("Kỹ thuật cắt và tạo kiểu rất ưng ý!")
+                .build();
+
+        mockMvc.perform(post("/api/v1/customer/me/orders/" + order.getId() + "/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reviewReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.orderId").value(order.getId()))
+                .andExpect(jsonPath("$.result.rating").value(5))
+                .andExpect(jsonPath("$.result.stylistId").value(stylist.getId()))
+                .andExpect(jsonPath("$.result.comment").value("Kỹ thuật cắt và tạo kiểu rất ưng ý!"));
+
+        // Duplicate review on the same order must be rejected
+        mockMvc.perform(post("/api/v1/customer/me/orders/" + order.getId() + "/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reviewReq)))
+                .andExpect(status().isBadRequest());
+
+        // canReview becomes false for this order
+        mockMvc.perform(get("/api/v1/customer/me/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result[?(@.orderId == " + order.getId() + ")].canReview").value(false))
+                .andExpect(jsonPath("$.result[?(@.orderId == " + order.getId() + ")].review.rating").value(5));
+    }
+
+    @Test
+    @DisplayName("Stylist Star Ratings & Review Counts: Real-time aggregation across booking and admin KPI endpoints")
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void shouldAggregateStylistRatingsInBookingAndAnalyticsEndpoints() throws Exception {
+        // Stylist lookup in Booking wizard
+        mockMvc.perform(get("/api/v1/bookings/stylists?branchId=" + branch.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result").isArray())
+                .andExpect(jsonPath("$.result[0].averageRating").isNumber())
+                .andExpect(jsonPath("$.result[0].reviewCount").isNumber());
+
+        // Staff performance in Analytics Dashboard
+        mockMvc.perform(get("/api/v1/analytics/staff-performance?branchId=" + branch.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.averageRating").isNumber())
+                .andExpect(jsonPath("$.result.staffMembers[0].averageRating").isNumber())
+                .andExpect(jsonPath("$.result.staffMembers[0].reviewCount").isNumber());
     }
 }

@@ -23,4 +23,7 @@ public interface ServiceReviewRepository extends JpaRepository<ServiceReviewEnti
 
     @Query("SELECT AVG(CAST(r.rating as double)) FROM ServiceReviewEntity r WHERE r.stylist.id = :stylistId AND r.isDeleted = false")
     Double getAverageRatingByStylistId(@Param("stylistId") Long stylistId);
+
+    @Query("SELECT AVG(CAST(r.rating as double)) FROM ServiceReviewEntity r WHERE (:branchId IS NULL OR r.branch.id = :branchId) AND r.isDeleted = false")
+    Double getAverageRatingByBranchId(@Param("branchId") Long branchId);
 }

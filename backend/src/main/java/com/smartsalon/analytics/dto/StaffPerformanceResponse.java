@@ -38,6 +38,11 @@ public class StaffPerformanceResponse {
     private int repeatCustomerCount;
     private BigDecimal rebookingRate;
 
+    // Service Reviews & Customer Satisfaction
+    @Builder.Default
+    private BigDecimal averageRating = BigDecimal.ZERO.setScale(1);
+    private long reviewCount;
+
     @Builder.Default
     private List<CommissionLedgerDetailResponse> commissionLedgers = new ArrayList<>();
 }
