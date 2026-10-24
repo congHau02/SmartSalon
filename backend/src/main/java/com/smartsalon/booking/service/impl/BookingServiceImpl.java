@@ -199,6 +199,22 @@ public class BookingServiceImpl implements BookingService {
                     phone, request.customerName(), branch);
         }
 
+        boolean coveredByCredit = false;
+        BigDecimal appliedCredit = BigDecimal.ZERO;
+        if (customer != null && customer.getCreditBalance() != null && depositAmount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal customerCredit = customer.getCreditBalance();
+            if (customerCredit.compareTo(depositAmount) >= 0) {
+                coveredByCredit = true;
+                appliedCredit = depositAmount;
+                customer.setCreditBalance(customerCredit.subtract(depositAmount));
+                userRepository.save(customer);
+            }
+        }
+
+        BookingStatus initialStatus = coveredByCredit ? BookingStatus.CONFIRMED : BookingStatus.PENDING_PAYMENT;
+        DepositStatus initialDepositStatus = coveredByCredit ? DepositStatus.PAID : DepositStatus.UNPAID;
+        LocalDateTime lockExpires = coveredByCredit ? null : now.plusMinutes(HOLD_TTL_MINUTES);
+
         BookingEntity booking = BookingEntity.builder()
                 .branch(branch)
                 .customer(customer)
@@ -209,10 +225,10 @@ public class BookingServiceImpl implements BookingService {
                 .totalDurationMinutes(totalDurationMinutes)
                 .totalPrice(totalPrice)
                 .depositAmount(depositAmount)
-                .depositStatus(DepositStatus.UNPAID)
+                .depositStatus(initialDepositStatus)
                 .isStylistRequested(request.stylistId() != null)
-                .status(BookingStatus.PENDING_PAYMENT)
-                .slotLockExpiresAt(now.plusMinutes(HOLD_TTL_MINUTES))
+                .status(initialStatus)
+                .slotLockExpiresAt(lockExpires)
                 .customerName(request.customerName().trim())
                 .customerPhone(phone)
                 .notes(request.notes())
@@ -232,15 +248,30 @@ public class BookingServiceImpl implements BookingService {
         try {
             booking = bookingRepository.save(booking);
 
-            // Persist PENDING PaymentTransactionEntity immediately upon booking creation (spec.md L27 & L96)
-            PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
-                    .booking(booking)
-                    .paymentMethod(PaymentTransactionEntity.METHOD_PAYOS_VIETQR)
-                    .transactionCode("TX-" + bookingCode + "-" + System.currentTimeMillis())
-                    .amount(depositAmount)
-                    .status(PaymentTransactionEntity.STATUS_PENDING)
-                    .build();
-            paymentTransactionRepository.save(transaction);
+            if (coveredByCredit) {
+                // DB CONFIRMED record now guards slot permanently; release temporary Redis lock
+                redisLockService.unlockSlots(assignedStylist.getId(), startTime, endTime);
+
+                PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
+                        .booking(booking)
+                        .paymentMethod(PaymentTransactionEntity.METHOD_CREDIT_BALANCE)
+                        .transactionCode("TX-" + bookingCode + "-" + System.currentTimeMillis())
+                        .amount(appliedCredit)
+                        .status(PaymentTransactionEntity.STATUS_SUCCESS)
+                        .build();
+                paymentTransactionRepository.save(transaction);
+            } else {
+                // Persist PENDING PaymentTransactionEntity immediately upon booking creation (spec.md L27 & L96)
+                PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
+                        .booking(booking)
+                        .paymentMethod(PaymentTransactionEntity.METHOD_PAYOS_VIETQR)
+                        .transactionCode("TX-" + bookingCode + "-" + System.currentTimeMillis())
+                        .amount(depositAmount)
+                        .status(PaymentTransactionEntity.STATUS_PENDING)
+                        .build();
+                paymentTransactionRepository.save(transaction);
+            }
+
             if (realtimeNotificationService != null) {
                 realtimeNotificationService.notifyBookingCreated(booking);
             }
@@ -310,6 +341,17 @@ public class BookingServiceImpl implements BookingService {
                 booking.expireHold();
             } else {
                 booking.setStatus(newStatus);
+                if (booking.getDepositStatus() == DepositStatus.PAID
+                        && booking.getDepositAmount() != null
+                        && booking.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
+                    UserEntity customer = booking.getCustomer();
+                    if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername())) {
+                        BigDecimal currentCredit = customer.getCreditBalance() != null ? customer.getCreditBalance() : BigDecimal.ZERO;
+                        customer.setCreditBalance(currentCredit.add(booking.getDepositAmount()));
+                        userRepository.save(customer);
+                        booking.setDepositStatus(DepositStatus.CREDITED);
+                    }
+                }
             }
         } else if (newStatus == BookingStatus.CONFIRMED) {
             if (oldStatus == BookingStatus.PENDING_PAYMENT) {

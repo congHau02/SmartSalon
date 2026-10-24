@@ -142,6 +142,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order.recalculateTotals();
         applyMembershipTierDiscountIfAutomatic(order);
+        applyCustomerCreditBalanceIfAvailable(order);
 
         OrderEntity savedOrder = orderRepository.save(order);
 
@@ -236,6 +237,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order.recalculateTotals();
         applyMembershipTierDiscountIfAutomatic(order);
+        applyCustomerCreditBalanceIfAvailable(order);
 
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyWalkInCreated(savedOrder);
@@ -1121,5 +1123,28 @@ public class PosOrderServiceImpl implements PosOrderService {
             order.setDiscountAmount(autoDiscount);
         }
         order.recalculateTotals();
+    }
+
+    private void applyCustomerCreditBalanceIfAvailable(OrderEntity order) {
+        UserEntity customer = order.getCustomer();
+        if (customer == null || "walkin.guest".equalsIgnoreCase(customer.getUsername())) {
+            return;
+        }
+        BigDecimal credit = customer.getCreditBalance();
+        if (credit == null || credit.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal subtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
+        BigDecimal discount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal currentDepositDeducted = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
+
+        BigDecimal maxApplicable = subtotal.subtract(discount).subtract(currentDepositDeducted);
+        if (maxApplicable.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal applied = credit.min(maxApplicable);
+            order.setDepositDeducted(currentDepositDeducted.add(applied));
+            customer.setCreditBalance(credit.subtract(applied));
+            userRepository.save(customer);
+            order.recalculateTotals();
+        }
     }
 }

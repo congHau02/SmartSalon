@@ -33,6 +33,7 @@ public class PaymentTransactionEntity {
 
     public static final String METHOD_PAYOS_VIETQR = "PAYOS_VIETQR";
     public static final String METHOD_PAYOS_SIMULATED = "PAYOS_SIMULATED";
+    public static final String METHOD_CREDIT_BALANCE = "CREDIT_BALANCE";
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_SUCCESS = "SUCCESS";
     public static final String STATUS_FAILED = "FAILED";

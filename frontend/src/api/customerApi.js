@@ -8,4 +8,20 @@ export const customerApi = {
     });
     return response?.result || response?.data || response;
   },
+
+  getMySummary: async () => {
+    const response = await axiosClient.get("/customer/me/summary");
+    return response?.result || response?.data || response;
+  },
+
+  getMyBookings: async () => {
+    const response = await axiosClient.get("/customer/me/bookings");
+    return response?.result || response?.data || response || [];
+  },
+
+  cancelMyBooking: async (bookingId) => {
+    const response = await axiosClient.post(`/customer/me/bookings/${bookingId}/cancel`);
+    return response?.result || response?.data || response;
+  },
 };
+

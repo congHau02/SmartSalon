@@ -5,6 +5,7 @@ import { useAuth } from "../../features/auth/useAuth";
 import { BookingLookupModal } from "../../features/booking/components/BookingLookupModal";
 import { ErrorBoundary } from "../common/ErrorBoundary";
 import { MembershipTierBadge } from "../common/MembershipTierBadge";
+import { formatCurrency } from "../../lib/utils";
 
 export function CustomerLayout() {
   const { user } = useAuth();
@@ -89,6 +90,11 @@ export function CustomerLayout() {
               </div>
               <span className="hidden sm:inline font-medium">{user.fullName}</span>
               <MembershipTierBadge tier={user.membershipTier || "STANDARD"} size="xs" />
+              {Number(user.creditBalance || 0) > 0 && (
+                <span className="hidden md:inline px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  Ví cọc: {formatCurrency(user.creditBalance)}
+                </span>
+              )}
             </Link>
           ) : (
             <Link

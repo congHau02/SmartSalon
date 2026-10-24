@@ -8,11 +8,20 @@ import com.smartsalon.branch.repository.BranchRepository;
 import com.smartsalon.catalog.entity.ServiceDefaultStepEntity;
 import com.smartsalon.catalog.entity.ServiceEntity;
 import com.smartsalon.catalog.repository.ServiceRepository;
+import com.smartsalon.booking.dto.CreateBookingRequest;
+import com.smartsalon.booking.entity.BookingEntity;
+import com.smartsalon.booking.entity.BookingServiceItemEntity;
+import com.smartsalon.booking.entity.BookingStatus;
+import com.smartsalon.booking.entity.DepositStatus;
+import com.smartsalon.booking.repository.BookingRepository;
+import com.smartsalon.booking.service.RedisLockService;
 import com.smartsalon.config.TestAuthConfig;
 import com.smartsalon.inventory.entity.BranchInventoryEntity;
 import com.smartsalon.inventory.entity.ProductEntity;
 import com.smartsalon.inventory.repository.BranchInventoryRepository;
 import com.smartsalon.inventory.repository.ProductRepository;
+import com.smartsalon.payment.entity.PaymentTransactionEntity;
+import com.smartsalon.payment.repository.PaymentTransactionRepository;
 import com.smartsalon.pos.dto.AddProductItemRequest;
 import com.smartsalon.pos.dto.CheckoutRequest;
 import com.smartsalon.pos.dto.UpdateOrderRequest;
@@ -40,6 +49,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -80,7 +90,16 @@ class CustomerCrmIntegrationTest {
     @Autowired
     private CommissionLedgerRepository commissionLedgerRepository;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private BookingRepository bookingRepository;
+
+    @Autowired
+    private RedisLockService redisLockService;
+
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     private MockMvc mockMvc;
     private BranchEntity branch;
@@ -162,9 +181,10 @@ class CustomerCrmIntegrationTest {
                         .roles(Set.of(customerRole))
                         .build())
         );
-        // Ensure custHa has SILVER tier and 2.6M spend for test idempotency
+        // Ensure custHa has SILVER tier and 2.6M spend and zero credit balance for test idempotency
         custHa.setTotalSpent(new BigDecimal("2600000.00"));
         custHa.setMembershipTier(MembershipTier.SILVER);
+        custHa.setCreditBalance(BigDecimal.ZERO);
         userRepository.save(custHa);
     }
 
@@ -385,5 +405,200 @@ class CustomerCrmIntegrationTest {
                 .andExpect(jsonPath("$.result.discountPercent").value(0))
                 .andExpect(jsonPath("$.result.nextTier").value("SILVER"))
                 .andExpect(jsonPath("$.result.amountToNextTier").value(2000000.00));
+    }
+
+    @Test
+    @DisplayName("Online Cancellation: Cancelling >= 2h in advance releases Redis locks and credits Retained Deposit")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldAllowOnlineCancellationAndCreditRetainedDepositWhenAtLeastTwoHoursBefore() throws Exception {
+        UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
+        LocalDateTime startTime = LocalDateTime.now().plusHours(4);
+        LocalDateTime endTime = startTime.plusMinutes(90);
+
+        // Lock slot in Redis to simulate hold/booking
+        redisLockService.tryLockSlots(stylist.getId(), startTime, endTime, "CANCEL_TEST");
+        assertTrue(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime));
+
+        BigDecimal initialCredit = custHa.getCreditBalance() != null ? custHa.getCreditBalance() : BigDecimal.ZERO;
+        BigDecimal depositAmount = new BigDecimal("170000.00");
+
+        BookingEntity booking = bookingRepository.save(BookingEntity.builder()
+                .branch(branch)
+                .customer(custHa)
+                .staff(stylist)
+                .bookingCode("BK-CANCEL-TEST-" + System.currentTimeMillis())
+                .bookingTime(startTime)
+                .endTime(endTime)
+                .totalDurationMinutes(90)
+                .totalPrice(new BigDecimal("850000.00"))
+                .depositAmount(depositAmount)
+                .depositStatus(DepositStatus.PAID)
+                .status(BookingStatus.CONFIRMED)
+                .customerName(custHa.getFullName())
+                .customerPhone(custHa.getPhone())
+                .items(new ArrayList<>())
+                .build());
+
+        mockMvc.perform(post("/api/v1/customer/me/bookings/" + booking.getId() + "/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.result.depositStatus").value("CREDITED"))
+                .andExpect(jsonPath("$.result.canCancelOnline").value(false));
+
+        // 1. Booking record updated in DB
+        BookingEntity updated = bookingRepository.findById(booking.getId()).orElseThrow();
+        assertEquals(BookingStatus.CANCELLED, updated.getStatus());
+        assertEquals(DepositStatus.CREDITED, updated.getDepositStatus());
+
+        // 2. Redis slot locks released
+        assertFalse(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime),
+                "Redis slot locks must be freed upon cancellation");
+
+        // 3. Retained Deposit balance credited
+        UserEntity updatedCust = userRepository.findById(custHa.getId()).orElseThrow();
+        assertEquals(0, initialCredit.add(depositAmount).compareTo(updatedCust.getCreditBalance()),
+                "Customer credit balance must increase by paid deposit amount");
+    }
+
+    @Test
+    @DisplayName("Online Cancellation: Cancelling < 2h before bookingTime is rejected with 400 BOOKING_CANCELLATION_WINDOW_EXPIRED")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldRejectOnlineCancellationWhenLessThanTwoHoursBefore() throws Exception {
+        UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
+        LocalDateTime startTime = LocalDateTime.now().plusHours(1); // Only 1 hour away (< 2h)
+        LocalDateTime endTime = startTime.plusMinutes(90);
+
+        BookingEntity booking = bookingRepository.save(BookingEntity.builder()
+                .branch(branch)
+                .customer(custHa)
+                .staff(stylist)
+                .bookingCode("BK-LATE-CANCEL-" + System.currentTimeMillis())
+                .bookingTime(startTime)
+                .endTime(endTime)
+                .totalDurationMinutes(90)
+                .totalPrice(new BigDecimal("850000.00"))
+                .depositAmount(new BigDecimal("170000.00"))
+                .depositStatus(DepositStatus.PAID)
+                .status(BookingStatus.CONFIRMED)
+                .customerName(custHa.getFullName())
+                .customerPhone(custHa.getPhone())
+                .items(new ArrayList<>())
+                .build());
+
+        mockMvc.perform(post("/api/v1/customer/me/bookings/" + booking.getId() + "/cancel"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(2010)) // BOOKING_CANCELLATION_WINDOW_EXPIRED
+                .andExpect(jsonPath("$.message").value("Chỉ được hủy lịch hẹn trực tuyến trước giờ hẹn ít nhất 2 tiếng"));
+
+        // Status unchanged
+        BookingEntity updated = bookingRepository.findById(booking.getId()).orElseThrow();
+        assertEquals(BookingStatus.CONFIRMED, updated.getStatus());
+        assertEquals(DepositStatus.PAID, updated.getDepositStatus());
+    }
+
+    @Test
+    @DisplayName("Retained Deposit Auto-Offset: Booking covered by Retained Deposit confirms immediately via CREDIT_BALANCE without VietQR")
+    void shouldAutoConfirmBookingWithRetainedDepositWithoutVietQr() throws Exception {
+        // Set customer credit balance to 300,000 VND
+        custHa.setCreditBalance(new BigDecimal("300000.00"));
+        userRepository.save(custHa);
+
+        UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
+        LocalDateTime bookingTime = LocalDateTime.now().plusDays(3).withHour(10).withMinute(0).withSecond(0).withNano(0);
+
+        CreateBookingRequest request = new CreateBookingRequest(
+                branch.getId(),
+                stylist.getId(),
+                List.of(service.getId()), // Base price 850,000 -> 20% deposit = 170,000 VND
+                bookingTime,
+                custHa.getFullName(),
+                custHa.getPhone(),
+                "Đặt hẹn tự động trừ cọc bảo lưu"
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/v1/bookings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.result.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.result.depositStatus").value("PAID"))
+                .andExpect(jsonPath("$.result.depositAmount").value(170000.00))
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString()).get("result");
+        String bookingCode = root.get("bookingCode").asText();
+
+        // 1. Customer credit balance deducted by 170,000 VND (300,000 - 170,000 = 130,000 VND)
+        UserEntity updatedCust = userRepository.findById(custHa.getId()).orElseThrow();
+        assertEquals(0, new BigDecimal("130000.00").compareTo(updatedCust.getCreditBalance()),
+                "Credit balance should be deducted by the deposit amount");
+
+        // 2. Payment Transaction recorded with METHOD_CREDIT_BALANCE and STATUS_SUCCESS
+        BookingEntity createdBooking = bookingRepository.findByBookingCodeAndIsDeletedFalse(bookingCode).orElseThrow();
+        var txList = paymentTransactionRepository.findByBookingIdOrderByCreatedAtDesc(createdBooking.getId());
+        assertFalse(txList.isEmpty(), "Payment transaction must be recorded");
+        PaymentTransactionEntity tx = txList.get(0);
+        assertEquals("CREDIT_BALANCE", tx.getPaymentMethod());
+        assertEquals("SUCCESS", tx.getStatus());
+        assertEquals(0, new BigDecimal("170000.00").compareTo(tx.getAmount()));
+    }
+
+    @Test
+    @DisplayName("Retained Deposit Auto-Offset: POS walk-in and check-in auto-offsets remaining credit balance into deposit_deducted")
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void shouldAutoOffsetRemainingRetainedDepositAtPosCheckInAndWalkIn() throws Exception {
+        // Set customer credit balance to 200,000 VND
+        custHa.setCreditBalance(new BigDecimal("200000.00"));
+        userRepository.save(custHa);
+
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .customerPhone(custHa.getPhone())
+                .customerName(custHa.getFullName())
+                .serviceIds(List.of(service.getId())) // 850,000 VND
+                .isQuickGuest(false)
+                .notes("Khách vãng lai dùng cọc bảo lưu")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.result.subtotal").value(850000.00))
+                // 5% SILVER discount = 42,500 VND
+                .andExpect(jsonPath("$.result.discountAmount").value(42500.00))
+                // Full 200,000 VND credit balance offset into deposit_deducted
+                .andExpect(jsonPath("$.result.depositDeducted").value(200000.00))
+                // Final amount = 850,000 - 42,500 - 200,000 = 607,500 VND
+                .andExpect(jsonPath("$.result.finalAmount").value(607500.00));
+
+        // Customer's credit balance should now be 0 VND
+        UserEntity updatedCust = userRepository.findById(custHa.getId()).orElseThrow();
+        assertEquals(0, BigDecimal.ZERO.compareTo(updatedCust.getCreditBalance()),
+                "Remaining credit balance should be fully consumed");
+    }
+
+    @Test
+    @DisplayName("Customer Portal: Endpoints return summary and bookings with canCancelOnline")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldReturnCustomerSummaryAndChronologicalBookingsWithCanCancelOnline() throws Exception {
+        // Summary endpoint
+        mockMvc.perform(get("/api/v1/customer/me/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.username").value("cust.ha"))
+                .andExpect(jsonPath("$.result.membershipTier").value("SILVER"))
+                .andExpect(jsonPath("$.result.discountPercent").value(5))
+                .andExpect(jsonPath("$.result.nextTier").value("GOLD"))
+                .andExpect(jsonPath("$.result.creditBalance").isNumber())
+                .andExpect(jsonPath("$.result.totalCompletedVisits").isNumber())
+                .andExpect(jsonPath("$.result.upcomingBookingCount").isNumber());
+
+        // Bookings endpoint
+        mockMvc.perform(get("/api/v1/customer/me/bookings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result").isArray());
     }
 }

@@ -161,7 +161,7 @@ export function ConfirmedBookingView({ booking, onNewBooking }) {
             <div className="flex items-center justify-between text-emerald-700 font-bold">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Đã đặt cọc (20% PayOS VietQR):
+                Đã thanh toán cọc 20%:
               </span>
               <span className="text-sm">-{formatCurrency(depositPaid)}</span>
             </div>

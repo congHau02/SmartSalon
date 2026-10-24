@@ -20,6 +20,10 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
 
     List<BookingEntity> findByCustomerIdAndIsDeletedFalseOrderByBookingTimeDesc(Long customerId);
 
+    @Query("SELECT COUNT(b) FROM BookingEntity b WHERE b.customer.id = :customerId AND b.isDeleted = false " +
+           "AND b.status IN ('PENDING_PAYMENT', 'CONFIRMED') AND b.bookingTime > :now")
+    long countUpcomingBookingsForCustomer(@Param("customerId") Long customerId, @Param("now") LocalDateTime now);
+
     @Query("SELECT b FROM BookingEntity b WHERE b.staff.id = :staffId AND b.isDeleted = false " +
            "AND b.bookingTime < :windowEnd AND b.endTime > :windowStart " +
            "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +
