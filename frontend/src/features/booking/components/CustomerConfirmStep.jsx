@@ -1,8 +1,10 @@
 import React, { useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
+import { customerApi } from "../../../api/customerApi";
 import { guestBookingSchema } from "../booking.schema";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { BookingBreakdownReviewCard } from "./BookingBreakdownReviewCard";
@@ -35,6 +37,7 @@ export function CustomerConfirmStep({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(guestBookingSchema),
@@ -44,6 +47,19 @@ export function CustomerConfirmStep({
       notes: "",
     },
   });
+
+  const watchedPhone = useWatch({ control, name: "customerPhone" });
+  const lookupPhone = user?.phone || watchedPhone;
+
+  const { data: loyaltyData } = useQuery({
+    queryKey: ["customer-loyalty", lookupPhone],
+    queryFn: () => customerApi.getLoyaltyPreview(lookupPhone),
+    enabled: Boolean(lookupPhone && lookupPhone.length >= 10),
+    staleTime: 60_000,
+  });
+
+  const effectiveTier = user?.membershipTier || loyaltyData?.membershipTier || "STANDARD";
+  const effectiveDiscountPercent = user?.discountPercent ?? loyaltyData?.discountPercent ?? 0;
 
   const onFormSubmit = (data) => {
     onSubmitBooking({
@@ -79,6 +95,8 @@ export function CustomerConfirmStep({
               totalDuration,
               totalPrice,
               depositAmount,
+              membershipTier: effectiveTier,
+              discountPercent: effectiveDiscountPercent,
             }}
             isSubmitting={isSubmitting}
           />

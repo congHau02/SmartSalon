@@ -18,6 +18,7 @@ import { InventoryTransactionsPage } from "./features/inventory/InventoryTransac
 import { BookingWizardPage } from "./features/booking/BookingWizardPage";
 import { AdminBookingsPage } from "./features/booking/AdminBookingsPage";
 import { CustomerServicesPage } from "./features/catalog/CustomerServicesPage";
+import { CustomerProfilePage } from "./features/customer/CustomerProfilePage";
 import { RealtimeProvider, RealtimeToastContainer } from "./features/realtime";
 import { DispatchBoardPage } from "./features/pos/DispatchBoardPage";
 
@@ -42,6 +43,7 @@ export default function App() {
               <Route index element={<Navigate to="booking" replace />} />
               <Route path="booking" element={<BookingWizardPage />} />
               <Route path="services" element={<CustomerServicesPage />} />
+              <Route path="profile" element={<CustomerProfilePage />} />
             </Route>
 
             {/* Protected Admin Portal */}

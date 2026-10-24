@@ -4,6 +4,7 @@ import { Sparkles, Calendar, Scissors, Search, User, LogIn } from "lucide-react"
 import { useAuth } from "../../features/auth/useAuth";
 import { BookingLookupModal } from "../../features/booking/components/BookingLookupModal";
 import { ErrorBoundary } from "../common/ErrorBoundary";
+import { MembershipTierBadge } from "../common/MembershipTierBadge";
 
 export function CustomerLayout() {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ export function CustomerLayout() {
 
   const isBookingActive = location.pathname.includes("/booking");
   const isServicesActive = location.pathname.includes("/services");
+  const isProfileActive = location.pathname.includes("/profile");
 
   return (
     <div className="min-h-screen bg-pink-50/20 text-slate-800 flex flex-col font-sans">
@@ -58,17 +60,36 @@ export function CustomerLayout() {
               <Search className="w-4 h-4" />
               <span>Tra cứu lịch</span>
             </button>
+
+            {user && (
+              <Link
+                to="/customer/profile"
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                  isProfileActive
+                    ? "bg-pink-50 text-pink-700 font-bold"
+                    : "text-slate-600 hover:text-pink-600 hover:bg-slate-50"
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span>Hồ sơ & Thành viên</span>
+              </Link>
+            )}
           </nav>
         </div>
 
         <div className="flex items-center gap-4">
           {user ? (
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100/80 px-3 py-1.5 rounded-full">
+            <Link
+              to="/customer/profile"
+              className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-pink-50 hover:text-pink-700 px-3 py-1.5 rounded-full transition-colors border border-slate-200/80"
+              title="Hồ sơ & Thành viên"
+            >
               <div className="w-5 h-5 rounded-full bg-pink-600 text-white flex items-center justify-center text-[10px] font-bold">
                 {user.fullName?.[0] || "U"}
               </div>
-              <span className="hidden sm:inline">{user.fullName}</span>
-            </div>
+              <span className="hidden sm:inline font-medium">{user.fullName}</span>
+              <MembershipTierBadge tier={user.membershipTier || "STANDARD"} size="xs" />
+            </Link>
           ) : (
             <Link
               to="/login"

@@ -52,6 +52,23 @@ public class UserEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal baseSalary = BigDecimal.ZERO;
 
+    @Column(name = "total_spent", precision = 15, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal totalSpent = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "membership_tier", nullable = false, length = 20)
+    @Builder.Default
+    private MembershipTier membershipTier = MembershipTier.STANDARD;
+
+    @Column(name = "credit_balance", precision = 15, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal creditBalance = BigDecimal.ZERO;
+
+    @Column(name = "is_provisional", nullable = false)
+    @Builder.Default
+    private boolean isProvisional = false;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

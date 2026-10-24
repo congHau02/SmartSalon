@@ -21,6 +21,7 @@ import com.smartsalon.pos.repository.TechnicalLogRepository;
 import com.smartsalon.pos.service.OrderBomResolver;
 import com.smartsalon.pos.service.PosOrderService;
 import com.smartsalon.realtime.service.RealtimeNotificationService;
+import com.smartsalon.user.entity.MembershipTier;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import com.smartsalon.user.service.CustomerIdentityService;
@@ -140,6 +141,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         order.recalculateTotals();
+        applyMembershipTierDiscountIfAutomatic(order);
 
         OrderEntity savedOrder = orderRepository.save(order);
 
@@ -233,6 +235,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         order.recalculateTotals();
+        applyMembershipTierDiscountIfAutomatic(order);
 
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyWalkInCreated(savedOrder);
@@ -418,6 +421,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         orderItem.populateDefaultStepAssignments(assignedStaff);
 
         order.recalculateTotals();
+        applyMembershipTierDiscountIfAutomatic(order);
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -452,6 +456,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.addItem(prodItem);
 
         order.recalculateTotals();
+        applyMembershipTierDiscountIfAutomatic(order);
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -470,12 +475,14 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         if (request.getDiscountAmount() != null) {
             order.setDiscountAmount(request.getDiscountAmount());
+            order.setDiscountManual(true);
         }
         if (request.getNotes() != null) {
             order.setNotes(request.getNotes());
         }
 
         order.recalculateTotals();
+        applyMembershipTierDiscountIfAutomatic(order);
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -500,6 +507,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.removeItem(itemToRemove);
 
         order.recalculateTotals();
+        applyMembershipTierDiscountIfAutomatic(order);
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyOrderUpdated(savedOrder);
 
@@ -804,6 +812,20 @@ public class PosOrderServiceImpl implements PosOrderService {
                 })
                 .toList();
 
+        MembershipTier customerTier = MembershipTier.STANDARD;
+        Integer customerDiscountPercent = 0;
+        BigDecimal customerCreditBalance = BigDecimal.ZERO;
+
+        if (order.getCustomer() != null) {
+            if (order.getCustomer().getMembershipTier() != null) {
+                customerTier = order.getCustomer().getMembershipTier();
+            }
+            customerDiscountPercent = customerTier.getDiscountPercent();
+            if (order.getCustomer().getCreditBalance() != null) {
+                customerCreditBalance = order.getCustomer().getCreditBalance();
+            }
+        }
+
         return PosOrderResponse.builder()
                 .id(order.getId())
                 .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
@@ -816,6 +838,10 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .orderCode(order.getOrderCode())
                 .subtotal(order.getSubtotal())
                 .discountAmount(order.getDiscountAmount())
+                .isDiscountManual(order.isDiscountManual())
+                .customerMembershipTier(customerTier.name())
+                .customerDiscountPercent(customerDiscountPercent)
+                .customerCreditBalance(customerCreditBalance)
                 .depositDeducted(order.getDepositDeducted())
                 .finalAmount(order.getFinalAmount())
                 .status(order.getStatus())
@@ -865,6 +891,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                 throw new AppException(ErrorCode.VALIDATION_ERROR);
             }
             order.setDiscountAmount(request.getDiscountAmount());
+            order.setDiscountManual(true);
         }
 
         if (request.getNotes() != null) {
@@ -901,6 +928,17 @@ public class PosOrderServiceImpl implements PosOrderService {
         // 5. Update Order status to PAID and linked Booking to COMPLETED
         order.setStatus(OrderStatus.PAID);
         OrderEntity savedOrder = orderRepository.save(order);
+
+        // 5b. Update customer cumulative spend and membership tier (excluding walkin.guest)
+        if (order.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(order.getCustomer().getUsername())) {
+            UserEntity customer = order.getCustomer();
+            BigDecimal netRevenue = order.calculateRevenueBreakdown().totalNetRevenue();
+            BigDecimal currentSpent = customer.getTotalSpent() != null ? customer.getTotalSpent() : BigDecimal.ZERO;
+            BigDecimal updatedSpent = currentSpent.add(netRevenue);
+            customer.setTotalSpent(updatedSpent);
+            customer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
+            userRepository.save(customer);
+        }
 
         if (order.getBooking() != null) {
             BookingEntity booking = order.getBooking();
@@ -1065,5 +1103,23 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .staffSummaries(new ArrayList<>(staffSummaryMap.values()))
                 .entries(entryDtos)
                 .build();
+    }
+
+    private void applyMembershipTierDiscountIfAutomatic(OrderEntity order) {
+        if (order.isDiscountManual()) {
+            order.recalculateTotals();
+            return;
+        }
+
+        UserEntity customer = order.getCustomer();
+        if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername())) {
+            MembershipTier tier = customer.getMembershipTier() != null
+                    ? customer.getMembershipTier()
+                    : MembershipTier.STANDARD;
+            BigDecimal subtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
+            BigDecimal autoDiscount = tier.calculateDiscount(subtotal);
+            order.setDiscountAmount(autoDiscount);
+        }
+        order.recalculateTotals();
     }
 }

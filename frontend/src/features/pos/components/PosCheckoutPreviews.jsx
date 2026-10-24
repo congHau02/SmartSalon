@@ -1,8 +1,10 @@
 import React from "react";
 import { Sparkles, Coins, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "../../../lib/utils";
+import { MembershipTierBadge } from "../../../components/common/MembershipTierBadge";
 
 export function PosCheckoutPreviews({
+  order,
   visualLogData,
   productItems = [],
   serviceItems = [],
@@ -13,6 +15,31 @@ export function PosCheckoutPreviews({
 }) {
   return (
     <div className="space-y-2">
+      {/* Loyalty & Tier Discount Indicator */}
+      {order?.customerMembershipTier && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-300">Hạng hội viên:</span>
+            <MembershipTierBadge
+              tier={order.customerMembershipTier}
+              size="xs"
+              showDiscount={order.customerDiscountPercent > 0}
+            />
+          </div>
+          <div className="text-[11px]">
+            {order.isDiscountManual ? (
+              <span className="text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                Chiết khấu thủ công (Ghi đè POS)
+              </span>
+            ) : (
+              <span className="text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                Tự động áp dụng theo hạng ({order.customerDiscountPercent || 0}%)
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Toggle 1: Chemical & Retail Stock Deductions */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden text-xs">
         <button

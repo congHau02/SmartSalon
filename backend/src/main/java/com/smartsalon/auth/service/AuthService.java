@@ -9,7 +9,9 @@ import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.pos.repository.OrderRepository;
 import com.smartsalon.security.JwtProvider;
+import com.smartsalon.user.entity.MembershipTier;
 import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.RoleRepository;
@@ -21,7 +23,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,6 +37,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final BranchRepository branchRepository;
+    private final OrderRepository orderRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final RefreshTokenStore refreshTokenStore;
@@ -63,7 +68,49 @@ public class AuthService {
         String phone = request.getPhone().trim();
         String email = request.getEmail() != null && !request.getEmail().isBlank() ? request.getEmail().trim() : null;
 
-        if (userRepository.existsByUsername(username) || userRepository.existsByPhone(phone)) {
+        Optional<UserEntity> existingByPhone = userRepository.findByPhoneAndIsDeletedFalse(phone);
+
+        if (existingByPhone.isPresent()) {
+            UserEntity provisionalUser = existingByPhone.get();
+            if (!provisionalUser.isProvisional()) {
+                throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+
+            // Upgrading provisional customer account in-place
+            if (userRepository.existsByUsernameAndIdNot(username, provisionalUser.getId())) {
+                throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+            if (email != null && userRepository.existsByEmailAndIdNot(email, provisionalUser.getId())) {
+                throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+
+            BranchEntity branch = provisionalUser.getBranch();
+            if (request.getBranchId() != null) {
+                branch = branchRepository.findByIdAndIsDeletedFalse(request.getBranchId())
+                        .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+            }
+
+            provisionalUser.setUsername(username);
+            provisionalUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            provisionalUser.setFullName(request.getFullName().trim());
+            provisionalUser.setEmail(email);
+            provisionalUser.setBranch(branch);
+            provisionalUser.setProvisional(false);
+            provisionalUser.setActive(true);
+
+            // Recompute spend and tier from historical paid orders
+            BigDecimal totalSpent = orderRepository.sumTotalSpentByCustomerId(provisionalUser.getId());
+            if (totalSpent != null && totalSpent.compareTo(BigDecimal.ZERO) > 0) {
+                provisionalUser.setTotalSpent(totalSpent);
+                provisionalUser.setMembershipTier(MembershipTier.fromTotalSpent(totalSpent));
+            }
+
+            UserEntity savedUser = userRepository.save(provisionalUser);
+            return generateTokenResponse(savedUser);
+        }
+
+        // Standard new customer registration
+        if (userRepository.existsByUsername(username)) {
             throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
         }
         if (email != null && userRepository.existsByEmail(email)) {
@@ -87,6 +134,10 @@ public class AuthService {
                 .email(email)
                 .branch(branch)
                 .isActive(true)
+                .isProvisional(false)
+                .totalSpent(BigDecimal.ZERO)
+                .membershipTier(MembershipTier.STANDARD)
+                .creditBalance(BigDecimal.ZERO)
                 .roles(Set.of(customerRole))
                 .build();
 
@@ -166,6 +217,10 @@ public class AuthService {
     }
 
     public UserDto mapToUserDto(UserEntity user) {
+        MembershipTier tier = user.getMembershipTier() != null ? user.getMembershipTier() : MembershipTier.STANDARD;
+        BigDecimal totalSpent = user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO;
+        BigDecimal creditBalance = user.getCreditBalance() != null ? user.getCreditBalance() : BigDecimal.ZERO;
+
         return UserDto.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -176,6 +231,13 @@ public class AuthService {
                 .branchId(user.getBranch() != null ? user.getBranch().getId() : null)
                 .branchName(user.getBranch() != null ? user.getBranch().getName() : null)
                 .roles(user.getRoles().stream().map(RoleEntity::getName).toList())
+                .membershipTier(tier.name())
+                .discountPercent(tier.getDiscountPercent())
+                .totalSpent(totalSpent)
+                .nextTier(tier.getNextTier() != null ? tier.getNextTier().name() : null)
+                .amountToNextTier(tier.getAmountToNextTier(totalSpent))
+                .creditBalance(creditBalance)
+                .isProvisional(user.isProvisional())
                 .build();
     }
 }

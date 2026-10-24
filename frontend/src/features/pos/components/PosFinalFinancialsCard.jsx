@@ -2,6 +2,7 @@ import React from "react";
 import { formatCurrency } from "../../../lib/utils";
 
 export function PosFinalFinancialsCard({
+  order,
   subtotal,
   discountInput,
   setDiscountInput,
@@ -21,7 +22,18 @@ export function PosFinalFinancialsCard({
         </div>
 
         <div className="flex justify-between items-center text-slate-300">
-          <span>Chiết khấu / Giảm giá trực tiếp:</span>
+          <div className="flex items-center gap-1.5">
+            <span>Chiết khấu / Giảm giá trực tiếp:</span>
+            {order?.isDiscountManual ? (
+              <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium">
+                Ghi đè thủ công
+              </span>
+            ) : order?.customerDiscountPercent > 0 ? (
+              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-medium">
+                Hạng {order.customerMembershipTier} (-{order.customerDiscountPercent}%)
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-1.5">
             <input
               type="number"

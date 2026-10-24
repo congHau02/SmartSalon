@@ -21,9 +21,13 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     boolean existsByUsername(String username);
 
+    boolean existsByUsernameAndIdNot(String username, Long id);
+
     boolean existsByPhone(String phone);
 
     boolean existsByEmail(String email);
+
+    boolean existsByEmailAndIdNot(String email, Long id);
 
     @Query("SELECT DISTINCT u FROM UserEntity u JOIN u.roles r WHERE u.branch.id = :branchId AND r.name = 'STYLIST' AND u.isActive = true AND u.isDeleted = false")
     List<UserEntity> findActiveStylistsByBranchId(@Param("branchId") Long branchId);

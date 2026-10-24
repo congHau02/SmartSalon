@@ -3,6 +3,7 @@ package com.smartsalon.user.service;
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.user.entity.MembershipTier;
 import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.RoleRepository;
@@ -13,6 +14,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 import java.util.Optional;
 import java.util.Set;
@@ -92,6 +95,10 @@ public class CustomerIdentityServiceImpl implements CustomerIdentityService {
                 .fullName(cleanName)
                 .phone(cleanPhone)
                 .isActive(true)
+                .isProvisional(true)
+                .totalSpent(BigDecimal.ZERO)
+                .membershipTier(MembershipTier.STANDARD)
+                .creditBalance(BigDecimal.ZERO)
                 .roles(Set.of(customerRole))
                 .build();
 
@@ -109,6 +116,10 @@ public class CustomerIdentityServiceImpl implements CustomerIdentityService {
                 .phone(WALKIN_PHONE)
                 .email("walkin@smartsalon.vn")
                 .isActive(true)
+                .isProvisional(false)
+                .totalSpent(BigDecimal.ZERO)
+                .membershipTier(MembershipTier.STANDARD)
+                .creditBalance(BigDecimal.ZERO)
                 .roles(Set.of(customerRole))
                 .build();
 

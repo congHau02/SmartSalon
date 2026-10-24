@@ -43,6 +43,10 @@ public class OrderEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Column(name = "is_discount_manual", nullable = false)
+    @Builder.Default
+    private boolean isDiscountManual = false;
+
     @Column(name = "deposit_deducted", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal depositDeducted = BigDecimal.ZERO;

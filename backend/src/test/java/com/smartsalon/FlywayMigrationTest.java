@@ -171,5 +171,26 @@ class FlywayMigrationTest {
                 "SELECT COUNT(*) FROM branch_inventories WHERE stock_units = min_stock_alert_units + 1", Integer.class);
         assertTrue(nearThresholdCount != null && nearThresholdCount >= 1,
                 "Expected at least 1 branch inventory item in NEAR_THRESHOLD");
+
+        // 10. Verify V6 Schema & Historical Customer Loyalty Backfill & Service Reviews
+        assertTrue(result.migrationsExecuted >= 6, "Expected at least 6 migrations (including V6)");
+        jdbcTemplate.execute("SELECT total_spent, membership_tier, credit_balance, is_provisional FROM users WHERE 1=0");
+        jdbcTemplate.execute("SELECT is_discount_manual FROM orders WHERE 1=0");
+
+        Integer reviewCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM service_reviews WHERE is_deleted = 0", Integer.class);
+        assertTrue(reviewCount != null && reviewCount >= 5, "Expected at least 5 seeded service reviews");
+
+        var haTier = jdbcTemplate.queryForMap("SELECT total_spent, membership_tier FROM users WHERE username = 'cust.ha'");
+        assertEquals("SILVER", haTier.get("membership_tier"));
+        assertEquals(0, new java.math.BigDecimal("2600000.00").compareTo(new java.math.BigDecimal(haTier.get("total_spent").toString())));
+
+        var triTier = jdbcTemplate.queryForMap("SELECT total_spent, membership_tier FROM users WHERE username = 'cust.tri'");
+        assertEquals("SILVER", triTier.get("membership_tier"));
+        assertEquals(0, new java.math.BigDecimal("2050000.00").compareTo(new java.math.BigDecimal(triTier.get("total_spent").toString())));
+
+        var ngocTier = jdbcTemplate.queryForMap("SELECT total_spent, membership_tier FROM users WHERE username = 'cust.ngoc'");
+        assertEquals("STANDARD", ngocTier.get("membership_tier"));
+        assertEquals(0, new java.math.BigDecimal("180000.00").compareTo(new java.math.BigDecimal(ngocTier.get("total_spent").toString())));
     }
 }

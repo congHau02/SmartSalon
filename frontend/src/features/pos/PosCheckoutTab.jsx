@@ -71,6 +71,7 @@ export function PosCheckoutTab({
   return (
     <div className="space-y-6">
       <PosFinalFinancialsCard
+        order={order}
         subtotal={subtotal}
         discountInput={discountInput}
         setDiscountInput={setDiscountInput}
@@ -79,6 +80,7 @@ export function PosCheckoutTab({
       />
 
       <PosCheckoutPreviews
+        order={order}
         visualLogData={visualLogData}
         productItems={productItems}
         serviceItems={serviceItems}

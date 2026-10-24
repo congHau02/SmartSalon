@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { MapPin, Lock, Loader2 } from "lucide-react";
 import { formatCurrency } from "../../../lib/utils";
+import { MembershipTierBadge } from "../../../components/common/MembershipTierBadge";
 
 export function BookingBreakdownReviewCard({
   bookingSummary,
@@ -14,7 +15,16 @@ export function BookingBreakdownReviewCard({
   totalDuration = bookingSummary?.totalDuration,
   totalPrice = bookingSummary?.totalPrice,
   depositAmount = bookingSummary?.depositAmount,
+  membershipTier = bookingSummary?.membershipTier || "STANDARD",
+  discountPercent = bookingSummary?.discountPercent || 0,
 }) {
+  const discountAmount = useMemo(
+    () => Math.round((Number(totalPrice || 0) * (discountPercent || 0)) / 100),
+    [totalPrice, discountPercent]
+  );
+  const finalEstimatedPrice = Math.max(0, Number(totalPrice || 0) - discountAmount);
+  const remainingAtSalon = Math.max(0, finalEstimatedPrice - Number(depositAmount || 0));
+
   return (
     <div className="lg:col-span-5">
       <div className="bg-white rounded-2xl border-2 border-pink-200 p-6 shadow-sm space-y-5 sticky top-24">
@@ -78,10 +88,31 @@ export function BookingBreakdownReviewCard({
               {formatCurrency(totalPrice)}
             </span>
           </div>
+
+          {discountPercent > 0 && (
+            <div className="flex items-center justify-between text-emerald-800 bg-emerald-50/80 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span>Ưu đãi thành viên</span>
+                <MembershipTierBadge tier={membershipTier} size="xs" />
+                <span>(-{discountPercent}%):</span>
+              </span>
+              <span className="font-bold">
+                -{formatCurrency(discountAmount)}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-200">
             <span className="font-bold text-pink-900 text-sm">Tiền cọc giữ chỗ (20%):</span>
             <span className="font-extrabold text-pink-700 text-lg">
               {formatCurrency(depositAmount)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 text-slate-600 text-xs">
+            <span>Dự kiến thanh toán tại salon:</span>
+            <span className="font-bold text-slate-900">
+              {formatCurrency(remainingAtSalon)}
             </span>
           </div>
         </div>

@@ -115,3 +115,23 @@ _Avoid_: Retention score, repeat ratio, loyalty rate
 **BOM Wastage**:
 The excess consumable chemical volume (from treatment overrides and negative Stock Adjustments) consumed beyond the aggregated standard BOM of completed services over a period.
 _Avoid_: Chemical shrinkage, over-pour, variance loss
+
+**Provisional Customer**:
+A customer profile automatically created from a phone number during an unauthenticated Booking or Walk-in Order before the customer registers login credentials.
+_Avoid_: Shadow user, temp account, anonymous guest
+
+**Cumulative Spend**:
+The lifetime total of net revenue paid by an identified customer across all completed Orders, used to determine their Membership Tier.
+_Avoid_: Points balance, lifetime value, gross spend
+
+**Membership Tier**:
+A loyalty classification (`STANDARD`, `SILVER`, `GOLD`, `DIAMOND`) assigned to a customer based on their Cumulative Spend, granting an automatic percentage discount on eligible purchases.
+_Avoid_: VIP rank, loyalty level, member grade
+
+**Retained Deposit**:
+Previously paid Booking Deposit funds preserved on a customer's profile after an eligible cancellation, available to offset future Bookings or Orders.
+_Avoid_: Wallet balance, refund credit, prepaid balance
+
+**Service Review**:
+A customer's post-visit evaluation (1-to-5 star rating and optional comment) submitted for a completed Order and attributed to a stylist.
+_Avoid_: Feedback ticket, testimonial, survey

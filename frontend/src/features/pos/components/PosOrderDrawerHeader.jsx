@@ -1,5 +1,6 @@
 import React from "react";
 import { X, CheckCircle2, Sparkles, Clock, Scissors, Camera, CreditCard } from "lucide-react";
+import { MembershipTierBadge } from "../../../components/common/MembershipTierBadge";
 
 export function PosOrderDrawerHeader({
   order,
@@ -61,6 +62,13 @@ export function PosOrderDrawerHeader({
                 <span>•</span>
                 <span className="font-mono">{order.customerPhone}</span>
               </>
+            )}
+            {order?.customerMembershipTier && order?.customerPhone !== "0000000000" && (
+              <MembershipTierBadge
+                tier={order.customerMembershipTier}
+                size="xs"
+                showDiscount={order.customerDiscountPercent > 0}
+              />
             )}
             {order?.branchName && (
               <>

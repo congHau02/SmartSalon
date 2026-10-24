@@ -57,6 +57,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/services/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/stylists/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/customers/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/available-slots").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/stylists").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/code/**", "/api/v1/bookings/BK-*").permitAll()

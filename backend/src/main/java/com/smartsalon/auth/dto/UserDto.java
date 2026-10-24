@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -21,4 +22,11 @@ public class UserDto {
     private Long branchId;
     private String branchName;
     private List<String> roles;
+    private String membershipTier;
+    private Integer discountPercent;
+    private BigDecimal totalSpent;
+    private String nextTier;
+    private BigDecimal amountToNextTier;
+    private BigDecimal creditBalance;
+    private Boolean isProvisional;
 }

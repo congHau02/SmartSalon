@@ -27,6 +27,10 @@ public class PosOrderResponse {
     private String orderCode;
     private BigDecimal subtotal;
     private BigDecimal discountAmount;
+    private Boolean isDiscountManual;
+    private String customerMembershipTier;
+    private Integer customerDiscountPercent;
+    private BigDecimal customerCreditBalance;
     private BigDecimal depositDeducted;
     private BigDecimal finalAmount;
     private OrderStatus status;
