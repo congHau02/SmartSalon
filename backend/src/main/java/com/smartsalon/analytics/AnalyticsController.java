@@ -10,6 +10,8 @@ import com.smartsalon.analytics.service.PnlAnalyticsService;
 import com.smartsalon.analytics.service.ReportExportService;
 import com.smartsalon.analytics.service.StaffPayrollService;
 import com.smartsalon.common.ApiResponse;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,6 +21,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -61,6 +65,21 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
         StaffPayrollSummaryResponse response = staffPayrollService.getStaffPayrollReport(branchId, startDate, endDate);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "Get Personal Payroll Statement for Authenticated Staff", description = "Resolves authenticated employee from security context and returns their base salary, commissions, KPIs, and itemized ledger")
+    @GetMapping("/my-payroll")
+    @PreAuthorize("hasAnyRole('STYLIST', 'STAFF', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<StaffPerformanceResponse>> getMyPayrollReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        StaffPerformanceResponse response = staffPayrollService.getMyPayrollReport(auth.getName(), startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

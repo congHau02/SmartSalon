@@ -10,5 +10,7 @@ public interface StaffPayrollService {
 
     StaffPayrollSummaryResponse getStaffPayrollReport(Long branchId, LocalDate startDate, LocalDate endDate);
 
+    StaffPerformanceResponse getMyPayrollReport(String username, LocalDate startDate, LocalDate endDate);
+
     StaffPerformanceResponse updateStaffBaseSalary(Long staffId, BigDecimal newBaseSalary);
 }

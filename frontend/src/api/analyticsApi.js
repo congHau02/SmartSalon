@@ -20,6 +20,14 @@ export const analyticsApi = {
     return response?.result || response?.data || response;
   },
 
+  getMyPayrollReport: async (startDate, endDate) => {
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    const response = await axiosClient.get("/analytics/my-payroll", { params });
+    return response?.result || response?.data || response;
+  },
+
   getInventoryAlertsReport: async (branchId, startDate, endDate) => {
     const params = {};
     if (branchId) params.branchId = branchId;

@@ -56,7 +56,10 @@ export function LoginPage() {
           loggedUser?.roles?.includes(ROLES.MANAGER)
         ) {
           navigate("/admin", { replace: true });
-        } else if (loggedUser?.roles?.includes(ROLES.STYLIST)) {
+        } else if (
+          loggedUser?.roles?.includes(ROLES.STYLIST) ||
+          loggedUser?.roles?.includes(ROLES.STAFF)
+        ) {
           navigate("/pos", { replace: true });
         } else {
           navigate("/customer", { replace: true });

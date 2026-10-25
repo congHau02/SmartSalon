@@ -395,4 +395,118 @@ class StaffPayrollIntegrationTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("GET /api/v1/analytics/my-payroll - Return privacy-scoped personal payroll statement for STYLIST")
+    @WithMockUser(username = "stylist.minh", roles = {"STYLIST"})
+    void shouldReturnPersonalPayrollStatementForStylist() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/my-payroll")
+                        .param("startDate", "2026-10-15")
+                        .param("endDate", "2026-10-18")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.username").value("stylist.minh"))
+                .andExpect(jsonPath("$.result.fullName").value(stylistMinh.getFullName()))
+                .andExpect(jsonPath("$.result.baseSalary").value(12000000.0))
+                .andExpect(jsonPath("$.result.totalCommission").value(298500.0))
+                .andExpect(jsonPath("$.result.totalPayout").value(12298500.0))
+                .andExpect(jsonPath("$.result.completedOrderCount").value(3))
+                .andExpect(jsonPath("$.result.completedBookingCount").value(3))
+                .andExpect(jsonPath("$.result.requestedBookingCount").value(3))
+                .andExpect(jsonPath("$.result.requestedStylistRate").value(100.0))
+                .andExpect(jsonPath("$.result.totalIdentifiedCustomers").value(1))
+                .andExpect(jsonPath("$.result.repeatCustomerCount").value(1))
+                .andExpect(jsonPath("$.result.rebookingRate").value(100.0))
+                .andExpect(jsonPath("$.result.commissionLedgers", hasSize(6)))
+                .andExpect(jsonPath("$.result.commissionLedgers[0].orderCode", notNullValue()))
+                .andExpect(jsonPath("$.result.commissionLedgers[0].stepName", notNullValue()))
+                .andExpect(jsonPath("$.result.commissionLedgers[0].amount", greaterThan(0.0)));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/analytics/my-payroll - Return personal payroll statement for STAFF")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldReturnPersonalPayrollStatementForStaff() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/my-payroll")
+                        .param("startDate", "2026-10-15")
+                        .param("endDate", "2026-10-18")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.username").value("staff.le"))
+                .andExpect(jsonPath("$.result.fullName").value(staffLe.getFullName()))
+                .andExpect(jsonPath("$.result.baseSalary").value(8000000.0))
+                .andExpect(jsonPath("$.result.completedStepCount").value(3))
+                .andExpect(jsonPath("$.result.totalCommission").value(77000.0))
+                .andExpect(jsonPath("$.result.totalPayout").value(8077000.0))
+                .andExpect(jsonPath("$.result.commissionLedgers", hasSize(3)));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/analytics/my-payroll - Defaults to current month when dates are omitted")
+    @WithMockUser(username = "stylist.minh", roles = {"STYLIST"})
+    void shouldDefaultToCurrentMonthWhenDatesOmitted() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/my-payroll")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.username").value("stylist.minh"))
+                .andExpect(jsonPath("$.result.startDate").isNotEmpty())
+                .andExpect(jsonPath("$.result.endDate").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Branch-wide payroll & P&L endpoints - Strict 403 Forbidden enforcement for STYLIST and STAFF")
+    @WithMockUser(username = "stylist.minh", roles = {"STYLIST"})
+    void shouldEnforceForbiddenOnBranchWidePayrollForStylist() throws Exception {
+        // STYLIST cannot access branch-wide payroll
+        mockMvc.perform(get("/api/v1/analytics/staff-payroll")
+                        .param("branchId", branch.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+
+        // STYLIST cannot access P&L
+        mockMvc.perform(get("/api/v1/analytics/pnl")
+                        .param("branchId", branch.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+
+        // STYLIST cannot modify base salary
+        UpdateBaseSalaryRequest req = UpdateBaseSalaryRequest.builder().baseSalary(new BigDecimal("20000000.00")).build();
+        mockMvc.perform(patch("/api/v1/analytics/staff/" + stylistMinh.getId() + "/base-salary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Branch-wide payroll & P&L endpoints - Strict 403 Forbidden enforcement for STAFF")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldEnforceForbiddenOnBranchWidePayrollForStaff() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/staff-payroll")
+                        .param("branchId", branch.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/analytics/pnl")
+                        .param("branchId", branch.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+
+        UpdateBaseSalaryRequest req = UpdateBaseSalaryRequest.builder().baseSalary(new BigDecimal("15000000.00")).build();
+        mockMvc.perform(patch("/api/v1/analytics/staff/" + staffLe.getId() + "/base-salary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/analytics/my-payroll - Deny access for CUSTOMER role")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldDenyMyPayrollForCustomer() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/my-payroll")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+    }
 }

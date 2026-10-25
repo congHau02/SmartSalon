@@ -13,6 +13,7 @@ export const QUERY_KEYS = {
   analyticsPnl: ["analytics-pnl"],
   analyticsStaffPayroll: ["analytics-staff-payroll"],
   analyticsInventoryAlerts: ["analytics-inventory-alerts"],
+  myPayroll: ["my-payroll"],
   stylistDailyWorklog: (branchId, stylistId, date) => [
     "stylist-daily-worklog",
     branchId,
@@ -33,6 +34,7 @@ export function invalidateRealtimeCaches(queryClient) {
     QUERY_KEYS.analyticsPnl,
     QUERY_KEYS.analyticsStaffPayroll,
     QUERY_KEYS.analyticsInventoryAlerts,
+    QUERY_KEYS.myPayroll,
   ];
   for (const queryKey of keysToInvalidate) {
     queryClient.invalidateQueries({ queryKey });

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +25,8 @@ public class StaffPerformanceResponse {
     private List<String> roles = new ArrayList<>();
     private Long branchId;
     private String branchName;
+    private LocalDate startDate;
+    private LocalDate endDate;
     private BigDecimal baseSalary;
     private int completedOrderCount;
     private int completedStepCount;

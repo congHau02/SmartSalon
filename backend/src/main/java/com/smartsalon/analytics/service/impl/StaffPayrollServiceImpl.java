@@ -98,7 +98,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
 
         for (UserEntity staff : activeStaff) {
             StaffPerformanceResponse staffResp = computeStaffPerformance(
-                    staff, orders, bookings, ledgers, endInstant
+                    staff, orders, bookings, ledgers, endInstant, actualStart, actualEnd
             );
             staffResponses.add(staffResp);
 
@@ -152,12 +152,42 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public StaffPerformanceResponse getMyPayrollReport(String username, LocalDate startDate, LocalDate endDate) {
+        AnalyticsPeriod period = AnalyticsPeriod.of(startDate, endDate);
+        LocalDate actualStart = period.start();
+        LocalDate actualEnd = period.end();
+
+        UserEntity staff = userRepository.findByUsernameAndIsDeletedFalse(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Long branchId = staff.getBranch() != null ? staff.getBranch().getId() : null;
+
+        Instant startInstant = actualStart.atStartOfDay(DEFAULT_ZONE).toInstant();
+        Instant endInstant = actualEnd.plusDays(1).atStartOfDay(DEFAULT_ZONE).toInstant();
+        LocalDateTime startDateTime = actualStart.atStartOfDay(DEFAULT_ZONE).toLocalDateTime();
+        LocalDateTime endDateTime = actualEnd.plusDays(1).atStartOfDay(DEFAULT_ZONE).toLocalDateTime();
+
+        List<OrderEntity> orders = (branchId != null)
+                ? orderRepository.findByBranchAndStatusAndDateRange(branchId, OrderStatus.PAID, startInstant, endInstant)
+                : orderRepository.findByStatusAndDateRange(OrderStatus.PAID, startInstant, endInstant);
+
+        List<BookingEntity> bookings = bookingRepository.findCompletedBookingsByDateRange(branchId, startDateTime, endDateTime);
+
+        List<CommissionLedgerEntity> ledgers = commissionLedgerRepository.findByStaffIdAndDateRange(staff.getId(), startInstant, endInstant);
+
+        return computeStaffPerformance(staff, orders, bookings, ledgers, endInstant, actualStart, actualEnd);
+    }
+
     private StaffPerformanceResponse computeStaffPerformance(
             UserEntity staff,
             List<OrderEntity> orders,
             List<BookingEntity> bookings,
             List<CommissionLedgerEntity> ledgers,
-            Instant endInstant
+            Instant endInstant,
+            LocalDate startDate,
+            LocalDate endDate
     ) {
         Long staffId = staff.getId();
 
@@ -300,6 +330,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .roles(roleNames)
                 .branchId(staff.getBranch() != null ? staff.getBranch().getId() : null)
                 .branchName(staff.getBranch() != null ? staff.getBranch().getName() : "")
+                .startDate(startDate)
+                .endDate(endDate)
                 .baseSalary(baseSalary)
                 .completedOrderCount(completedOrderIds.size())
                 .completedStepCount(completedStepCount)
