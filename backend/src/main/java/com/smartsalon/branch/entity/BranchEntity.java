@@ -28,6 +28,12 @@ public class BranchEntity extends BaseEntity {
     @Column(name = "phone", nullable = false, length = 20)
     private String phone;
 
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean isActive = true;

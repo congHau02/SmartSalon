@@ -39,6 +39,8 @@ public class BranchServiceImpl implements BranchService {
                 .name(entity.getName())
                 .address(entity.getAddress())
                 .phone(entity.getPhone())
+                .latitude(entity.getLatitude())
+                .longitude(entity.getLongitude())
                 .isActive(entity.isActive())
                 .build();
     }

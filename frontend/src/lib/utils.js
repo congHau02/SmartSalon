@@ -13,6 +13,8 @@ export function formatCurrency(amount) {
   }).format(amount);
 }
 
+export const formatVND = formatCurrency;
+
 export function formatDate(date) {
   if (!date) return "";
   return new Intl.DateTimeFormat("vi-VN", {
@@ -31,8 +33,8 @@ export function toLocalDateISO(date = new Date()) {
 
 export function shiftLocalDateISO(dateStr, deltaDays) {
   const [year, month, day] = String(dateStr || toLocalDateISO())
-    .split("-")
-    .map(Number);
+  .split("-")
+  .map(Number);
   const d = new Date(year, (month || 1) - 1, (day || 1) + deltaDays);
   return toLocalDateISO(d);
 }
@@ -87,5 +89,3 @@ export async function copyToClipboard(text) {
 
   return false;
 }
-
-

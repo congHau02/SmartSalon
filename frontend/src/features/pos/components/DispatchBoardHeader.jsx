@@ -8,6 +8,7 @@ import {
   RotateCw,
   Coins,
   Plus,
+  CalendarCheck,
 } from "lucide-react";
 
 export function DispatchBoardHeader({
@@ -31,6 +32,7 @@ export function DispatchBoardHeader({
   refetch = actions?.onRefresh,
   isRefetching = actions?.isRefreshing,
   onOpenCommissionLedger = actions?.onOpenCommissionLedger,
+  onOpenStylistWorklog = actions?.onOpenStylistWorklog,
   onOpenWalkIn = actions?.onOpenWalkIn,
 }) {
   return (
@@ -130,6 +132,16 @@ export function DispatchBoardHeader({
           className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <RotateCw className={`w-4 h-4 ${isRefetching ? "animate-spin text-pink-400" : ""}`} />
+        </button>
+
+        {/* Stylist Daily Worklog Button */}
+        <button
+          onClick={onOpenStylistWorklog}
+          title="Mở Phiếu cắt & Tổng kết ngày của stylist"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 border border-pink-500/30 text-pink-300 hover:text-white hover:bg-pink-500/20 font-bold text-xs transition-colors cursor-pointer"
+        >
+          <CalendarCheck className="w-4 h-4 text-pink-400" />
+          <span className="hidden sm:inline">Phiếu cắt & Tổng kết ngày</span>
         </button>
 
         {/* Commission Ledger Button */}

@@ -36,6 +36,9 @@ public class PosOrderResponse {
     private OrderStatus status;
     private String paymentMethod;
     private String notes;
+    private Long settledById;
+    private String settledByName;
+    private Instant settledAt;
     private Instant createdAt;
     @Builder.Default
     private List<PosOrderItemResponse> items = new ArrayList<>();

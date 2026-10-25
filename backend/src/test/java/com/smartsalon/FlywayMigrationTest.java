@@ -192,5 +192,27 @@ class FlywayMigrationTest {
         var ngocTier = jdbcTemplate.queryForMap("SELECT total_spent, membership_tier FROM users WHERE username = 'cust.ngoc'");
         assertEquals("STANDARD", ngocTier.get("membership_tier"));
         assertEquals(0, new java.math.BigDecimal("180000.00").compareTo(new java.math.BigDecimal(ngocTier.get("total_spent").toString())));
+
+        // 11. Verify V7 Schema & Branch Coordinates & Order Settled By Tracking
+        assertTrue(result.migrationsExecuted >= 7, "Expected at least 7 migrations (including V7)");
+        jdbcTemplate.execute("SELECT latitude, longitude FROM branches WHERE 1=0");
+        jdbcTemplate.execute("SELECT settled_by_user_id, settled_at FROM orders WHERE 1=0");
+
+        var branch1 = jdbcTemplate.queryForMap("SELECT latitude, longitude FROM branches WHERE id = 1");
+        assertNotNull(branch1.get("latitude"), "Branch 1 must have latitude");
+        assertNotNull(branch1.get("longitude"), "Branch 1 must have longitude");
+        assertEquals(0, new java.math.BigDecimal("10.7745000").compareTo(new java.math.BigDecimal(branch1.get("latitude").toString())));
+        assertEquals(0, new java.math.BigDecimal("106.7036000").compareTo(new java.math.BigDecimal(branch1.get("longitude").toString())));
+
+        var branch2 = jdbcTemplate.queryForMap("SELECT latitude, longitude FROM branches WHERE id = 2");
+        assertNotNull(branch2.get("latitude"), "Branch 2 must have latitude");
+        assertNotNull(branch2.get("longitude"), "Branch 2 must have longitude");
+        assertEquals(0, new java.math.BigDecimal("10.7882000").compareTo(new java.math.BigDecimal(branch2.get("latitude").toString())));
+        assertEquals(0, new java.math.BigDecimal("106.6789000").compareTo(new java.math.BigDecimal(branch2.get("longitude").toString())));
+
+        Integer settledOrdersCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM orders WHERE status = 'PAID' AND settled_by_user_id IS NOT NULL AND settled_at IS NOT NULL", Integer.class);
+        assertTrue(settledOrdersCount != null && settledOrdersCount >= 4,
+                "Expected all historical PAID orders to have settled_by_user_id and settled_at populated");
     }
 }

@@ -163,8 +163,36 @@ class PosControllerIntegrationTest {
                         .build())
         );
 
-        stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseGet(() ->
-                userRepository.findAllActiveStylists().stream().findFirst().orElseThrow()
+        RoleEntity stylistRole = roleRepository.findByName("STYLIST").orElseGet(() ->
+                roleRepository.save(RoleEntity.builder().name("STYLIST").description("Thợ tạo mẫu tóc").build())
+        );
+
+        RoleEntity staffRole = roleRepository.findByName("STAFF").orElseGet(() ->
+                roleRepository.save(RoleEntity.builder().name("STAFF").description("Lễ tân").build())
+        );
+
+        stylist = userRepository.findByUsernameAndIsDeletedFalse("stylist.thao").orElseGet(() ->
+                userRepository.save(UserEntity.builder()
+                        .username("stylist.thao")
+                        .passwordHash("hashed")
+                        .fullName("Nguyễn Văn Thảo")
+                        .phone("0988333222")
+                        .branch(branch)
+                        .isActive(true)
+                        .roles(Set.of(stylistRole))
+                        .build())
+        );
+
+        userRepository.findByUsernameAndIsDeletedFalse("staff.le").orElseGet(() ->
+                userRepository.save(UserEntity.builder()
+                        .username("staff.le")
+                        .passwordHash("hashed")
+                        .fullName("Lê Lễ Tân")
+                        .phone("0988000111")
+                        .branch(branch)
+                        .isActive(true)
+                        .roles(Set.of(staffRole))
+                        .build())
         );
 
         service = ServiceEntity.builder()
@@ -1146,5 +1174,167 @@ class PosControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.staffSummaries", not(empty())))
                 .andExpect(jsonPath("$.result.entries", not(empty())))
                 .andExpect(jsonPath("$.result.entries[0].status", is("EARNED")));
+    }
+
+    @Test
+    @DisplayName("Phase 8 - Issue 01: Should create Quick Service Ticket atomically and transition to PAID")
+    @WithMockUser(username = "stylist.thao", roles = {"STYLIST"})
+    void shouldCreateQuickServiceTicketAtomically() throws Exception {
+        QuickServiceTicketRequest req = QuickServiceTicketRequest.builder()
+                .branchId(branch.getId())
+                .stylistId(stylist.getId())
+                .serviceIds(List.of(service.getId()))
+                .quickGuest(true)
+                .paymentMethod("CASH")
+                .notes("Phiếu cắt nhanh tại ghế")
+                .build();
+
+        String res = mockMvc.perform(post("/api/v1/pos/stylist/quick-ticket")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.result.status", is("PAID")))
+                .andExpect(jsonPath("$.result.paymentMethod", is("CASH")))
+                .andExpect(jsonPath("$.result.settledById", notNullValue()))
+                .andExpect(jsonPath("$.result.settledAt", notNullValue()))
+                .andExpect(jsonPath("$.result.items", not(empty())))
+                .andExpect(jsonPath("$.result.items[0].steps[0].status", is("COMPLETED")))
+                .andReturn().getResponse().getContentAsString();
+
+        PosOrderResponse orderRes = objectMapper.readTree(res).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        // Verify order in database
+        OrderEntity dbOrder = orderRepository.findById(orderRes.getId()).orElseThrow();
+        assertEquals(OrderStatus.PAID, dbOrder.getStatus());
+        assertNotNull(dbOrder.getSettledBy());
+        assertNotNull(dbOrder.getSettledAt());
+
+        // Verify commission ledger entries written
+        List<CommissionLedgerEntity> ledgers = commissionLedgerRepository.findByOrderId(dbOrder.getId());
+        assertFalse(ledgers.isEmpty(), "Commission ledgers must be recorded");
+        assertTrue(ledgers.stream().allMatch(l -> "EARNED".equals(l.getStatus())));
+
+        // Verify payment transaction
+        List<PaymentTransactionEntity> txs = paymentTransactionRepository.findByOrderId(dbOrder.getId());
+        assertFalse(txs.isEmpty());
+        assertEquals(PaymentTransactionEntity.STATUS_SUCCESS, txs.get(0).getStatus());
+    }
+
+    @Test
+    @DisplayName("Phase 8 - Issue 01: Should quick-complete scheduled booking atomically in 1 step")
+    @WithMockUser(username = "stylist.thao", roles = {"STYLIST"})
+    void shouldQuickCompleteBookingAtomically() throws Exception {
+        BookingEntity booking = BookingEntity.builder()
+                .bookingCode("BK-PHASE8-" + System.currentTimeMillis())
+                .customer(customer)
+                .branch(branch)
+                .staff(stylist)
+                .bookingTime(LocalDateTime.now())
+                .endTime(LocalDateTime.now().plusMinutes(45))
+                .totalDurationMinutes(45)
+                .totalPrice(new BigDecimal("250000.00"))
+                .depositAmount(new BigDecimal("50000.00"))
+                .depositStatus(DepositStatus.PAID)
+                .status(BookingStatus.CONFIRMED)
+                .items(new ArrayList<>())
+                .build();
+        booking.getItems().add(BookingServiceItemEntity.builder()
+                .booking(booking)
+                .service(service)
+                .price(service.getBasePrice())
+                .durationMinutes(45)
+                .build());
+        booking = bookingRepository.save(booking);
+
+        QuickCompleteBookingRequest req = QuickCompleteBookingRequest.builder()
+                .paymentMethod("VIETQR")
+                .notes("Khách quen quét QR nhanh")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/stylist/bookings/" + booking.getId() + "/quick-complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status", is("PAID")))
+                .andExpect(jsonPath("$.result.paymentMethod", is("VIETQR")))
+                .andExpect(jsonPath("$.result.depositDeducted", is(50000.00)))
+                .andExpect(jsonPath("$.result.finalAmount", is(200000.00)))
+                .andExpect(jsonPath("$.result.settledById", notNullValue()))
+                .andExpect(jsonPath("$.result.settledAt", notNullValue()));
+
+        BookingEntity updatedBooking = bookingRepository.findById(booking.getId()).orElseThrow();
+        assertEquals(BookingStatus.COMPLETED, updatedBooking.getStatus());
+    }
+
+    @Test
+    @DisplayName("Phase 8 - Issue 01: Should query Stylist Daily Worklog and return production and shift handover metrics")
+    @WithMockUser(username = "stylist.thao", roles = {"STYLIST"})
+    void shouldGetStylistDailyWorklog() throws Exception {
+        // Create a quick ticket first to generate metrics for today
+        QuickServiceTicketRequest req = QuickServiceTicketRequest.builder()
+                .branchId(branch.getId())
+                .stylistId(stylist.getId())
+                .serviceIds(List.of(service.getId()))
+                .quickGuest(true)
+                .paymentMethod("CASH")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/stylist/quick-ticket")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/pos/stylist/daily-worklog")
+                        .param("branchId", branch.getId().toString())
+                        .param("stylistId", stylist.getId().toString())
+                        .param("date", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.stylistId", notNullValue()))
+                .andExpect(jsonPath("$.result.totalTicketCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.result.totalCompletedStepCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.result.totalServiceRevenue", notNullValue()))
+                .andExpect(jsonPath("$.result.totalEarnedCommission", notNullValue()))
+                .andExpect(jsonPath("$.result.selfSettledOrderCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.result.cashCollectedToHandover", notNullValue()))
+                .andExpect(jsonPath("$.result.totalSelfCollectedAmount", notNullValue()))
+                .andExpect(jsonPath("$.result.tickets", not(empty())))
+                .andExpect(jsonPath("$.result.tickets[0].orderCode", notNullValue()))
+                .andExpect(jsonPath("$.result.tickets[0].settledByMe", is(true)));
+    }
+
+    @Test
+    @DisplayName("Phase 8 - Issue 01: Standard POS checkout stamps settled_by_user_id and settled_at")
+    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    void shouldStampSettlingUserOnStandardPosCheckout() throws Exception {
+        WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
+                .branchId(branch.getId())
+                .customerName("Khách Thử Nghiệm Checkout")
+                .customerPhone("0977889900")
+                .stylistId(stylist.getId())
+                .serviceIds(List.of(service.getId()))
+                .build();
+
+        String walkInRes = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(walkInReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        PosOrderResponse createdOrder = objectMapper.readTree(walkInRes).get("result")
+                .traverse(objectMapper).readValueAs(PosOrderResponse.class);
+
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .paymentMethod("CASH")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/orders/" + createdOrder.getId() + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status", is("PAID")))
+                .andExpect(jsonPath("$.result.settledById", notNullValue()))
+                .andExpect(jsonPath("$.result.settledByName", notNullValue()))
+                .andExpect(jsonPath("$.result.settledAt", notNullValue()));
     }
 }

@@ -135,3 +135,15 @@ _Avoid_: Wallet balance, refund credit, prepaid balance
 **Service Review**:
 A customer's post-visit evaluation (1-to-5 star rating and optional comment) submitted for a completed Order and attributed to a stylist.
 _Avoid_: Feedback ticket, testimonial, survey
+
+**Quick Service Ticket**:
+An expedited Order created and settled by a stylist in a single workflow when operating without a receptionist, attributing all service steps and payment collection directly to that stylist.
+_Avoid_: Paper slip, manual tally, offline ticket
+
+**Stylist Daily Worklog**:
+A stylist's daily self-reconciliation summary aggregating their completed Orders, Service Steps, collected revenue by payment method, and earned commissions for end-of-day shift handover.
+_Avoid_: Shift declaration form, manual ticket count
+
+**Personal Payroll Statement**:
+An individual staff member's private compensation and performance statement for a selected period, combining Base Salary, earned Commission Ledger entries, and personal KPI metrics without exposing peer salaries.
+_Avoid_: Branch payroll sheet, public salary board

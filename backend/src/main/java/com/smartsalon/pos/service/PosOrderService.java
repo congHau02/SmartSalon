@@ -37,4 +37,10 @@ public interface PosOrderService {
     PosVietQrResponse getPosVietQr(Long orderId, java.math.BigDecimal draftDiscountAmount);
 
     CommissionLedgerSummaryResponse getCommissionLedger(Long branchId, LocalDate date);
+
+    PosOrderResponse createQuickServiceTicket(QuickServiceTicketRequest request);
+
+    PosOrderResponse quickCompleteBooking(Long bookingId, QuickCompleteBookingRequest request);
+
+    StylistDailyWorklogResponse getStylistDailyWorklog(Long branchId, Long stylistId, LocalDate date);
 }

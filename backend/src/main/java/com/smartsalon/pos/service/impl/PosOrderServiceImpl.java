@@ -36,6 +36,8 @@ import com.smartsalon.payment.entity.PaymentTransactionEntity;
 import com.smartsalon.payment.repository.PaymentTransactionRepository;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -848,6 +850,9 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())
                 .notes(order.getNotes())
+                .settledById(order.getSettledBy() != null ? order.getSettledBy().getId() : null)
+                .settledByName(order.getSettledBy() != null ? order.getSettledBy().getFullName() : null)
+                .settledAt(order.getSettledAt())
                 .createdAt(order.getCreatedAt())
                 .items(itemResponses)
                 .build();
@@ -925,7 +930,10 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .build();
         paymentTransactionRepository.save(tx);
 
-        // 5. Update Order status to PAID and linked Booking to COMPLETED
+        // 5. Update Order status to PAID, stamp settling user and linked Booking to COMPLETED
+        UserEntity settlingUser = resolveCurrentUser();
+        order.setSettledBy(settlingUser);
+        order.setSettledAt(Instant.now());
         order.setStatus(OrderStatus.PAID);
         OrderEntity savedOrder = orderRepository.save(order);
 
@@ -1160,5 +1168,490 @@ public class PosOrderServiceImpl implements PosOrderService {
             userRepository.save(customer);
             order.recalculateTotals();
         }
+    }
+
+    private UserEntity resolveCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            return userRepository.findByUsernameAndIsDeletedFalse(auth.getName()).orElse(null);
+        }
+        return null;
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse createQuickServiceTicket(QuickServiceTicketRequest request) {
+        BranchEntity branch = branchRepository.findByIdAndIsDeletedFalse(request.getBranchId())
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+
+        UserEntity currentUser = resolveCurrentUser();
+        UserEntity assignedStylist = null;
+        if (request.getStylistId() != null) {
+            assignedStylist = userRepository.findByIdAndIsDeletedFalse(request.getStylistId())
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "Không tìm thấy stylist với ID: " + request.getStylistId()));
+        } else if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> "STYLIST".equals(r.getName()))) {
+            assignedStylist = currentUser;
+        } else {
+            assignedStylist = resolveDefaultStaff(branch);
+        }
+
+        CustomerIdentityService.ResolvedWalkInCustomer resolvedCustomer =
+                customerIdentityService.resolveForWalkIn(
+                        request.isQuickGuest(),
+                        request.getCustomerPhone(),
+                        request.getCustomerName(),
+                        branch
+                );
+        UserEntity customerUser = resolvedCustomer.user();
+        String customerName = resolvedCustomer.customerName();
+        String customerPhone = resolvedCustomer.customerPhone();
+
+        String orderCode = generateOrderCode();
+        OrderEntity order = OrderEntity.builder()
+                .branch(branch)
+                .customer(customerUser)
+                .orderCode(orderCode)
+                .status(OrderStatus.CHECKED_IN)
+                .customerName(customerName)
+                .customerPhone(customerPhone)
+                .depositDeducted(BigDecimal.ZERO)
+                .notes(request.getNotes())
+                .subtotal(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
+                .finalAmount(BigDecimal.ZERO)
+                .items(new ArrayList<>())
+                .build();
+
+        if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
+            for (Long serviceId : request.getServiceIds()) {
+                ServiceEntity service = serviceRepository.findByIdAndIsDeletedFalse(serviceId)
+                        .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+                BigDecimal price = service.getBasePrice();
+
+                OrderItemEntity orderItem = OrderItemEntity.builder()
+                        .itemType(OrderItemType.SERVICE)
+                        .service(service)
+                        .quantity(1)
+                        .unitPrice(price)
+                        .totalPrice(price)
+                        .stepAssignments(new ArrayList<>())
+                        .build();
+
+                order.addItem(orderItem);
+                orderItem.populateDefaultStepAssignments(assignedStylist);
+            }
+        }
+
+        if (request.getProductItems() != null && !request.getProductItems().isEmpty()) {
+            for (ProductItemRequest pReq : request.getProductItems()) {
+                if (pReq.getProductId() == null) continue;
+                ProductEntity product = productRepository.findByIdAndIsDeletedFalse(pReq.getProductId())
+                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+                int qty = pReq.getQuantity() > 0 ? pReq.getQuantity() : 1;
+                BigDecimal unitPrice = product.getRetailPrice() != null ? product.getRetailPrice() : BigDecimal.ZERO;
+                BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(qty));
+
+                OrderItemEntity prodItem = OrderItemEntity.builder()
+                        .itemType(OrderItemType.PRODUCT)
+                        .product(product)
+                        .quantity(qty)
+                        .unitPrice(unitPrice)
+                        .totalPrice(totalPrice)
+                        .build();
+
+                order.addItem(prodItem);
+            }
+        }
+
+        order.recalculateTotals();
+
+        if (request.getDiscountAmount() != null) {
+            applyManualDiscount(order, request.getDiscountAmount());
+        } else {
+            applyMembershipTierDiscountIfAutomatic(order);
+        }
+        applyCustomerCreditBalanceIfAvailable(order);
+        order.recalculateTotals();
+
+        String paymentMethod = StringUtils.hasText(request.getPaymentMethod())
+                ? request.getPaymentMethod().trim().toUpperCase()
+                : "CASH";
+        order.setPaymentMethod(paymentMethod);
+
+        // Save order first so it has an ID and persisted items/steps
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        // 1. Deduct chemical BOM consumables
+        deductChemicalConsumables(savedOrder);
+
+        // 2. Deduct retail product sealed units
+        deductRetailProducts(savedOrder);
+
+        // 3. Mark step assignments COMPLETED and record immutable Commission Ledger
+        completeStepsAndRecordCommission(savedOrder);
+
+        // 4. Record Payment Transaction
+        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
+                .orderId(savedOrder.getId())
+                .paymentMethod(paymentMethod)
+                .transactionCode("TX-POS-" + savedOrder.getOrderCode() + "-" + System.currentTimeMillis())
+                .amount(savedOrder.getFinalAmount())
+                .status(PaymentTransactionEntity.STATUS_SUCCESS)
+                .build();
+        paymentTransactionRepository.save(tx);
+
+        // 5. Update Order status to PAID, stamp settledBy and settledAt
+        savedOrder.setStatus(OrderStatus.PAID);
+        savedOrder.setSettledBy(currentUser != null ? currentUser : assignedStylist);
+        savedOrder.setSettledAt(Instant.now());
+        savedOrder = orderRepository.save(savedOrder);
+
+        // 6. Update customer cumulative spend and membership tier (excluding walkin.guest)
+        if (savedOrder.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(savedOrder.getCustomer().getUsername())) {
+            UserEntity customer = savedOrder.getCustomer();
+            BigDecimal netRevenue = savedOrder.calculateRevenueBreakdown().totalNetRevenue();
+            BigDecimal currentSpent = customer.getTotalSpent() != null ? customer.getTotalSpent() : BigDecimal.ZERO;
+            BigDecimal updatedSpent = currentSpent.add(netRevenue);
+            customer.setTotalSpent(updatedSpent);
+            customer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
+            userRepository.save(customer);
+        }
+
+        // 7. Broadcast realtime WebSocket event
+        realtimeNotificationService.notifyOrderCheckedOut(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse quickCompleteBooking(Long bookingId, QuickCompleteBookingRequest request) {
+        BookingEntity booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.isDeleted()) {
+            throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+
+        UserEntity currentUser = resolveCurrentUser();
+        UserEntity stylist = booking.getStaff();
+        if (stylist == null) {
+            if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> "STYLIST".equals(r.getName()))) {
+                stylist = currentUser;
+            } else {
+                stylist = resolveDefaultStaff(booking.getBranch());
+            }
+        }
+
+        // Check if order already exists for this booking
+        OrderEntity order = orderRepository.findByBookingIdAndIsDeletedFalse(booking.getId()).orElse(null);
+        if (order == null) {
+            // Check in booking to create order
+            checkInBooking(booking.getId());
+            order = orderRepository.findByBookingIdAndIsDeletedFalse(booking.getId())
+                    .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        }
+
+        if (order.getStatus() == OrderStatus.PAID) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Đơn hàng đã được thanh toán");
+        }
+
+        // Add additional services if provided in request
+        if (request != null && request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
+            Set<Long> existingServiceIds = new HashSet<>();
+            for (OrderItemEntity item : order.getItems()) {
+                if (!item.isDeleted() && item.getItemType() == OrderItemType.SERVICE && item.getService() != null) {
+                    existingServiceIds.add(item.getService().getId());
+                }
+            }
+            for (Long sId : request.getServiceIds()) {
+                if (!existingServiceIds.contains(sId)) {
+                    ServiceEntity service = serviceRepository.findByIdAndIsDeletedFalse(sId)
+                            .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+                    BigDecimal price = service.getBasePrice();
+                    OrderItemEntity orderItem = OrderItemEntity.builder()
+                            .itemType(OrderItemType.SERVICE)
+                            .service(service)
+                            .quantity(1)
+                            .unitPrice(price)
+                            .totalPrice(price)
+                            .stepAssignments(new ArrayList<>())
+                            .build();
+                    order.addItem(orderItem);
+                    orderItem.populateDefaultStepAssignments(stylist);
+                }
+            }
+        }
+
+        // Ensure all step assignments have staff assigned
+        for (OrderItemEntity item : order.getItems()) {
+            if (!item.isDeleted() && item.getStepAssignments() != null) {
+                for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                    if (step.getStaff() == null) {
+                        step.setStaff(stylist);
+                    }
+                }
+            }
+        }
+
+        if (request != null && request.getDiscountAmount() != null) {
+            applyManualDiscount(order, request.getDiscountAmount());
+        }
+        if (request != null && request.getNotes() != null) {
+            order.setNotes(request.getNotes());
+        }
+
+        order.recalculateTotals();
+
+        String paymentMethod = (request != null && StringUtils.hasText(request.getPaymentMethod()))
+                ? request.getPaymentMethod().trim().toUpperCase()
+                : "CASH";
+        order.setPaymentMethod(paymentMethod);
+
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        // 1. Deduct chemical BOM consumables
+        deductChemicalConsumables(savedOrder);
+
+        // 2. Deduct retail product sealed units
+        deductRetailProducts(savedOrder);
+
+        // 3. Mark step assignments COMPLETED and record immutable Commission Ledger
+        completeStepsAndRecordCommission(savedOrder);
+
+        // 4. Record Payment Transaction
+        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
+                .orderId(savedOrder.getId())
+                .booking(booking)
+                .paymentMethod(paymentMethod)
+                .transactionCode("TX-POS-" + savedOrder.getOrderCode() + "-" + System.currentTimeMillis())
+                .amount(savedOrder.getFinalAmount())
+                .status(PaymentTransactionEntity.STATUS_SUCCESS)
+                .build();
+        paymentTransactionRepository.save(tx);
+
+        // 5. Update Order status to PAID, stamp settledBy and settledAt
+        savedOrder.setStatus(OrderStatus.PAID);
+        savedOrder.setSettledBy(currentUser != null ? currentUser : stylist);
+        savedOrder.setSettledAt(Instant.now());
+        savedOrder = orderRepository.save(savedOrder);
+
+        // 6. Update customer cumulative spend and membership tier (excluding walkin.guest)
+        if (savedOrder.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(savedOrder.getCustomer().getUsername())) {
+            UserEntity customer = savedOrder.getCustomer();
+            BigDecimal netRevenue = savedOrder.calculateRevenueBreakdown().totalNetRevenue();
+            BigDecimal currentSpent = customer.getTotalSpent() != null ? customer.getTotalSpent() : BigDecimal.ZERO;
+            BigDecimal updatedSpent = currentSpent.add(netRevenue);
+            customer.setTotalSpent(updatedSpent);
+            customer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
+            userRepository.save(customer);
+        }
+
+        // 7. Update booking status to COMPLETED
+        BookingStatus oldBookingStatus = booking.getStatus();
+        booking.setStatus(BookingStatus.COMPLETED);
+        bookingRepository.save(booking);
+        if (realtimeNotificationService != null && oldBookingStatus != BookingStatus.COMPLETED) {
+            realtimeNotificationService.notifyBookingStatusChanged(booking, oldBookingStatus, BookingStatus.COMPLETED);
+        }
+
+        // 8. Broadcast realtime WebSocket event
+        realtimeNotificationService.notifyOrderCheckedOut(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StylistDailyWorklogResponse getStylistDailyWorklog(Long branchId, Long stylistId, LocalDate date) {
+        LocalDate queryDate = date != null ? date : LocalDate.now();
+        UserEntity currentUser = resolveCurrentUser();
+
+        UserEntity targetStylist = null;
+        if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> "STYLIST".equals(r.getName()))) {
+            targetStylist = currentUser;
+        } else if (stylistId != null) {
+            targetStylist = userRepository.findByIdAndIsDeletedFalse(stylistId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "Không tìm thấy nhân viên với ID: " + stylistId));
+        } else if (currentUser != null) {
+            targetStylist = currentUser;
+        }
+
+        BranchEntity branch = null;
+        if (branchId != null) {
+            branch = branchRepository.findByIdAndIsDeletedFalse(branchId).orElse(null);
+        } else if (targetStylist != null && targetStylist.getBranch() != null) {
+            branch = targetStylist.getBranch();
+        } else if (currentUser != null && currentUser.getBranch() != null) {
+            branch = currentUser.getBranch();
+        }
+        if (branch == null) {
+            branch = branchRepository.findAllByIsDeletedFalseAndIsActiveTrue().stream().findFirst().orElse(null);
+        }
+
+        Long finalBranchId = branch != null ? branch.getId() : 1L;
+        String finalBranchName = branch != null ? branch.getName() : "";
+        Long finalStylistId = targetStylist != null ? targetStylist.getId() : (currentUser != null ? currentUser.getId() : null);
+        String finalStylistName = targetStylist != null ? targetStylist.getFullName() : (currentUser != null ? currentUser.getFullName() : "");
+
+        Instant startDate = queryDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant endDate = queryDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        // 1. Fetch all PAID orders in branch & date range
+        List<OrderEntity> paidOrders = orderRepository.findByBranchAndStatusAndDateRange(finalBranchId, OrderStatus.PAID, startDate, endDate);
+
+        // 2. Fetch earned commission ledgers for this stylist in date range
+        List<CommissionLedgerEntity> ledgers = finalStylistId != null
+                ? commissionLedgerRepository.findByStaffIdAndDateRange(finalStylistId, startDate, endDate)
+                : Collections.emptyList();
+
+        Map<Long, BigDecimal> orderCommissionMap = new HashMap<>();
+        BigDecimal totalEarnedCommission = BigDecimal.ZERO;
+        for (CommissionLedgerEntity ledger : ledgers) {
+            BigDecimal amt = ledger.safeAmount();
+            totalEarnedCommission = totalEarnedCommission.add(amt);
+            if (ledger.getOrder() != null) {
+                orderCommissionMap.merge(ledger.getOrder().getId(), amt, BigDecimal::add);
+            }
+        }
+
+        int totalTicketCount = 0;
+        int totalCompletedStepCount = 0;
+        BigDecimal totalServiceRevenue = BigDecimal.ZERO;
+
+        int selfSettledOrderCount = 0;
+        BigDecimal cashCollectedToHandover = BigDecimal.ZERO;
+        BigDecimal transferCollectedAmount = BigDecimal.ZERO;
+
+        List<StylistWorklogTicketDto> ticketDtos = new ArrayList<>();
+
+        for (OrderEntity o : paidOrders) {
+            boolean stylistWorkedOnOrder = false;
+            int stylistStepsInOrder = 0;
+            List<String> serviceNames = new ArrayList<>();
+            List<String> stepNames = new ArrayList<>();
+            BigDecimal serviceRevenueInOrder = BigDecimal.ZERO;
+
+            if (o.getItems() != null) {
+                for (OrderItemEntity item : o.getItems()) {
+                    if (item.isDeleted()) continue;
+                    if (item.getItemType() == OrderItemType.SERVICE && item.getService() != null) {
+                        serviceNames.add(item.getService().getName());
+                        boolean stylistDidStep = false;
+                        if (item.getStepAssignments() != null) {
+                            for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                                if (step.getStaff() != null
+                                        && finalStylistId != null && step.getStaff().getId().equals(finalStylistId)) {
+                                    stylistStepsInOrder++;
+                                    stylistWorkedOnOrder = true;
+                                    stylistDidStep = true;
+                                    stepNames.add(step.getStepName());
+                                }
+                            }
+                        }
+                        if (stylistDidStep) {
+                            serviceRevenueInOrder = serviceRevenueInOrder.add(item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO);
+                        }
+                    }
+                }
+            }
+
+            boolean settledByThisStylist = o.getSettledBy() != null && finalStylistId != null && o.getSettledBy().getId().equals(finalStylistId);
+
+            // Shift Handover metrics: orders settled by this stylist
+            if (settledByThisStylist) {
+                selfSettledOrderCount++;
+                String pMethod = o.getPaymentMethod() != null ? o.getPaymentMethod().toUpperCase() : "CASH";
+                if ("CASH".equals(pMethod)) {
+                    cashCollectedToHandover = cashCollectedToHandover.add(o.getFinalAmount() != null ? o.getFinalAmount() : BigDecimal.ZERO);
+                } else if ("VIETQR".equals(pMethod) || "CARD".equals(pMethod) || "PAYOS".equals(pMethod)) {
+                    transferCollectedAmount = transferCollectedAmount.add(o.getFinalAmount() != null ? o.getFinalAmount() : BigDecimal.ZERO);
+                }
+            }
+
+            // Production metrics: orders where stylist worked on at least one step
+            if (stylistWorkedOnOrder) {
+                totalTicketCount++;
+                totalCompletedStepCount += stylistStepsInOrder;
+                totalServiceRevenue = totalServiceRevenue.add(serviceRevenueInOrder);
+            }
+
+            // Include in itemized tickets if stylist worked on it OR personally settled it
+            if (stylistWorkedOnOrder || settledByThisStylist) {
+                BigDecimal earnedCommission = orderCommissionMap.getOrDefault(o.getId(), BigDecimal.ZERO);
+                ticketDtos.add(StylistWorklogTicketDto.builder()
+                        .orderId(o.getId())
+                        .orderCode(o.getOrderCode())
+                        .bookingCode(o.getBooking() != null ? o.getBooking().getBookingCode() : null)
+                        .customerName(o.getCustomerName())
+                        .customerPhone(o.getCustomerPhone())
+                        .serviceNames(serviceNames)
+                        .stepNames(stepNames)
+                        .orderFinalAmount(o.getFinalAmount())
+                        .paymentMethod(o.getPaymentMethod())
+                        .settledByMe(settledByThisStylist)
+                        .earnedCommission(earnedCommission)
+                        .completedAt(o.getSettledAt() != null ? o.getSettledAt() : o.getCreatedAt())
+                        .build());
+            }
+        }
+
+        BigDecimal totalSelfCollectedAmount = cashCollectedToHandover.add(transferCollectedAmount);
+
+        // 3. Fetch upcoming bookings for today in branch
+        LocalDateTime dayStart = queryDate.atStartOfDay();
+        LocalDateTime dayEnd = queryDate.plusDays(1).atStartOfDay();
+        List<BookingEntity> bookings = bookingRepository.findBookingsByBranchAndDay(finalBranchId, dayStart, dayEnd);
+        List<DispatchBoardBookingDto> upcomingBookings = new ArrayList<>();
+        for (BookingEntity b : bookings) {
+            if (b.getStatus() == BookingStatus.CONFIRMED || b.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                if (finalStylistId == null || b.getStaff() == null || b.getStaff().getId().equals(finalStylistId)) {
+                    Optional<OrderEntity> linkedOrder = orderRepository.findByBookingIdAndIsDeletedFalse(b.getId());
+                    if (linkedOrder.isEmpty() || linkedOrder.get().getStatus() != OrderStatus.PAID) {
+                        List<String> bServiceNames = b.getItems().stream()
+                                .filter(i -> !i.isDeleted() && i.getService() != null)
+                                .map(i -> i.getService().getName())
+                                .toList();
+                        String staffName = b.getStaff() != null ? b.getStaff().getFullName() : "Chưa chỉ định";
+                        upcomingBookings.add(DispatchBoardBookingDto.builder()
+                                .id(b.getId())
+                                .bookingCode(b.getBookingCode())
+                                .customerId(b.getCustomer() != null ? b.getCustomer().getId() : null)
+                                .customerName(b.resolvedCustomerName())
+                                .customerPhone(b.resolvedCustomerPhone())
+                                .staffId(b.getStaff() != null ? b.getStaff().getId() : null)
+                                .staffName(staffName)
+                                .bookingTime(b.getBookingTime())
+                                .endTime(b.getEndTime())
+                                .totalDurationMinutes(b.getTotalDurationMinutes())
+                                .totalPrice(b.getTotalPrice())
+                                .depositAmount(b.getDepositAmount())
+                                .depositStatus(b.getDepositStatus() != null ? b.getDepositStatus().name() : null)
+                                .status(b.getStatus() != null ? b.getStatus().name() : null)
+                                .serviceNames(bServiceNames)
+                                .linkedOrderId(linkedOrder.map(OrderEntity::getId).orElse(null))
+                                .build());
+                    }
+                }
+            }
+        }
+
+        return StylistDailyWorklogResponse.builder()
+                .stylistId(finalStylistId)
+                .stylistName(finalStylistName)
+                .branchId(finalBranchId)
+                .branchName(finalBranchName)
+                .date(queryDate)
+                .totalTicketCount(totalTicketCount)
+                .totalCompletedStepCount(totalCompletedStepCount)
+                .totalServiceRevenue(totalServiceRevenue)
+                .totalEarnedCommission(totalEarnedCommission)
+                .selfSettledOrderCount(selfSettledOrderCount)
+                .cashCollectedToHandover(cashCollectedToHandover)
+                .transferCollectedAmount(transferCollectedAmount)
+                .totalSelfCollectedAmount(totalSelfCollectedAmount)
+                .tickets(ticketDtos)
+                .upcomingBookings(upcomingBookings)
+                .build();
     }
 }

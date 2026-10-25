@@ -167,4 +167,33 @@ public class PosController {
         CommissionLedgerSummaryResponse response = posOrderService.getCommissionLedger(branchId, date);
         return ResponseEntity.ok(ApiResponse.success("Lấy dữ liệu Sổ cái Hoa hồng thành công", response));
     }
+
+    @PostMapping("/stylist/quick-ticket")
+    @Operation(summary = "Tạo phiếu cắt nhanh cho khách vãng lai và thanh toán 1 bước cho stylist")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> createQuickServiceTicket(
+            @Valid @RequestBody QuickServiceTicketRequest request) {
+        PosOrderResponse response = posOrderService.createQuickServiceTicket(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Tạo phiếu cắt nhanh thành công", response));
+    }
+
+    @PostMapping("/stylist/bookings/{bookingId}/quick-complete")
+    @Operation(summary = "Nhận khách theo lịch hẹn và chốt thanh toán 1 bước cho stylist")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> quickCompleteBooking(
+            @PathVariable Long bookingId,
+            @RequestBody(required = false) QuickCompleteBookingRequest request) {
+        QuickCompleteBookingRequest safeRequest = request != null ? request : new QuickCompleteBookingRequest();
+        PosOrderResponse response = posOrderService.quickCompleteBooking(bookingId, safeRequest);
+        return ResponseEntity.ok(ApiResponse.success("Nhận khách và chốt phiếu thành công", response));
+    }
+
+    @GetMapping("/stylist/daily-worklog")
+    @Operation(summary = "Lấy dữ liệu tổng kết ngày của stylist: phiếu cắt, hoa hồng và đối soát tiền thu hộ")
+    public ResponseEntity<ApiResponse<StylistDailyWorklogResponse>> getStylistDailyWorklog(
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) Long stylistId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        StylistDailyWorklogResponse response = posOrderService.getStylistDailyWorklog(branchId, stylistId, date);
+        return ResponseEntity.ok(ApiResponse.success("Lấy dữ liệu tổng kết ngày thành công", response));
+    }
 }

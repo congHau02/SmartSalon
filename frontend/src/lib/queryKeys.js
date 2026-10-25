@@ -13,6 +13,12 @@ export const QUERY_KEYS = {
   analyticsPnl: ["analytics-pnl"],
   analyticsStaffPayroll: ["analytics-staff-payroll"],
   analyticsInventoryAlerts: ["analytics-inventory-alerts"],
+  stylistDailyWorklog: (branchId, stylistId, date) => [
+    "stylist-daily-worklog",
+    branchId,
+    stylistId,
+    date,
+  ],
 };
 
 export function invalidateRealtimeCaches(queryClient) {
@@ -23,6 +29,7 @@ export function invalidateRealtimeCaches(queryClient) {
     QUERY_KEYS.dispatch,
     QUERY_KEYS.order(),
     QUERY_KEYS.commissionLedger(),
+    ["stylist-daily-worklog"],
     QUERY_KEYS.analyticsPnl,
     QUERY_KEYS.analyticsStaffPayroll,
     QUERY_KEYS.analyticsInventoryAlerts,

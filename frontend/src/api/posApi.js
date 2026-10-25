@@ -105,4 +105,23 @@ export const posApi = {
     const response = await axiosClient.get("/pos/commission-ledger", { params });
     return response?.result || response?.data || response;
   },
+
+  createQuickServiceTicket: async (data) => {
+    const response = await axiosClient.post("/pos/stylist/quick-ticket", data);
+    return response?.result || response?.data || response;
+  },
+
+  quickCompleteBooking: async (bookingId, data) => {
+    const response = await axiosClient.post(`/pos/stylist/bookings/${bookingId}/quick-complete`, data);
+    return response?.result || response?.data || response;
+  },
+
+  getStylistDailyWorklog: async ({ branchId, stylistId, date } = {}) => {
+    const params = {};
+    if (branchId) params.branchId = branchId;
+    if (stylistId) params.stylistId = stylistId;
+    if (date) params.date = date;
+    const response = await axiosClient.get("/pos/stylist/daily-worklog", { params });
+    return response?.result || response?.data || response;
+  },
 };

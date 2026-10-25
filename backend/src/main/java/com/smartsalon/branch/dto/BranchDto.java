@@ -14,5 +14,7 @@ public class BranchDto {
     private String name;
     private String address;
     private String phone;
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
     private boolean isActive;
 }

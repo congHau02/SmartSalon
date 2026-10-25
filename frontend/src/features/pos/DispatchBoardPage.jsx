@@ -5,6 +5,8 @@ import {
   Scissors,
   CheckCircle2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../auth/useAuth";
 import { useBranch } from "../branch/useBranch";
 import { StylistAvailabilityStrip } from "./StylistAvailabilityStrip";
 import { KanbanBoard } from "./KanbanBoard";
@@ -12,11 +14,15 @@ import { TimelineBoard } from "./TimelineBoard";
 import { WalkInModal } from "./WalkInModal";
 import { PosOrderDrawer } from "./PosOrderDrawer";
 import { CommissionLedgerModal } from "./CommissionLedgerModal";
+import { StylistDailyWorklogModal } from "./StylistDailyWorklogModal";
 import { DispatchBoardHeader } from "./components/DispatchBoardHeader";
 import { toLocalDateISO, shiftLocalDateISO } from "../../lib/utils";
 import { useDispatchBoard, useCheckInBooking } from "./usePosQueries";
+import { QUERY_KEYS } from "../../lib/queryKeys";
 
 export function DispatchBoardPage() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { selectedBranchId, selectedBranch, branches, setSelectedBranchId, canSwitchBranch } =
     useBranch();
 
@@ -24,6 +30,7 @@ export function DispatchBoardPage() {
   const [viewMode, setViewMode] = useState("kanban"); // 'kanban' | 'timeline'
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
   const [isCommissionLedgerOpen, setIsCommissionLedgerOpen] = useState(false);
+  const [isStylistWorklogOpen, setIsStylistWorklogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [checkingInBookingId, setCheckingInBookingId] = useState(null);
@@ -115,6 +122,7 @@ export function DispatchBoardPage() {
           onRefresh: refetch,
           isRefreshing,
           onOpenCommissionLedger: () => setIsCommissionLedgerOpen(true),
+          onOpenStylistWorklog: () => setIsStylistWorklogOpen(true),
           onOpenWalkIn: () => setIsWalkInOpen(true),
         }}
       />
@@ -191,6 +199,23 @@ export function DispatchBoardPage() {
         onClose={() => setIsCommissionLedgerOpen(false)}
         branchId={selectedBranchId}
         stylists={stylists}
+      />
+
+      <StylistDailyWorklogModal
+        isOpen={isStylistWorklogOpen}
+        onClose={() => setIsStylistWorklogOpen(false)}
+        branchId={selectedBranchId}
+        currentUserId={user?.id}
+        userRoles={user?.roles || []}
+        stylists={stylists}
+        services={services}
+        onOrderCompleted={(order) => {
+          queryClient.invalidateQueries({
+            queryKey: QUERY_KEYS.posBoard(selectedBranchId, selectedDate),
+          });
+          showToast(`Đã hoàn thành đơn hàng ${order.orderCode}`);
+          setSelectedOrder(order);
+        }}
       />
     </div>
   );

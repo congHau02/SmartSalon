@@ -72,6 +72,13 @@ public class OrderEntity extends BaseEntity {
     @Column(name = "notes", length = 500)
     private String notes;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "settled_by_user_id")
+    private UserEntity settledBy;
+
+    @Column(name = "settled_at")
+    private java.time.Instant settledAt;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItemEntity> items = new ArrayList<>();
