@@ -68,13 +68,13 @@ export function PersonalPayrollModal({ isOpen, onClose }) {
 
         {/* Period Filter Bar */}
         <PersonalPayrollPeriodBar
-          preset={preset}
-          onSelectPreset={selectPreset}
-          startDate={startDate}
-          onStartDateChange={setCustomStartDate}
-          endDate={endDate}
-          onEndDateChange={setCustomEndDate}
-          onRefresh={() => refetch()}
+          period={{ preset, startDate, endDate }}
+          handlers={{
+            onSelectPreset: selectPreset,
+            onStartDateChange: setCustomStartDate,
+            onEndDateChange: setCustomEndDate,
+            onRefresh: () => refetch(),
+          }}
           isRefreshing={isRefetching}
         />
 

@@ -2,16 +2,9 @@ import React from "react";
 import { Calendar, RotateCw } from "lucide-react";
 import { PAYROLL_PERIOD_PRESETS } from "../useMyPayroll";
 
-export function PersonalPayrollPeriodBar({
-  preset,
-  onSelectPreset,
-  startDate,
-  onStartDateChange,
-  endDate,
-  onEndDateChange,
-  onRefresh,
-  isRefreshing,
-}) {
+export function PersonalPayrollPeriodBar({ period, handlers, isRefreshing }) {
+  const { preset, startDate, endDate } = period;
+  const { onSelectPreset, onStartDateChange, onEndDateChange, onRefresh } = handlers;
   const presets = [
     { id: PAYROLL_PERIOD_PRESETS.THIS_MONTH, label: "Tháng này" },
     { id: PAYROLL_PERIOD_PRESETS.LAST_MONTH, label: "Tháng trước" },

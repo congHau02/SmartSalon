@@ -1346,7 +1346,11 @@ public class PosOrderServiceImpl implements PosOrderService {
         // Check if order already exists for this booking
         OrderEntity order = orderRepository.findByBookingIdAndIsDeletedFalse(booking.getId()).orElse(null);
         if (order == null) {
-            // Check in booking to create order
+            // Check in booking to create order; pin executing stylist so steps aren't defaulted to the branch's first stylist
+            if (booking.getStaff() == null) {
+                booking.setStaff(stylist);
+                bookingRepository.save(booking);
+            }
             checkInBooking(booking.getId());
             order = orderRepository.findByBookingIdAndIsDeletedFalse(booking.getId())
                     .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));

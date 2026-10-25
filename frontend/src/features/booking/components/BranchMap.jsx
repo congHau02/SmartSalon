@@ -92,6 +92,7 @@ export function BranchMap({
         <div style="font-family: inherit; font-size: 13px; min-width: 190px;">
           <div style="font-weight: 700; color: #0f172a; margin-bottom: 2px;">${b.name}</div>
           <div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">${b.address}</div>
+          ${b.phone ? `<div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">${b.phone}</div>` : ""}
           ${distanceText ? `<div style="display:inline-block;padding:2px 6px;background:#fce7f3;color:#be185d;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:6px;">${distanceText}</div>` : ""}
           <div style="display:flex;gap:6px;margin-top:6px;">
             <a href="${dirUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:4px 8px;background:#0f172a;color:#ffffff;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;">Chỉ đường</a>

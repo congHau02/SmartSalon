@@ -1,72 +1,19 @@
-import React, { useState } from "react";
+import React from "react";
 import { X, Scissors, Loader2, Sparkles } from "lucide-react";
 import { formatCurrency } from "../../../lib/utils";
-import { useCreateQuickServiceTicket } from "../useStylistWorklog";
+import { useQuickTicketForm } from "../useQuickTicketForm";
 import { QuickTicketVietQrPreview } from "./QuickTicketVietQrPreview";
 import { QuickTicketServicePicker } from "./QuickTicketServicePicker";
+import { QuickTicketProductPicker } from "./QuickTicketProductPicker";
 
-export function QuickServiceTicketModal({
-  isOpen,
-  onClose,
-  branchId,
-  currentStylistId,
-  stylists = [],
-  services = [],
-  onSuccess,
-}) {
-  const [selectedStylistId, setSelectedStylistId] = useState(() => currentStylistId || stylists[0]?.id || "");
-  const [quickGuest, setQuickGuest] = useState(true);
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [selectedServiceIds, setSelectedServiceIds] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [discountAmount, setDiscountAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-
-  const createMutation = useCreateQuickServiceTicket({
-    onSuccess: (data) => {
-      onSuccess?.(data);
-      onClose();
-    },
-    onError: (err) => {
-      setErrorMsg(err?.response?.data?.message || "Không thể tạo phiếu cắt nhanh");
-    },
-  });
-
+export function QuickServiceTicketModal({ isOpen, onClose, stylists = [], services = [], products = [], ...formOpts }) {
+  const form = useQuickTicketForm({ ...formOpts, onClose, stylists, services, products });
   if (!isOpen) return null;
 
-  const toggleService = (id) => {
-    setSelectedServiceIds((prev) =>
-      prev.includes(id) ? prev.filter((sId) => sId !== id) : [...prev, id]
-    );
-  };
-
-  const selectedServices = services.filter((s) => selectedServiceIds.includes(s.id));
-  const subtotal = selectedServices.reduce((sum, s) => sum + (Number(s.basePrice || s.price) || 0), 0);
-  const discount = Math.max(0, Number(discountAmount) || 0);
-  const finalAmount = Math.max(0, subtotal - discount);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (selectedServiceIds.length === 0) {
-      setErrorMsg("Vui lòng chọn ít nhất một dịch vụ");
-      return;
-    }
-    setErrorMsg("");
-    createMutation.mutate({
-      branchId,
-      stylistId: selectedStylistId ? Number(selectedStylistId) : undefined,
-      serviceIds: selectedServiceIds,
-      quickGuest,
-      customerPhone: quickGuest ? undefined : customerPhone,
-      customerName: quickGuest ? undefined : customerName,
-      paymentMethod,
-      discountAmount: discount > 0 ? discount : undefined,
-      notes: notes || undefined,
-    });
-  };
-
+  const { selectedStylistId, quickGuest, customerPhone, customerName, selectedServiceIds, productQty, paymentMethod, discountAmount, notes } = form.values;
+  const { setSelectedStylistId, setQuickGuest, setCustomerPhone, setCustomerName, setPaymentMethod, setDiscountAmount, setNotes } = form.set;
+  const { finalAmount, errorMsg, toggleService, submit: handleSubmit } = form;
+  const createMutation = { isPending: form.isPending };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -156,6 +103,8 @@ export function QuickServiceTicketModal({
             onToggleService={toggleService}
           />
 
+          <QuickTicketProductPicker products={products} quantities={productQty} onChange={form.setQty} />
+
           {/* Payment Method Selector */}
           <div>
             <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Hình thức thanh toán</label>
@@ -178,11 +127,16 @@ export function QuickServiceTicketModal({
           </div>
 
           {/* Live VietQR Preview */}
-          {paymentMethod === "VIETQR" && finalAmount > 0 && (
+          {paymentMethod === "VIETQR" && finalAmount > 0 && form.canPreviewQr && (
             <QuickTicketVietQrPreview
               amount={finalAmount}
               description={`PHIEU CAT NHANH ${Date.now() % 10000}`}
             />
+          )}
+          {paymentMethod === "VIETQR" && !form.canPreviewQr && (
+            <p className="text-[11px] text-amber-300">
+              Khách có tài khoản được tự động áp dụng ưu đãi hạng thành viên / tiền cọc giữ lại; số tiền chính xác sẽ hiển thị trên phiếu sau khi chốt.
+            </p>
           )}
 
           {/* Discount & Notes */}

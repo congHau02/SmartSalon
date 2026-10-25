@@ -209,6 +209,7 @@ export function DispatchBoardPage() {
         userRoles={user?.roles || []}
         stylists={stylists}
         services={services}
+        products={products}
         onOrderCompleted={(order) => {
           queryClient.invalidateQueries({
             queryKey: QUERY_KEYS.posBoard(selectedBranchId, selectedDate),

@@ -15,14 +15,17 @@ export function StylistDailyWorklogModal({
   userRoles = [],
   stylists = [],
   services = [],
+  products = [],
   onOrderCompleted,
 }) {
-  const isOnlyStylist = userRoles.includes("ROLE_STYLIST") && !userRoles.includes("ROLE_ADMIN") && !userRoles.includes("ROLE_MANAGER");
+  const roles = userRoles.map((r) => r.replace("ROLE_", "")); // auth stores unprefixed names
+  const isOnlyStylist = roles.includes("STYLIST") && !roles.includes("ADMIN") && !roles.includes("MANAGER");
   const [selectedDate, setSelectedDate] = useState(() => toLocalDateISO());
   const [selectedStylistId, setSelectedStylistId] = useState(() => currentUserId || stylists[0]?.id || "");
   const [activeTab, setActiveTab] = useState("completed"); // "completed" | "upcoming"
   const [isQuickTicketOpen, setIsQuickTicketOpen] = useState(false);
   const [completingId, setCompletingId] = useState(null);
+  const [quickCompleteMethod, setQuickCompleteMethod] = useState("CASH");
 
   const {
     data: worklogData,
@@ -57,7 +60,7 @@ export function StylistDailyWorklogModal({
     setCompletingId(booking.id);
     quickCompleteMutation.mutate({
       bookingId: booking.id,
-      data: { paymentMethod: "CASH" },
+      data: { paymentMethod: quickCompleteMethod },
     });
   };
 
@@ -207,11 +210,25 @@ export function StylistDailyWorklogModal({
                   {activeTab === "completed" ? (
                     <StylistCompletedTicketsList tickets={tickets} />
                   ) : (
-                    <StylistUpcomingBookingsList
-                      bookings={upcomingBookings}
-                      onQuickComplete={handleQuickComplete}
-                      completingId={completingId}
-                    />
+                    <>
+                      <label className="flex items-center gap-2 text-[11px] text-slate-300 mb-2">
+                        Thanh toán khi chốt phiếu:
+                        <select
+                          value={quickCompleteMethod}
+                          onChange={(e) => setQuickCompleteMethod(e.target.value)}
+                          className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-white"
+                        >
+                          <option value="CASH">Tiền mặt</option>
+                          <option value="VIETQR">VietQR</option>
+                          <option value="CARD">Thẻ</option>
+                        </select>
+                      </label>
+                      <StylistUpcomingBookingsList
+                        bookings={upcomingBookings}
+                        onQuickComplete={handleQuickComplete}
+                        completingId={completingId}
+                      />
+                    </>
                   )}
                 </div>
               </>
@@ -228,6 +245,7 @@ export function StylistDailyWorklogModal({
         currentStylistId={Number(selectedStylistId)}
         stylists={stylists}
         services={services}
+        products={products}
         onSuccess={(order) => {
           refetch();
           onOrderCompleted?.(order);
