@@ -307,8 +307,14 @@ public class CustomerServiceImpl implements CustomerService {
 
         UserEntity stylist;
         if (request.getStylistId() != null) {
-            stylist = userRepository.findByIdAndIsDeletedFalse(request.getStylistId())
+            UserEntity picked = userRepository.findByIdAndIsDeletedFalse(request.getStylistId())
                     .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND));
+            boolean participated = mapToCustomerOrderResponse(order).getParticipatingStylists().stream()
+                    .anyMatch(s -> s.getId().equals(picked.getId()));
+            if (!picked.isActive() || !participated) {
+                throw new AppException(ErrorCode.STYLIST_NOT_FOUND);
+            }
+            stylist = picked;
         } else {
             CustomerOrderResponse orderResp = mapToCustomerOrderResponse(order);
             if (orderResp.getPrimaryStylist() != null) {

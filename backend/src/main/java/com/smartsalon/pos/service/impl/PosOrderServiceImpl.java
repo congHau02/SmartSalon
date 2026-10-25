@@ -476,8 +476,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         if (request.getDiscountAmount() != null) {
-            order.setDiscountAmount(request.getDiscountAmount());
-            order.setDiscountManual(true);
+            applyManualDiscount(order, request.getDiscountAmount());
         }
         if (request.getNotes() != null) {
             order.setNotes(request.getNotes());
@@ -892,8 +891,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             if (request.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR);
             }
-            order.setDiscountAmount(request.getDiscountAmount());
-            order.setDiscountManual(true);
+            applyManualDiscount(order, request.getDiscountAmount());
         }
 
         if (request.getNotes() != null) {
@@ -1123,6 +1121,22 @@ public class PosOrderServiceImpl implements PosOrderService {
             order.setDiscountAmount(autoDiscount);
         }
         order.recalculateTotals();
+    }
+
+    /** Clamps to [0, max(0, subtotal - depositDeducted)]; flags manual only when it differs from the tier discount. */
+    private void applyManualDiscount(OrderEntity order, BigDecimal requested) {
+        order.recalculateTotals();
+        BigDecimal deposit = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
+        BigDecimal cap = order.getSubtotal().subtract(deposit).max(BigDecimal.ZERO);
+        BigDecimal clamped = requested.max(BigDecimal.ZERO).min(cap);
+
+        UserEntity customer = order.getCustomer();
+        MembershipTier tier = customer != null && customer.getMembershipTier() != null
+                ? customer.getMembershipTier()
+                : MembershipTier.STANDARD;
+        BigDecimal auto = tier.calculateDiscount(order.getSubtotal()).min(cap);
+        order.setDiscountAmount(clamped);
+        order.setDiscountManual(clamped.compareTo(auto) != 0);
     }
 
     private void applyCustomerCreditBalanceIfAvailable(OrderEntity order) {

@@ -59,3 +59,12 @@ export function useSubmitServiceReview() {
     },
   });
 }
+
+export function useLoyaltyPreview(phone) {
+  return useQuery({
+    queryKey: ["customer-loyalty", phone],
+    queryFn: () => customerApi.getLoyaltyPreview(phone),
+    enabled: Boolean(phone && phone.length >= 10),
+    staleTime: 60_000,
+  });
+}

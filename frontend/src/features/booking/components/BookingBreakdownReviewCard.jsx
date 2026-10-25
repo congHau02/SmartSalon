@@ -17,6 +17,7 @@ export function BookingBreakdownReviewCard({
   depositAmount = bookingSummary?.depositAmount,
   membershipTier = bookingSummary?.membershipTier || "STANDARD",
   discountPercent = bookingSummary?.discountPercent || 0,
+  creditBalance = bookingSummary?.creditBalance || 0,
 }) {
   const discountAmount = useMemo(
     () => Math.round((Number(totalPrice || 0) * (discountPercent || 0)) / 100),
@@ -99,6 +100,13 @@ export function BookingBreakdownReviewCard({
               <span className="font-bold">
                 -{formatCurrency(discountAmount)}
               </span>
+            </div>
+          )}
+
+          {creditBalance > 0 && (
+            <div className="flex items-center justify-between text-emerald-800 bg-emerald-50/80 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+              <span className="font-medium">Tiền cọc bảo lưu khả dụng:</span>
+              <span className="font-bold">{formatCurrency(creditBalance)}</span>
             </div>
           )}
 

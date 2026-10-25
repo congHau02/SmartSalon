@@ -21,7 +21,7 @@ public class CustomerPortalController {
 
     private final CustomerService customerService;
 
-    @GetMapping({"/api/v1/customer/me/summary", "/api/v1/customers/me/summary"})
+    @GetMapping("/api/v1/customer/me/summary")
     @Operation(summary = "Lấy thông tin tổng quan hồ sơ, hạng thành viên, chi tiêu và số dư bảo lưu cọc")
     public ResponseEntity<ApiResponse<CustomerSummaryDto>> getMySummary() {
         String username = getAuthenticatedUsername();
@@ -29,7 +29,7 @@ public class CustomerPortalController {
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin tổng quan thành công", summary));
     }
 
-    @GetMapping({"/api/v1/customer/me/bookings", "/api/v1/customers/me/bookings"})
+    @GetMapping("/api/v1/customer/me/bookings")
     @Operation(summary = "Lấy danh sách lịch hẹn của tôi với trạng thái cho phép hủy trực tuyến")
     public ResponseEntity<ApiResponse<List<CustomerBookingResponse>>> getMyBookings() {
         String username = getAuthenticatedUsername();
@@ -39,17 +39,16 @@ public class CustomerPortalController {
 
     @PostMapping({
             "/api/v1/customer/me/bookings/{bookingId}/cancel",
-            "/api/v1/customers/me/bookings/{bookingId}/cancel",
             "/api/v1/customer/bookings/{bookingId}/cancel"
     })
-    @Operation(summary = "Hủy lịch hẹn trực tuyến trước 2 tiếng và bảo lưu cọc vào ví credit")
+    @Operation(summary = "Hủy lịch hẹn trực tuyến trước 2 tiếng và bảo lưu cọc thành tiền cọc bảo lưu")
     public ResponseEntity<ApiResponse<CustomerBookingResponse>> cancelMyBooking(@PathVariable Long bookingId) {
         String username = getAuthenticatedUsername();
         CustomerBookingResponse response = customerService.cancelCustomerBooking(username, bookingId);
         return ResponseEntity.ok(ApiResponse.success("Hủy lịch hẹn thành công", response));
     }
 
-    @GetMapping({"/api/v1/customer/me/orders", "/api/v1/customers/me/orders", "/api/v1/customer/orders"})
+    @GetMapping("/api/v1/customer/me/orders")
     @Operation(summary = "Lấy danh sách đơn hàng đã hoàn thành kèm hồ sơ Visual Log và đánh giá dịch vụ")
     public ResponseEntity<ApiResponse<List<CustomerOrderResponse>>> getMyOrders() {
         String username = getAuthenticatedUsername();
@@ -59,7 +58,6 @@ public class CustomerPortalController {
 
     @PostMapping({
             "/api/v1/customer/me/orders/{orderId}/review",
-            "/api/v1/customers/me/orders/{orderId}/review",
             "/api/v1/customer/orders/{orderId}/review"
     })
     @Operation(summary = "Gửi đánh giá dịch vụ và xếp hạng sao cho Stylist phục vụ")

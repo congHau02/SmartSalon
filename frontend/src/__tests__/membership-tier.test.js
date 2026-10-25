@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TIER_CONFIG } from "../components/common/MembershipTierBadge";
+import { TIER_CONFIG } from "../features/customer/customer.constants";
 
 describe("Membership Tier Configuration and Discounts", () => {
   it("defines all 4 membership tiers with expected discount rates", () => {

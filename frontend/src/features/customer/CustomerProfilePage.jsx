@@ -2,17 +2,12 @@ import React, { useState } from "react";
 import { User, Phone, Mail, Calendar, Award, Camera, Wallet, Clock } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { useCustomerSummary } from "./useCustomer";
+import { CUSTOMER_TABS as TABS } from "./customer.constants";
 import { formatCurrency } from "../../lib/utils";
 import { MembershipTierBadge } from "../../components/common/MembershipTierBadge";
 import { CustomerBookingsTab } from "./components/CustomerBookingsTab";
 import { CustomerLoyaltyTab } from "./components/CustomerLoyaltyTab";
 import { CustomerOrdersTab } from "./components/CustomerOrdersTab";
-
-const TABS = [
-  { id: "bookings", label: "Lịch hẹn của tôi", icon: Calendar },
-  { id: "orders", label: "Lịch sử & Visual Log", icon: Camera },
-  { id: "loyalty", label: "Hạng thành viên & Quyền lợi", icon: Award },
-];
 
 export function CustomerProfilePage() {
   const { user } = useAuth();

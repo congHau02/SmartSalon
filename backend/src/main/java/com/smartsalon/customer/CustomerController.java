@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/customers")
 @RequiredArgsConstructor
-@Tag(name = "Customer CRM & Loyalty", description = "API Tra cứu tích lũy điểm và hạng thành viên")
+@Tag(name = "Customer CRM & Loyalty", description = "API Tra cứu chi tiêu tích lũy và hạng thành viên")
 public class CustomerController {
 
     private final CustomerService customerService;

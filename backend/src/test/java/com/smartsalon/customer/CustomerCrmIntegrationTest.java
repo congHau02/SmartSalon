@@ -688,6 +688,18 @@ class CustomerCrmIntegrationTest {
                 .comment("Kỹ thuật cắt và tạo kiểu rất ưng ý!")
                 .build();
 
+        // Stylist who did not participate in the order must be rejected
+        mockMvc.perform(post("/api/v1/customer/me/orders/" + order.getId() + "/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reviewReq)))
+                .andExpect(status().isNotFound());
+
+        technicalLogRepository.save(com.smartsalon.pos.entity.TechnicalLogEntity.builder()
+                .order(order)
+                .customer(custHa)
+                .staff(stylist)
+                .build());
+
         mockMvc.perform(post("/api/v1/customer/me/orders/" + order.getId() + "/review")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(reviewReq)))

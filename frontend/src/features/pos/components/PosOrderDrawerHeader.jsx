@@ -1,6 +1,7 @@
 import React from "react";
 import { X, CheckCircle2, Sparkles, Clock, Scissors, Camera, CreditCard } from "lucide-react";
 import { MembershipTierBadge } from "../../../components/common/MembershipTierBadge";
+import { formatCurrency } from "../../../lib/utils";
 
 export function PosOrderDrawerHeader({
   order,
@@ -69,6 +70,11 @@ export function PosOrderDrawerHeader({
                 size="xs"
                 showDiscount={order.customerDiscountPercent > 0}
               />
+            )}
+            {Number(order?.customerCreditBalance) > 0 && (
+              <span className="text-emerald-300 font-semibold">
+                Tiền cọc bảo lưu: {formatCurrency(order.customerCreditBalance)}
+              </span>
             )}
             {order?.branchName && (
               <>

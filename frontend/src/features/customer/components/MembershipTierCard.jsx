@@ -1,7 +1,8 @@
 import React from "react";
 import { Wallet, Sparkles, Gift } from "lucide-react";
 import { formatCurrency } from "../../../lib/utils";
-import { MembershipTierBadge, TIER_CONFIG } from "../../../components/common/MembershipTierBadge";
+import { MembershipTierBadge } from "../../../components/common/MembershipTierBadge";
+import { TIER_CONFIG } from "../customer.constants";
 import { TIERS_MATRIX } from "../customer.constants";
 
 export function MembershipTierCard({ summary, user }) {
@@ -103,7 +104,7 @@ export function MembershipTierCard({ summary, user }) {
           </div>
           <div>
             <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
-              Số dư đặt cọc bảo lưu (Ví tín dụng)
+              Số dư đặt cọc bảo lưu
             </span>
             <span className="text-2xl font-black text-slate-900 font-mono">
               {formatCurrency(creditBalance)}
