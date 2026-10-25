@@ -1,6 +1,5 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
@@ -38,6 +37,8 @@ export function CustomerConfirmStep({
     register,
     handleSubmit,
     control,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(guestBookingSchema),
@@ -48,6 +49,13 @@ export function CustomerConfirmStep({
     },
   });
 
+  useEffect(() => {
+    if (user) {
+      if (user.fullName) setValue("customerName", user.fullName);
+      if (user.phone) setValue("customerPhone", user.phone);
+    }
+  }, [user, setValue]);
+
   const watchedPhone = useWatch({ control, name: "customerPhone" });
   const lookupPhone = user?.phone || watchedPhone;
 
@@ -56,12 +64,25 @@ export function CustomerConfirmStep({
   const effectiveTier = user?.membershipTier || loyaltyData?.membershipTier || "STANDARD";
   const effectiveDiscountPercent = user?.discountPercent ?? loyaltyData?.discountPercent ?? 0;
 
-  const onFormSubmit = (data) => {
+  const onGuestSubmit = (data) => {
     onSubmitBooking({
-      customerName: user ? user.fullName : data.customerName,
-      customerPhone: user ? user.phone : data.customerPhone,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
       notes: data.notes || undefined,
     });
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (user) {
+      onSubmitBooking({
+        customerName: user.fullName || "Khách hàng",
+        customerPhone: user.phone || "0900000000",
+        notes: getValues("notes") || undefined,
+      });
+      return;
+    }
+    handleSubmit(onGuestSubmit)(e);
   };
 
   return (
@@ -76,7 +97,7 @@ export function CustomerConfirmStep({
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-8">
+      <form onSubmit={handleFormSubmit} className="space-y-8">
         <div className="grid lg:grid-cols-12 gap-8">
           <CustomerInfoForm user={user} register={register} errors={errors} />
 

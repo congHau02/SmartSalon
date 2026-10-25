@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Sun, Sunset, Moon, Lock, CheckCircle2, Clock } from "lucide-react";
+import { Sun, Sunset, Moon, Lock, Clock } from "lucide-react";
 
 export function SlotPicker({
   slots = [],
@@ -14,14 +14,25 @@ export function SlotPicker({
     const evening = [];
 
     slots.forEach((s) => {
-      const [hourStr] = s.startTime.split(":");
+      const slotTime = s.time || s.startTime || "";
+      if (!slotTime) return;
+
+      const [hourStr] = slotTime.split(":");
       const hour = parseInt(hourStr, 10);
+      if (isNaN(hour)) return;
+
+      const normalizedSlot = {
+        ...s,
+        slotTime,
+        isAvailable: (s.available ?? true) && s.status === "AVAILABLE",
+      };
+
       if (hour < 12) {
-        morning.push(s);
-      } else if (hour < 17 || (hour === 17 && s.startTime <= "17:30")) {
-        afternoon.push(s);
+        morning.push(normalizedSlot);
+      } else if (hour < 17 || (hour === 17 && slotTime <= "17:30")) {
+        afternoon.push(normalizedSlot);
       } else {
-        evening.push(s);
+        evening.push(normalizedSlot);
       }
     });
 
@@ -71,25 +82,24 @@ export function SlotPicker({
 
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
               {group.slots.map((s) => {
-                const isSelected = selectedSlotTime === s.startTime;
-                const isAvailable = s.available && s.status === "AVAILABLE";
+                const isSelected = selectedSlotTime === s.slotTime;
+                const isAvailable = s.isAvailable;
                 const isLocked = s.status === "LOCKED";
-                const isBooked = s.status === "BOOKED";
                 const isPast = s.status === "PAST";
 
                 if (isAvailable) {
                   return (
                     <button
-                      key={s.startTime}
+                      key={s.slotTime}
                       type="button"
-                      onClick={() => onSelectSlot(s.startTime)}
+                      onClick={() => onSelectSlot(s.slotTime)}
                       className={`py-3 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 border-2 cursor-pointer ${
                         isSelected
                           ? "bg-pink-600 border-pink-600 text-white shadow-md shadow-pink-200 scale-102"
                           : "bg-white border-slate-200 text-slate-700 hover:border-pink-400 hover:bg-pink-50/50 hover:text-pink-700"
                       }`}
                     >
-                      <span className="text-sm tracking-tight">{s.startTime}</span>
+                      <span className="text-sm tracking-tight">{s.slotTime}</span>
                       <span className="text-xs font-medium opacity-80">
                         {isSelected ? "Đã chọn" : "Còn chỗ"}
                       </span>
@@ -100,11 +110,11 @@ export function SlotPicker({
                 if (isLocked) {
                   return (
                     <div
-                      key={s.startTime}
+                      key={s.slotTime}
                       title="Khung giờ đang có khách giữ chỗ trong 5 phút"
                       className="py-3 px-2 rounded-xl text-xs font-semibold bg-amber-50/70 border border-amber-200 text-amber-700 opacity-80 flex flex-col items-center justify-center gap-1 cursor-not-allowed"
                     >
-                      <span className="text-sm line-through opacity-75">{s.startTime}</span>
+                      <span className="text-sm line-through opacity-75">{s.slotTime}</span>
                       <span className="text-xs font-medium flex items-center gap-0.5">
                         <Lock className="w-2.5 h-2.5" /> Giữ 5p
                       </span>
@@ -114,10 +124,10 @@ export function SlotPicker({
 
                 return (
                   <div
-                    key={s.startTime}
+                    key={s.slotTime}
                     className="py-3 px-2 rounded-xl text-xs font-medium bg-slate-100 border border-slate-200 text-slate-400 flex flex-col items-center justify-center gap-1 cursor-not-allowed select-none"
                   >
-                    <span className="text-sm opacity-60">{s.startTime}</span>
+                    <span className="text-sm opacity-60">{s.slotTime}</span>
                     <span className="text-xs opacity-75">{isPast ? "Đã qua" : "Đã kín"}</span>
                   </div>
                 );

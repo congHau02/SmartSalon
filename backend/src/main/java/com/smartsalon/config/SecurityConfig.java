@@ -53,7 +53,7 @@ public class SecurityConfig {
                                 "/ws/**",
                                 "/uploads/**"
                         ).permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/branches").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/branches", "/api/v1/branches/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/services/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/stylists/**").permitAll()

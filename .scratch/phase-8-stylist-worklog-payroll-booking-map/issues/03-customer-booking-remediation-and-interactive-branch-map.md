@@ -4,11 +4,11 @@
 
 **Blocked by:** 01: Stylist Quick Service Ticket, Daily Worklog & End-of-Shift Cash/Transfer Handover
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Branch lookup endpoints (`GET /api/v1/branches` and `GET /api/v1/branches/{id}`) expose each branch's `latitude` and `longitude` coordinates populated by the V7 migration.
-- [ ] Step 1 of the Customer `Booking` wizard displays an interactive Leaflet/OpenStreetMap branch map alongside the branch cards, supporting bidirectional selection (`flyTo` animation and popup synchronization when clicking a branch card or map marker).
-- [ ] Step 1 provides a **"Gần tôi nhất"** geolocation action that computes Haversine distance (`km`) from the user's coordinates to each branch, displays `Cách bạn X.X km` badges on branch cards, and selects the nearest branch (gracefully falling back when geolocation permission is denied), plus a **"Chỉ đường"** button on every branch card and map popup linking to `https://www.google.com/maps/dir/?api=1&destination={lat},{lng}`.
-- [ ] Step 2 (`SlotPicker`) normalizes `Slot` DTO fields (`s.time || s.startTime` and `s.status === "AVAILABLE"`) so Morning, Afternoon, and Evening 30-minute `Slots` render and select properly without throwing `TypeError` exceptions.
-- [ ] Step 3 (`CustomerConfirmStep`) synchronizes `user.fullName` and `user.phone` into form state when an authenticated customer is logged in, allowing logged-in customers and unauthenticated guests alike to submit their reservation and transition to Step 4 (5-minute Redis `Slot Lock` & VietQR `Deposit`).
-- [ ] Automated backend and frontend tests verify branch coordinate responses, `Slot` normalization, Haversine distance and Google Maps direction URL helpers, and authenticated/guest booking submission, with all touched React components strictly $\le 250$ LOC and a clean `vite build`.
+- [x] Branch lookup endpoints (`GET /api/v1/branches` and `GET /api/v1/branches/{id}`) expose each branch's `latitude` and `longitude` coordinates populated by the V7 migration.
+- [x] Step 1 of the Customer `Booking` wizard displays an interactive Leaflet/OpenStreetMap branch map alongside the branch cards, supporting bidirectional selection (`flyTo` animation and popup synchronization when clicking a branch card or map marker).
+- [x] Step 1 provides a **"Gần tôi nhất"** geolocation action that computes Haversine distance (`km`) from the user's coordinates to each branch, displays `Cách bạn X.X km` badges on branch cards, and selects the nearest branch (gracefully falling back when geolocation permission is denied), plus a **"Chỉ đường"** button on every branch card and map popup linking to `https://www.google.com/maps/dir/?api=1&destination={lat},{lng}`.
+- [x] Step 2 (`SlotPicker`) normalizes `Slot` DTO fields (`s.time || s.startTime` and `s.status === "AVAILABLE"`) so Morning, Afternoon, and Evening 30-minute `Slots` render and select properly without throwing `TypeError` exceptions.
+- [x] Step 3 (`CustomerConfirmStep`) synchronizes `user.fullName` and `user.phone` into form state when an authenticated customer is logged in, allowing logged-in customers and unauthenticated guests alike to submit their reservation and transition to Step 4 (5-minute Redis `Slot Lock` & VietQR `Deposit`).
+- [x] Automated backend and frontend tests verify branch coordinate responses, `Slot` normalization, Haversine distance and Google Maps direction URL helpers, and authenticated/guest booking submission, with all touched React components strictly $\le 250$ LOC and a clean `vite build`.
