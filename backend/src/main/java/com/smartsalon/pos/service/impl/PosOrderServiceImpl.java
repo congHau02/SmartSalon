@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import jakarta.persistence.EntityManager;
 import com.smartsalon.inventory.service.InventoryService;
 import com.smartsalon.payment.entity.PaymentTransactionEntity;
 import com.smartsalon.payment.repository.PaymentTransactionRepository;
@@ -40,16 +41,22 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PosOrderServiceImpl implements PosOrderService {
+
+    private static final DateTimeFormatter BASIC_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final String ALPHANUMERIC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final OrderRepository orderRepository;
     private final OrderStepAssignmentRepository stepAssignmentRepository;
@@ -65,6 +72,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final CustomerIdentityService customerIdentityService;
     private final OrderBomResolver orderBomResolver;
+    private final EntityManager entityManager;
 
     @Value("${app.payos.bank-id:MB}")
     private String bankId;
@@ -144,7 +152,6 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order.recalculateTotals();
         applyMembershipTierDiscountIfAutomatic(order);
-        applyCustomerCreditBalanceIfAvailable(order);
 
         OrderEntity savedOrder = orderRepository.save(order);
 
@@ -239,7 +246,6 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order.recalculateTotals();
         applyMembershipTierDiscountIfAutomatic(order);
-        applyCustomerCreditBalanceIfAvailable(order);
 
         OrderEntity savedOrder = orderRepository.save(order);
         realtimeNotificationService.notifyWalkInCreated(savedOrder);
@@ -637,7 +643,21 @@ public class PosOrderServiceImpl implements PosOrderService {
     }
 
     private String generateOrderCode() {
-        return "ORD-" + (System.currentTimeMillis() % 100000000);
+        String datePart = LocalDate.now().format(BASIC_DATE_FORMATTER);
+        String orderCode;
+        int attempts = 0;
+        do {
+            if (attempts >= 10) {
+                throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không thể tạo mã đơn hàng duy nhất");
+            }
+            char[] randChars = new char[6];
+            for (int i = 0; i < 6; i++) {
+                randChars[i] = ALPHANUMERIC.charAt(SECURE_RANDOM.nextInt(ALPHANUMERIC.length()));
+            }
+            orderCode = "ORD-" + datePart + "-" + new String(randChars);
+            attempts++;
+        } while (orderRepository.existsByOrderCode(orderCode));
+        return orderCode;
     }
 
     @Override
@@ -876,7 +896,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional
     public PosOrderResponse checkoutOrder(Long orderId, CheckoutRequest request) {
-        OrderEntity order = orderRepository.findById(orderId)
+        OrderEntity order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
         if (order.isDeleted()) {
@@ -892,34 +912,65 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
-        if (request.getDiscountAmount() != null) {
+        if (request != null && request.getDiscountAmount() != null) {
             if (request.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR);
             }
             applyManualDiscount(order, request.getDiscountAmount());
         }
 
-        if (request.getNotes() != null) {
+        if (request != null && request.getNotes() != null) {
             order.setNotes(request.getNotes());
         }
 
         order.recalculateTotals();
 
-        String paymentMethod = StringUtils.hasText(request.getPaymentMethod())
+        String paymentMethod = (request != null && StringUtils.hasText(request.getPaymentMethod()))
                 ? request.getPaymentMethod().trim().toUpperCase()
                 : "CASH";
-        order.setPaymentMethod(paymentMethod);
 
-        // 1. Deduct chemical BOM consumables
+        UserEntity settlingUser = resolveCurrentUser();
+        return executeUnifiedSettlement(order, paymentMethod, settlingUser);
+    }
+
+    private PosOrderResponse executeUnifiedSettlement(OrderEntity order, String paymentMethod, UserEntity settlingUser) {
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
+        // 1. Lock customer row & atomically apply and deduct retained deposit (creditBalance), if any
+        UserEntity customer = order.getCustomer();
+        UserEntity lockedCustomer = null;
+        if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername())) {
+            lockedCustomer = userRepository.findByIdForUpdate(customer.getId()).orElse(customer);
+            if (entityManager != null) {
+                entityManager.refresh(lockedCustomer);
+            }
+            BigDecimal credit = lockedCustomer.getCreditBalance() != null ? lockedCustomer.getCreditBalance() : BigDecimal.ZERO;
+            if (credit.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal subtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
+                BigDecimal discount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
+                BigDecimal existingDeposit = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
+                BigDecimal payableBeforeCredit = subtotal.subtract(discount).subtract(existingDeposit).max(BigDecimal.ZERO);
+                if (payableBeforeCredit.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal appliedCredit = credit.min(payableBeforeCredit);
+                    lockedCustomer.setCreditBalance(credit.subtract(appliedCredit));
+                    order.setDepositDeducted(existingDeposit.add(appliedCredit));
+                    order.recalculateTotals();
+                }
+            }
+        }
+
+        // 2. Deduct chemical BOM consumables
         deductChemicalConsumables(order);
 
-        // 2. Deduct retail product sealed units
+        // 3. Deduct retail product sealed units
         deductRetailProducts(order);
 
-        // 3. Mark step assignments COMPLETED and record immutable Commission Ledger
+        // 4. Mark step assignments COMPLETED and record immutable Commission Ledger
         completeStepsAndRecordCommission(order);
 
-        // 4. Record Payment Transaction
+        // 5. Record Payment Transaction
         PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
                 .orderId(order.getId())
                 .booking(order.getBooking())
@@ -930,26 +981,26 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .build();
         paymentTransactionRepository.save(tx);
 
-        // 5. Update Order status to PAID, stamp settling user and linked Booking to COMPLETED
-        UserEntity settlingUser = resolveCurrentUser();
+        // 6. Update Order status to PAID, stamp settling user and settledAt
+        order.setPaymentMethod(paymentMethod);
         order.setSettledBy(settlingUser);
         order.setSettledAt(Instant.now());
         order.setStatus(OrderStatus.PAID);
         OrderEntity savedOrder = orderRepository.save(order);
 
-        // 5b. Update customer cumulative spend and membership tier (excluding walkin.guest)
-        if (order.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(order.getCustomer().getUsername())) {
-            UserEntity customer = order.getCustomer();
-            BigDecimal netRevenue = order.calculateRevenueBreakdown().totalNetRevenue();
-            BigDecimal currentSpent = customer.getTotalSpent() != null ? customer.getTotalSpent() : BigDecimal.ZERO;
+        // 7. Update customer cumulative spend and membership tier under row lock
+        if (lockedCustomer != null) {
+            BigDecimal netRevenue = savedOrder.calculateRevenueBreakdown().totalNetRevenue();
+            BigDecimal currentSpent = lockedCustomer.getTotalSpent() != null ? lockedCustomer.getTotalSpent() : BigDecimal.ZERO;
             BigDecimal updatedSpent = currentSpent.add(netRevenue);
-            customer.setTotalSpent(updatedSpent);
-            customer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
-            userRepository.save(customer);
+            lockedCustomer.setTotalSpent(updatedSpent);
+            lockedCustomer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
+            userRepository.saveAndFlush(lockedCustomer);
         }
 
-        if (order.getBooking() != null) {
-            BookingEntity booking = order.getBooking();
+        // 8. Update linked Booking to COMPLETED
+        if (savedOrder.getBooking() != null) {
+            BookingEntity booking = savedOrder.getBooking();
             BookingStatus oldBookingStatus = booking.getStatus();
             booking.setStatus(BookingStatus.COMPLETED);
             bookingRepository.save(booking);
@@ -958,7 +1009,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             }
         }
 
-        // 6. Broadcast realtime WebSocket event
+        // 9. Broadcast realtime WebSocket event
         realtimeNotificationService.notifyOrderCheckedOut(savedOrder);
 
         return mapToOrderResponse(savedOrder);
@@ -1037,6 +1088,13 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         BigDecimal finalAmount = order.calculateFinalAmountWithDraftDiscount(draftDiscountAmount);
+        if (order.getStatus() != OrderStatus.PAID && order.getCustomer() != null
+                && !"walkin.guest".equalsIgnoreCase(order.getCustomer().getUsername())) {
+            BigDecimal credit = order.getCustomer().getCreditBalance() != null ? order.getCustomer().getCreditBalance() : BigDecimal.ZERO;
+            if (credit.compareTo(BigDecimal.ZERO) > 0) {
+                finalAmount = finalAmount.subtract(credit).max(BigDecimal.ZERO);
+            }
+        }
         String desc = order.getOrderCode();
         String qrCodeUrl = com.smartsalon.payment.VietQrUrlBuilder.buildCompactQrUrl(
                 bankId, accountNo, accountName, finalAmount, desc);
@@ -1147,29 +1205,6 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.setDiscountManual(clamped.compareTo(auto) != 0);
     }
 
-    private void applyCustomerCreditBalanceIfAvailable(OrderEntity order) {
-        UserEntity customer = order.getCustomer();
-        if (customer == null || "walkin.guest".equalsIgnoreCase(customer.getUsername())) {
-            return;
-        }
-        BigDecimal credit = customer.getCreditBalance();
-        if (credit == null || credit.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
-        BigDecimal subtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
-        BigDecimal discount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
-        BigDecimal currentDepositDeducted = order.getDepositDeducted() != null ? order.getDepositDeducted() : BigDecimal.ZERO;
-
-        BigDecimal maxApplicable = subtotal.subtract(discount).subtract(currentDepositDeducted);
-        if (maxApplicable.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal applied = credit.min(maxApplicable);
-            order.setDepositDeducted(currentDepositDeducted.add(applied));
-            customer.setCreditBalance(credit.subtract(applied));
-            userRepository.save(customer);
-            order.recalculateTotals();
-        }
-    }
-
     private UserEntity resolveCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
@@ -1270,7 +1305,6 @@ public class PosOrderServiceImpl implements PosOrderService {
         } else {
             applyMembershipTierDiscountIfAutomatic(order);
         }
-        applyCustomerCreditBalanceIfAvailable(order);
         order.recalculateTotals();
 
         String paymentMethod = StringUtils.hasText(request.getPaymentMethod())
@@ -1280,47 +1314,10 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // Save order first so it has an ID and persisted items/steps
         OrderEntity savedOrder = orderRepository.save(order);
+        OrderEntity lockedOrder = orderRepository.findByIdForUpdate(savedOrder.getId()).orElse(savedOrder);
 
-        // 1. Deduct chemical BOM consumables
-        deductChemicalConsumables(savedOrder);
-
-        // 2. Deduct retail product sealed units
-        deductRetailProducts(savedOrder);
-
-        // 3. Mark step assignments COMPLETED and record immutable Commission Ledger
-        completeStepsAndRecordCommission(savedOrder);
-
-        // 4. Record Payment Transaction
-        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
-                .orderId(savedOrder.getId())
-                .paymentMethod(paymentMethod)
-                .transactionCode("TX-POS-" + savedOrder.getOrderCode() + "-" + System.currentTimeMillis())
-                .amount(savedOrder.getFinalAmount())
-                .status(PaymentTransactionEntity.STATUS_SUCCESS)
-                .build();
-        paymentTransactionRepository.save(tx);
-
-        // 5. Update Order status to PAID, stamp settledBy and settledAt
-        savedOrder.setStatus(OrderStatus.PAID);
-        savedOrder.setSettledBy(currentUser != null ? currentUser : assignedStylist);
-        savedOrder.setSettledAt(Instant.now());
-        savedOrder = orderRepository.save(savedOrder);
-
-        // 6. Update customer cumulative spend and membership tier (excluding walkin.guest)
-        if (savedOrder.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(savedOrder.getCustomer().getUsername())) {
-            UserEntity customer = savedOrder.getCustomer();
-            BigDecimal netRevenue = savedOrder.calculateRevenueBreakdown().totalNetRevenue();
-            BigDecimal currentSpent = customer.getTotalSpent() != null ? customer.getTotalSpent() : BigDecimal.ZERO;
-            BigDecimal updatedSpent = currentSpent.add(netRevenue);
-            customer.setTotalSpent(updatedSpent);
-            customer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
-            userRepository.save(customer);
-        }
-
-        // 7. Broadcast realtime WebSocket event
-        realtimeNotificationService.notifyOrderCheckedOut(savedOrder);
-
-        return mapToOrderResponse(savedOrder);
+        UserEntity settlingUser = currentUser != null ? currentUser : assignedStylist;
+        return executeUnifiedSettlement(lockedOrder, paymentMethod, settlingUser);
     }
 
     @Override
@@ -1356,7 +1353,11 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
         }
 
-        if (order.getStatus() == OrderStatus.PAID) {
+        // Lock order row before checking status or settling
+        order = orderRepository.findByIdForUpdate(order.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Đơn hàng đã được thanh toán");
         }
 
@@ -1412,57 +1413,8 @@ public class PosOrderServiceImpl implements PosOrderService {
                 : "CASH";
         order.setPaymentMethod(paymentMethod);
 
-        OrderEntity savedOrder = orderRepository.save(order);
-
-        // 1. Deduct chemical BOM consumables
-        deductChemicalConsumables(savedOrder);
-
-        // 2. Deduct retail product sealed units
-        deductRetailProducts(savedOrder);
-
-        // 3. Mark step assignments COMPLETED and record immutable Commission Ledger
-        completeStepsAndRecordCommission(savedOrder);
-
-        // 4. Record Payment Transaction
-        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
-                .orderId(savedOrder.getId())
-                .booking(booking)
-                .paymentMethod(paymentMethod)
-                .transactionCode("TX-POS-" + savedOrder.getOrderCode() + "-" + System.currentTimeMillis())
-                .amount(savedOrder.getFinalAmount())
-                .status(PaymentTransactionEntity.STATUS_SUCCESS)
-                .build();
-        paymentTransactionRepository.save(tx);
-
-        // 5. Update Order status to PAID, stamp settledBy and settledAt
-        savedOrder.setStatus(OrderStatus.PAID);
-        savedOrder.setSettledBy(currentUser != null ? currentUser : stylist);
-        savedOrder.setSettledAt(Instant.now());
-        savedOrder = orderRepository.save(savedOrder);
-
-        // 6. Update customer cumulative spend and membership tier (excluding walkin.guest)
-        if (savedOrder.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(savedOrder.getCustomer().getUsername())) {
-            UserEntity customer = savedOrder.getCustomer();
-            BigDecimal netRevenue = savedOrder.calculateRevenueBreakdown().totalNetRevenue();
-            BigDecimal currentSpent = customer.getTotalSpent() != null ? customer.getTotalSpent() : BigDecimal.ZERO;
-            BigDecimal updatedSpent = currentSpent.add(netRevenue);
-            customer.setTotalSpent(updatedSpent);
-            customer.setMembershipTier(MembershipTier.fromTotalSpent(updatedSpent));
-            userRepository.save(customer);
-        }
-
-        // 7. Update booking status to COMPLETED
-        BookingStatus oldBookingStatus = booking.getStatus();
-        booking.setStatus(BookingStatus.COMPLETED);
-        bookingRepository.save(booking);
-        if (realtimeNotificationService != null && oldBookingStatus != BookingStatus.COMPLETED) {
-            realtimeNotificationService.notifyBookingStatusChanged(booking, oldBookingStatus, BookingStatus.COMPLETED);
-        }
-
-        // 8. Broadcast realtime WebSocket event
-        realtimeNotificationService.notifyOrderCheckedOut(savedOrder);
-
-        return mapToOrderResponse(savedOrder);
+        UserEntity settlingUser = currentUser != null ? currentUser : stylist;
+        return executeUnifiedSettlement(order, paymentMethod, settlingUser);
     }
 
     @Override

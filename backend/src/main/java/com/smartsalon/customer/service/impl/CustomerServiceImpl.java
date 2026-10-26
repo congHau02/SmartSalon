@@ -5,6 +5,7 @@ import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.entity.DepositStatus;
 import com.smartsalon.booking.repository.BookingRepository;
+import com.smartsalon.booking.service.BookingService;
 import com.smartsalon.booking.service.RedisLockService;
 import com.smartsalon.customer.dto.*;
 import com.smartsalon.customer.service.CustomerService;
@@ -41,6 +42,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
+    private final BookingService bookingService;
     private final OrderRepository orderRepository;
     private final RedisLockService redisLockService;
     private final RealtimeNotificationService realtimeNotificationService;
@@ -146,34 +148,8 @@ public class CustomerServiceImpl implements CustomerService {
             throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
         }
 
-        BookingStatus oldStatus = booking.getStatus();
-        booking.setStatus(BookingStatus.CANCELLED);
-
-        // 1. Release active Redis slot lock if assigned stylist
-        if (booking.getStaff() != null) {
-            redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
-        }
-
-        // 2. If deposit was paid, credit full deposit amount into customer's Retained Deposit balance
-        if (booking.getDepositStatus() == DepositStatus.PAID &&
-                booking.getDepositAmount() != null &&
-                booking.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
-            UserEntity customer = booking.getCustomer();
-            if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername())) {
-                BigDecimal currentCredit = customer.getCreditBalance() != null ? customer.getCreditBalance() : BigDecimal.ZERO;
-                customer.setCreditBalance(currentCredit.add(booking.getDepositAmount()));
-                userRepository.save(customer);
-                booking.setDepositStatus(DepositStatus.CREDITED);
-            }
-        }
-
-        booking = bookingRepository.save(booking);
-
-        if (realtimeNotificationService != null) {
-            realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, BookingStatus.CANCELLED);
-        }
-
-        return mapToCustomerBookingResponse(booking, now);
+        BookingEntity cancelledBooking = bookingService.cancelBooking(booking);
+        return mapToCustomerBookingResponse(cancelledBooking, now);
     }
 
     private UserEntity resolveUserByUsername(String username) {

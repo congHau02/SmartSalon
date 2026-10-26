@@ -124,7 +124,8 @@ class BookingServiceTest {
                 paymentTransactionRepository,
                 bookingMapper,
                 null,
-                customerIdentityService
+                customerIdentityService,
+                null
         );
     }
 

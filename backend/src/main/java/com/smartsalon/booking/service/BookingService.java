@@ -3,6 +3,7 @@ package com.smartsalon.booking.service;
 import com.smartsalon.booking.dto.BookingResponse;
 import com.smartsalon.booking.dto.CreateBookingRequest;
 import com.smartsalon.booking.dto.UpdateBookingStatusRequest;
+import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
 
 import java.time.LocalDate;
@@ -19,4 +20,6 @@ public interface BookingService {
     List<BookingResponse> getBookings(Long branchId, BookingStatus status, LocalDate date, String search);
 
     BookingResponse updateBookingStatus(Long id, UpdateBookingStatusRequest request);
+
+    BookingEntity cancelBooking(BookingEntity booking);
 }

@@ -29,6 +29,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
 import com.smartsalon.booking.BookingMapper;
 import com.smartsalon.payment.entity.PaymentTransactionEntity;
 import com.smartsalon.payment.repository.PaymentTransactionRepository;
@@ -59,6 +60,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingMapper bookingMapper;
     private final RealtimeNotificationService realtimeNotificationService;
     private final com.smartsalon.user.service.CustomerIdentityService customerIdentityService;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -182,32 +184,25 @@ public class BookingServiceImpl implements BookingService {
             assignedStylist = lockedStylist;
         }
 
-        // Resolve customer: if authenticated user has CUSTOMER role, bind them.
-        // Otherwise (unauthenticated or staff/admin booking for walk-in), resolve by phone.
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        UserEntity customer = null;
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            UserEntity authUser = userRepository.findByUsernameAndIsDeletedFalse(auth.getName()).orElse(null);
-            if (authUser != null && authUser.getRoles().stream().anyMatch(r -> "CUSTOMER".equals(r.getName()))) {
-                customer = authUser;
-            }
-        }
-
+        // Resolve customer directly via CustomerIdentityService
         String phone = request.customerPhone().trim();
-        if (customer == null) {
-            customer = customerIdentityService.resolveForBooking(
-                    phone, request.customerName(), branch);
-        }
+        UserEntity customer = customerIdentityService.resolveForBooking(
+                phone, request.customerName(), branch);
 
         boolean coveredByCredit = false;
         BigDecimal appliedCredit = BigDecimal.ZERO;
-        if (customer != null && customer.getCreditBalance() != null && depositAmount.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal customerCredit = customer.getCreditBalance();
+        if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername()) && depositAmount.compareTo(BigDecimal.ZERO) > 0) {
+            UserEntity lockedCustomer = userRepository.findByIdForUpdate(customer.getId()).orElse(customer);
+            if (entityManager != null) {
+                entityManager.refresh(lockedCustomer);
+            }
+            BigDecimal customerCredit = lockedCustomer.getCreditBalance() != null ? lockedCustomer.getCreditBalance() : BigDecimal.ZERO;
             if (customerCredit.compareTo(depositAmount) >= 0) {
                 coveredByCredit = true;
                 appliedCredit = depositAmount;
-                customer.setCreditBalance(customerCredit.subtract(depositAmount));
-                userRepository.save(customer);
+                lockedCustomer.setCreditBalance(customerCredit.subtract(depositAmount));
+                userRepository.saveAndFlush(lockedCustomer);
+                customer = lockedCustomer;
             }
         }
 
@@ -333,26 +328,19 @@ public class BookingServiceImpl implements BookingService {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
-        if (newStatus == BookingStatus.CANCELLED || newStatus == BookingStatus.EXPIRED) {
+        if (newStatus == BookingStatus.CANCELLED) {
+            if (request.notes() != null && !request.notes().isBlank()) {
+                booking.setNotes(request.notes().trim());
+            }
+            BookingEntity cancelled = cancelBooking(booking);
+            return bookingMapper.toResponse(cancelled);
+        }
+
+        if (newStatus == BookingStatus.EXPIRED) {
             if (oldStatus == BookingStatus.PENDING_PAYMENT && booking.getStaff() != null) {
                 redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
             }
-            if (newStatus == BookingStatus.EXPIRED) {
-                booking.expireHold();
-            } else {
-                booking.setStatus(newStatus);
-                if (booking.getDepositStatus() == DepositStatus.PAID
-                        && booking.getDepositAmount() != null
-                        && booking.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
-                    UserEntity customer = booking.getCustomer();
-                    if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername())) {
-                        BigDecimal currentCredit = customer.getCreditBalance() != null ? customer.getCreditBalance() : BigDecimal.ZERO;
-                        customer.setCreditBalance(currentCredit.add(booking.getDepositAmount()));
-                        userRepository.save(customer);
-                        booking.setDepositStatus(DepositStatus.CREDITED);
-                    }
-                }
-            }
+            booking.expireHold();
         } else if (newStatus == BookingStatus.CONFIRMED) {
             if (oldStatus == BookingStatus.PENDING_PAYMENT) {
                 booking.confirmDeposit();
@@ -376,5 +364,46 @@ public class BookingServiceImpl implements BookingService {
             realtimeNotificationService.notifyBookingStatusChanged(booking, oldStatus, newStatus);
         }
         return bookingMapper.toResponse(booking);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BookingEntity cancelBooking(BookingEntity booking) {
+        BookingStatus oldStatus = booking.getStatus();
+        if (oldStatus != BookingStatus.PENDING_PAYMENT && oldStatus != BookingStatus.CONFIRMED && oldStatus != BookingStatus.CHECKED_IN) {
+            throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
+        }
+
+        // 1. Release active Redis slot lock ONLY IF prior status was PENDING_PAYMENT
+        if (oldStatus == BookingStatus.PENDING_PAYMENT && booking.getStaff() != null) {
+            redisLockService.unlockSlots(booking.getStaff().getId(), booking.getBookingTime(), booking.getEndTime());
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+
+        // 2. If deposit was paid, credit full deposit amount into customer's Retained Deposit balance under row lock
+        if (booking.getDepositStatus() == DepositStatus.PAID
+                && booking.getDepositAmount() != null
+                && booking.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
+            UserEntity customer = booking.getCustomer();
+            if (customer != null && !"walkin.guest".equalsIgnoreCase(customer.getUsername())) {
+                UserEntity lockedCustomer = userRepository.findByIdForUpdate(customer.getId()).orElse(customer);
+                if (entityManager != null) {
+                    entityManager.refresh(lockedCustomer);
+                }
+                BigDecimal currentCredit = lockedCustomer.getCreditBalance() != null ? lockedCustomer.getCreditBalance() : BigDecimal.ZERO;
+                lockedCustomer.setCreditBalance(currentCredit.add(booking.getDepositAmount()));
+                userRepository.saveAndFlush(lockedCustomer);
+                booking.setDepositStatus(DepositStatus.CREDITED);
+            }
+        }
+
+        BookingEntity savedBooking = bookingRepository.save(booking);
+
+        if (realtimeNotificationService != null) {
+            realtimeNotificationService.notifyBookingStatusChanged(savedBooking, oldStatus, BookingStatus.CANCELLED);
+        }
+
+        return savedBooking;
     }
 }

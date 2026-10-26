@@ -2,7 +2,9 @@ package com.smartsalon.pos.repository;
 
 import com.smartsalon.pos.entity.OrderEntity;
 import com.smartsalon.pos.entity.OrderStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,7 +18,13 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     Optional<OrderEntity> findByIdAndIsDeletedFalse(Long id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM OrderEntity o WHERE o.id = :id AND o.isDeleted = false")
+    Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
+
     Optional<OrderEntity> findByOrderCodeAndIsDeletedFalse(String orderCode);
+
+    boolean existsByOrderCode(String orderCode);
 
     Optional<OrderEntity> findByBookingIdAndIsDeletedFalse(Long bookingId);
 

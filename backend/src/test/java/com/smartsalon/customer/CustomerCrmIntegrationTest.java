@@ -414,15 +414,53 @@ class CustomerCrmIntegrationTest {
     }
 
     @Test
-    @DisplayName("Online Cancellation: Cancelling >= 2h in advance releases Redis locks and credits Retained Deposit")
+    @DisplayName("Online Cancellation: Cancelling PENDING_PAYMENT booking releases Redis slot locks")
+    @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
+    void shouldReleaseRedisSlotLocksWhenCancellingPendingPaymentBooking() throws Exception {
+        UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
+        LocalDateTime startTime = LocalDateTime.now().plusHours(4);
+        LocalDateTime endTime = startTime.plusMinutes(90);
+
+        redisLockService.tryLockSlots(stylist.getId(), startTime, endTime, "CANCEL_TEST_PENDING");
+        assertTrue(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime));
+
+        BookingEntity booking = bookingRepository.save(BookingEntity.builder()
+                .branch(branch)
+                .customer(custHa)
+                .staff(stylist)
+                .bookingCode("BK-PEN-" + System.currentTimeMillis())
+                .bookingTime(startTime)
+                .endTime(endTime)
+                .totalDurationMinutes(90)
+                .totalPrice(new BigDecimal("850000.00"))
+                .depositAmount(new BigDecimal("170000.00"))
+                .depositStatus(DepositStatus.UNPAID)
+                .status(BookingStatus.PENDING_PAYMENT)
+                .customerName(custHa.getFullName())
+                .customerPhone(custHa.getPhone())
+                .items(new ArrayList<>())
+                .build());
+
+        mockMvc.perform(post("/api/v1/customer/me/bookings/" + booking.getId() + "/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result.status").value("CANCELLED"));
+
+        // Redis slot locks released because status was PENDING_PAYMENT
+        assertFalse(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime),
+                "Redis slot locks must be freed upon cancellation of PENDING_PAYMENT booking");
+    }
+
+    @Test
+    @DisplayName("Online Cancellation: Cancelling >= 2h in advance credits Retained Deposit and preserves other active Redis locks")
     @WithMockUser(username = "cust.ha", roles = {"CUSTOMER"})
     void shouldAllowOnlineCancellationAndCreditRetainedDepositWhenAtLeastTwoHoursBefore() throws Exception {
         UserEntity stylist = userRepository.findActiveStylistsByBranchId(branch.getId()).stream().findFirst().orElseThrow();
         LocalDateTime startTime = LocalDateTime.now().plusHours(4);
         LocalDateTime endTime = startTime.plusMinutes(90);
 
-        // Lock slot in Redis to simulate hold/booking
-        redisLockService.tryLockSlots(stylist.getId(), startTime, endTime, "CANCEL_TEST");
+        // Another customer holds an active lock on this slot
+        redisLockService.tryLockSlots(stylist.getId(), startTime, endTime, "ANOTHER_CUSTOMER_LOCK");
         assertTrue(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime));
 
         BigDecimal initialCredit = custHa.getCreditBalance() != null ? custHa.getCreditBalance() : BigDecimal.ZERO;
@@ -457,14 +495,17 @@ class CustomerCrmIntegrationTest {
         assertEquals(BookingStatus.CANCELLED, updated.getStatus());
         assertEquals(DepositStatus.CREDITED, updated.getDepositStatus());
 
-        // 2. Redis slot locks released
-        assertFalse(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime),
-                "Redis slot locks must be freed upon cancellation");
+        // 2. Redis slot locks for CONFIRMED booking are NOT wiped (preserves other customer's active lock per Story 18)
+        assertTrue(redisLockService.isAnySlotLocked(stylist.getId(), startTime, endTime),
+                "Redis slot locks must NOT be wiped when cancelling a CONFIRMED booking");
 
         // 3. Retained Deposit balance credited
         UserEntity updatedCust = userRepository.findById(custHa.getId()).orElseThrow();
         assertEquals(0, initialCredit.add(depositAmount).compareTo(updatedCust.getCreditBalance()),
                 "Customer credit balance must increase by paid deposit amount");
+
+        // Cleanup Redis lock
+        redisLockService.unlockSlots(stylist.getId(), startTime, endTime);
     }
 
     @Test
@@ -551,7 +592,7 @@ class CustomerCrmIntegrationTest {
     }
 
     @Test
-    @DisplayName("Retained Deposit Auto-Offset: POS walk-in and check-in auto-offsets remaining credit balance into deposit_deducted")
+    @DisplayName("Retained Deposit: POS walk-in does not deduct creditBalance on draft; offset occurs once at final settlement (PAID)")
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     void shouldAutoOffsetRemainingRetainedDepositAtPosCheckInAndWalkIn() throws Exception {
         // Set customer credit balance to 200,000 VND
@@ -567,22 +608,44 @@ class CustomerCrmIntegrationTest {
                 .notes("Khách vãng lai dùng cọc bảo lưu")
                 .build();
 
-        mockMvc.perform(post("/api/v1/pos/orders/walk-in")
+        MvcResult result = mockMvc.perform(post("/api/v1/pos/orders/walk-in")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(walkInReq)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.result.subtotal").value(850000.00))
                 // 5% SILVER discount = 42,500 VND
                 .andExpect(jsonPath("$.result.discountAmount").value(42500.00))
-                // Full 200,000 VND credit balance offset into deposit_deducted
+                // Draft order does NOT deduct retained deposit upfront
+                .andExpect(jsonPath("$.result.depositDeducted").value(0.00))
+                // Draft final amount = 850,000 - 42,500 = 807,500 VND
+                .andExpect(jsonPath("$.result.finalAmount").value(807500.00))
+                .andReturn();
+
+        Long orderId = objectMapper.readTree(result.getResponse().getContentAsString()).get("result").get("id").asLong();
+
+        // Customer's credit balance must remain 200,000 VND while order is in draft
+        UserEntity draftCust = userRepository.findById(custHa.getId()).orElseThrow();
+        assertEquals(0, new BigDecimal("200000.00").compareTo(draftCust.getCreditBalance()),
+                "Credit balance must remain untouched during draft order state");
+
+        // Now checkout the order: available 200,000 credit is deducted atomically at settlement
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .paymentMethod("CASH")
+                .notes("Thanh toán hoàn tất với cọc bảo lưu")
+                .build();
+
+        mockMvc.perform(post("/api/v1/pos/orders/" + orderId + "/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(checkoutReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status").value("PAID"))
                 .andExpect(jsonPath("$.result.depositDeducted").value(200000.00))
-                // Final amount = 850,000 - 42,500 - 200,000 = 607,500 VND
                 .andExpect(jsonPath("$.result.finalAmount").value(607500.00));
 
         // Customer's credit balance should now be 0 VND
-        UserEntity updatedCust = userRepository.findById(custHa.getId()).orElseThrow();
-        assertEquals(0, BigDecimal.ZERO.compareTo(updatedCust.getCreditBalance()),
-                "Remaining credit balance should be fully consumed");
+        UserEntity settledCust = userRepository.findById(custHa.getId()).orElseThrow();
+        assertEquals(0, BigDecimal.ZERO.compareTo(settledCust.getCreditBalance()),
+                "Remaining credit balance should be deducted at settlement");
     }
 
     @Test
