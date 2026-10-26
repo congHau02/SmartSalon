@@ -371,13 +371,14 @@ class StaffPayrollIntegrationTest {
 
         // 3. Verify immediate reflection in Realized P&L Tier 2 post-payroll net profit
         // Total base salary across all 4 branch staff: 15M (Minh) + 10M (Lan) + 9M (Hung) + 8M (Le) = 42M
+        // Pro-rated for 4 days (15th to 18th): 42M * 4 / 30 = 5,600,000 VND
         mockMvc.perform(get("/api/v1/analytics/pnl")
                         .param("branchId", branch.getId().toString())
                         .param("startDate", "2026-10-15")
                         .param("endDate", "2026-10-18")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.fixedBaseSalaryCost", equalTo(42000000.0)));
+                .andExpect(jsonPath("$.result.fixedBaseSalaryCost", equalTo(5600000.0)));
     }
 
     @Test

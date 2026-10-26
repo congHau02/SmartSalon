@@ -79,6 +79,28 @@ public class RedisLockServiceImpl implements RedisLockService {
     }
 
     @Override
+    public Set<String> getLockedKeys(Collection<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<String> keyList = new ArrayList<>(keys);
+        Set<String> locked = new HashSet<>();
+        try {
+            List<String> values = redisTemplate.opsForValue().multiGet(keyList);
+            if (values != null) {
+                for (int i = 0; i < keyList.size(); i++) {
+                    if (values.get(i) != null) {
+                        locked.add(keyList.get(i));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Redis error querying batch locked keys: {}", e.getMessage());
+        }
+        return locked;
+    }
+
+    @Override
     public void unlockSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime) {
         if (stylistId == null || startTime == null || endTime == null) {
             return;

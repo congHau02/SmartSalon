@@ -33,7 +33,9 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -72,6 +74,19 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
             orders = orderRepository.findByStatusAndDateRange(OrderStatus.PAID, startInstant, endInstant);
         }
 
+        List<Long> orderIds = orders.stream().map(OrderEntity::getId).toList();
+        Map<Long, List<InventoryTransactionEntity>> txMap = orderIds.isEmpty()
+                ? Collections.emptyMap()
+                : inventoryTransactionRepository.findAllByReferenceOrderIdIn(orderIds).stream()
+                        .filter(tx -> tx.getReferenceOrderId() != null)
+                        .collect(Collectors.groupingBy(InventoryTransactionEntity::getReferenceOrderId));
+
+        Map<Long, List<CommissionLedgerEntity>> ledgerMap = orderIds.isEmpty()
+                ? Collections.emptyMap()
+                : commissionLedgerRepository.findByOrderIdIn(orderIds).stream()
+                        .filter(l -> l.getOrder() != null && l.getOrder().getId() != null)
+                        .collect(Collectors.groupingBy(l -> l.getOrder().getId()));
+
         List<OrderPnlResponse> orderPnlList = new ArrayList<>();
         Map<LocalDate, DailyAccumulator> dailyMap = new TreeMap<>();
 
@@ -96,7 +111,9 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
         BigDecimal totalOperationalProfit = BigDecimal.ZERO;
 
         for (OrderEntity order : orders) {
-            OrderPnlResponse orderPnl = computeOrderPnl(order);
+            List<InventoryTransactionEntity> transactions = txMap.getOrDefault(order.getId(), Collections.emptyList());
+            List<CommissionLedgerEntity> ledgers = ledgerMap.getOrDefault(order.getId(), Collections.emptyList());
+            OrderPnlResponse orderPnl = computeOrderPnl(order, transactions, ledgers);
             orderPnlList.add(orderPnl);
 
             totalGrossService = totalGrossService.add(orderPnl.getGrossServiceRevenue());
@@ -112,7 +129,8 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
             totalRetailProfit = totalRetailProfit.add(orderPnl.getRetailNetProfit());
             totalOperationalProfit = totalOperationalProfit.add(orderPnl.getOrderNetProfit());
 
-            LocalDate orderDate = order.getCreatedAt().atZone(DEFAULT_ZONE).toLocalDate();
+            Instant orderInstant = order.getSettledAt() != null ? order.getSettledAt() : order.getCreatedAt();
+            LocalDate orderDate = orderInstant.atZone(DEFAULT_ZONE).toLocalDate();
             DailyAccumulator daily = dailyMap.computeIfAbsent(orderDate, DailyAccumulator::new);
             daily.add(orderPnl);
         }
@@ -138,14 +156,20 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                     .setScale(2, RoundingMode.HALF_UP);
         }
 
-        // Fixed base salary cost (Tier 2)
+        // Fixed base salary cost (Tier 2) pro-rated by days in period / 30
         List<UserEntity> activeStaff = (branchId != null)
                 ? userRepository.findActiveStaffByBranchId(branchId)
                 : userRepository.findAllActiveStaff();
 
-        BigDecimal fixedBaseSalaryCost = activeStaff.stream()
+        BigDecimal monthlyBaseSalaryTotal = activeStaff.stream()
                 .map(u -> u.getBaseSalary() != null ? u.getBaseSalary() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long daysInPeriod = ChronoUnit.DAYS.between(actualStart, actualEnd) + 1;
+        BigDecimal fixedBaseSalaryCost = monthlyBaseSalaryTotal
+                .multiply(BigDecimal.valueOf(daysInPeriod))
+                .divide(BigDecimal.valueOf(30), 0, RoundingMode.HALF_UP)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal netProfitAfterPayroll = totalOperationalProfit.subtract(fixedBaseSalaryCost);
         BigDecimal netProfitAfterPayrollMarginPercentage = BigDecimal.ZERO;
@@ -186,7 +210,9 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                 .build();
     }
 
-    private OrderPnlResponse computeOrderPnl(OrderEntity order) {
+    private OrderPnlResponse computeOrderPnl(OrderEntity order,
+                                            List<InventoryTransactionEntity> transactions,
+                                            List<CommissionLedgerEntity> ledgers) {
         OrderEntity.RevenueBreakdown rev = order.calculateRevenueBreakdown();
         BigDecimal grossServiceRevenue = rev.grossServiceRevenue();
         BigDecimal grossRetailRevenue = rev.grossRetailRevenue();
@@ -197,9 +223,7 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
         BigDecimal netRetailRevenue = rev.netRetailRevenue();
         BigDecimal totalNetRevenue = rev.totalNetRevenue();
 
-        // Fetch snapshotted inventory transactions for this order
-        List<InventoryTransactionEntity> transactions = inventoryTransactionRepository.findAllByReferenceOrderId(order.getId());
-
+        // Snapshotted inventory transactions for this order (batch loaded)
         BigDecimal chemicalCogs = BigDecimal.ZERO;
         BigDecimal retailCogs = BigDecimal.ZERO;
 
@@ -222,8 +246,7 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
 
         BigDecimal totalCogs = chemicalCogs.add(retailCogs);
 
-        // Commissions from Commission Ledger
-        List<CommissionLedgerEntity> ledgers = commissionLedgerRepository.findByOrderId(order.getId());
+        // Commissions from Commission Ledger (batch loaded)
         BigDecimal staffCommissions = BigDecimal.ZERO;
         if (!ledgers.isEmpty()) {
             for (CommissionLedgerEntity l : ledgers) {

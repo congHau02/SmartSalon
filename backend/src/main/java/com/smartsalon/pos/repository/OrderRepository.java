@@ -30,20 +30,20 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     boolean existsByBookingIdAndStatusNotAndIsDeletedFalse(Long bookingId, OrderStatus status);
 
-    @Query("SELECT o FROM OrderEntity o WHERE o.branch.id = :branchId AND o.createdAt >= :startDate AND o.createdAt < :endDate AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    @Query("SELECT o FROM OrderEntity o WHERE o.branch.id = :branchId AND COALESCE(o.settledAt, o.createdAt) >= :startDate AND COALESCE(o.settledAt, o.createdAt) < :endDate AND o.isDeleted = false ORDER BY COALESCE(o.settledAt, o.createdAt) DESC")
     List<OrderEntity> findByBranchAndDateRange(
             @Param("branchId") Long branchId,
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate);
 
-    @Query("SELECT o FROM OrderEntity o WHERE o.branch.id = :branchId AND o.status = :status AND o.createdAt >= :startDate AND o.createdAt < :endDate AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    @Query("SELECT o FROM OrderEntity o WHERE o.branch.id = :branchId AND o.status = :status AND COALESCE(o.settledAt, o.createdAt) >= :startDate AND COALESCE(o.settledAt, o.createdAt) < :endDate AND o.isDeleted = false ORDER BY COALESCE(o.settledAt, o.createdAt) DESC")
     List<OrderEntity> findByBranchAndStatusAndDateRange(
             @Param("branchId") Long branchId,
             @Param("status") OrderStatus status,
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate);
 
-    @Query("SELECT o FROM OrderEntity o WHERE o.status = :status AND o.createdAt >= :startDate AND o.createdAt < :endDate AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    @Query("SELECT o FROM OrderEntity o WHERE o.status = :status AND COALESCE(o.settledAt, o.createdAt) >= :startDate AND COALESCE(o.settledAt, o.createdAt) < :endDate AND o.isDeleted = false ORDER BY COALESCE(o.settledAt, o.createdAt) DESC")
     List<OrderEntity> findByStatusAndDateRange(
             @Param("status") OrderStatus status,
             @Param("startDate") Instant startDate,

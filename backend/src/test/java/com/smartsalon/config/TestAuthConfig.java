@@ -69,6 +69,12 @@ public class TestAuthConfig {
             }
 
             @Override
+            public java.util.Set<String> getLockedKeys(java.util.Collection<String> keys) {
+                if (keys == null || keys.isEmpty()) return java.util.Collections.emptySet();
+                return keys.stream().filter(locks::containsKey).collect(java.util.stream.Collectors.toSet());
+            }
+
+            @Override
             public void unlockSlots(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
                 java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
                 keys.forEach(locks::remove);

@@ -28,8 +28,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -58,13 +58,25 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
             users = userRepository.findAllActiveStylists();
         }
 
+        if (users.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> stylistIds = users.stream().map(UserEntity::getId).toList();
+        Map<Long, ServiceReviewRepository.StylistReviewStats> statsMap = serviceReviewRepository
+                .getReviewStatsByStylistIds(stylistIds)
+                .stream()
+                .collect(Collectors.toMap(ServiceReviewRepository.StylistReviewStats::getStylistId, s -> s));
+
         return users.stream()
                 .map(u -> {
-                    Double avg = serviceReviewRepository.getAverageRatingByStylistId(u.getId());
-                    BigDecimal avgRating = avg != null
-                            ? BigDecimal.valueOf(avg).setScale(1, RoundingMode.HALF_UP)
+                    ServiceReviewRepository.StylistReviewStats stats = statsMap.get(u.getId());
+                    BigDecimal avgRating = (stats != null && stats.getAverageRating() != null)
+                            ? BigDecimal.valueOf(stats.getAverageRating()).setScale(1, RoundingMode.HALF_UP)
                             : BigDecimal.ZERO.setScale(1);
-                    long reviewCount = serviceReviewRepository.countByStylistId(u.getId());
+                    long reviewCount = (stats != null && stats.getReviewCount() != null)
+                            ? stats.getReviewCount()
+                            : 0L;
                     return new StylistDto(
                             u.getId(),
                             u.getBranch() != null ? u.getBranch().getId() : null,
@@ -139,6 +151,29 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
         LocalTime nowTime = LocalTime.now();
         LocalDateTime now = LocalDateTime.now();
 
+        // 1. Single database query for the day's active branch bookings
+        LocalDateTime dayStart = date.atStartOfDay();
+        LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
+        List<BookingEntity> activeBookings = bookingRepository.findActiveBookingsByBranchAndDay(branchId, dayStart, dayEnd, now);
+        Map<Long, List<BookingEntity>> bookingsByStylist = activeBookings.stream()
+                .filter(b -> b.getStaff() != null && b.getStaff().getId() != null)
+                .collect(Collectors.groupingBy(b -> b.getStaff().getId()));
+
+        // 2. Single batch Redis multiGet query for all candidate slot lock keys across the entire day
+        Set<String> candidateKeys = new LinkedHashSet<>();
+        LocalTime t = OPENING_TIME;
+        while (!t.plusMinutes(totalDurationMinutes).isAfter(CLOSING_TIME)) {
+            LocalTime slotEnd = t.plusMinutes(totalDurationMinutes);
+            LocalDateTime startDt = LocalDateTime.of(date, t);
+            LocalDateTime endDt = LocalDateTime.of(date, slotEnd);
+            for (UserEntity stylist : candidates) {
+                candidateKeys.addAll(RedisLockServiceImpl.generateBucketKeys(stylist.getId(), startDt, endDt));
+            }
+            t = t.plusMinutes(SLOT_INTERVAL_MINUTES);
+        }
+        Set<String> lockedKeys = redisLockService.getLockedKeys(candidateKeys);
+
+        // 3. Compute slot availability purely in memory without SQL or Redis calls inside the loop
         while (!current.plusMinutes(totalDurationMinutes).isAfter(CLOSING_TIME)) {
             LocalTime slotEnd = current.plusMinutes(totalDurationMinutes);
             LocalDateTime slotStartDateTime = LocalDateTime.of(date, current);
@@ -158,16 +193,29 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                 int bookedCount = 0;
 
                 for (UserEntity stylist : candidates) {
-                    List<BookingEntity> overlaps = bookingRepository.findOverlappingBookingsForStylist(
-                            stylist.getId(), slotStartDateTime, slotEndDateTime, now);
+                    List<BookingEntity> stylistBookings = bookingsByStylist.getOrDefault(stylist.getId(), Collections.emptyList());
+                    boolean hasOverlap = false;
+                    for (BookingEntity b : stylistBookings) {
+                        if (b.getBookingTime().isBefore(slotEndDateTime) && b.getEndTime().isAfter(slotStartDateTime)) {
+                            hasOverlap = true;
+                            break;
+                        }
+                    }
 
-                    if (!overlaps.isEmpty()) {
+                    if (hasOverlap) {
                         bookedCount++;
                         continue;
                     }
 
-                    boolean isLockedInRedis = redisLockService.isAnySlotLocked(
-                            stylist.getId(), slotStartDateTime, slotEndDateTime);
+                    List<String> slotKeys = RedisLockServiceImpl.generateBucketKeys(stylist.getId(), slotStartDateTime, slotEndDateTime);
+                    boolean isLockedInRedis = false;
+                    for (String key : slotKeys) {
+                        if (lockedKeys.contains(key)) {
+                            isLockedInRedis = true;
+                            break;
+                        }
+                    }
+
                     if (isLockedInRedis) {
                         lockedCount++;
                         continue;

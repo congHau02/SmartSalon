@@ -4,11 +4,11 @@
 
 **Blocked by:** 01: Unified POS Order Settlement, Pessimistic Concurrency Locking & Settlement-Time Retained Deposit Accounting
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] All date-range queries and daily trend bucketing for `PAID` `Orders` across P&L Analytics, `BOM Wastage`, and `Stylist Daily Worklog` filter by `COALESCE(settledAt, createdAt)` instead of `createdAt`, so carry-over orders settled on a subsequent day appear in the settlement day's revenue, shift cash handover, and profit reports.
-- [ ] Tier-2 P&L calculation pro-rates fixed monthly `Base Salary` according to the number of days in the requested period ($\sum \text{Base Salary} \times \frac{\text{daysInPeriod}}{30}$, rounded to whole VND), so a 1-day report deducts $\frac{1}{30}$ of monthly fixed payroll and a 30-day report deducts 100%.
-- [ ] `Slot` availability calculation fetches all active `Bookings` for the branch and date in one database query and checks all Redis `Slot Lock` keys for the day's slots and stylists in one batch `multiGet` operation, performing overlap checks in memory with zero SQL or Redis calls inside the slot-by-stylist loop.
-- [ ] Active stylist listing for the booking wizard fetches average rating and review count across all branch stylists in a single grouped aggregate query rather than executing two review queries per stylist.
-- [ ] P&L report generation batch-fetches `Inventory Transactions` and `Commission Ledgers` for all `Orders` in the period using `IN (...)` batch repository queries and maps them in memory, eliminating per-order query loops.
-- [ ] Automated integration tests verify that carry-over orders settled today are included in today's P&L and `Stylist Daily Worklog`, verify pro-rated `Base Salary` math for 1-day vs. 30-day periods, and verify accurate slot availability and P&L figures under the batch query implementations.
+- [x] All date-range queries and daily trend bucketing for `PAID` `Orders` across P&L Analytics, `BOM Wastage`, and `Stylist Daily Worklog` filter by `COALESCE(settledAt, createdAt)` instead of `createdAt`, so carry-over orders settled on a subsequent day appear in the settlement day's revenue, shift cash handover, and profit reports.
+- [x] Tier-2 P&L calculation pro-rates fixed monthly `Base Salary` according to the number of days in the requested period ($\sum \text{Base Salary} \times \frac{\text{daysInPeriod}}{30}$, rounded to whole VND), so a 1-day report deducts $\frac{1}{30}$ of monthly fixed payroll and a 30-day report deducts 100%.
+- [x] `Slot` availability calculation fetches all active `Bookings` for the branch and date in one database query and checks all Redis `Slot Lock` keys for the day's slots and stylists in one batch `multiGet` operation, performing overlap checks in memory with zero SQL or Redis calls inside the slot-by-stylist loop.
+- [x] Active stylist listing for the booking wizard fetches average rating and review count across all branch stylists in a single grouped aggregate query rather than executing two review queries per stylist.
+- [x] P&L report generation batch-fetches `Inventory Transactions` and `Commission Ledgers` for all `Orders` in the period using `IN (...)` batch repository queries and maps them in memory, eliminating per-order query loops.
+- [x] Automated integration tests verify that carry-over orders settled today are included in today's P&L and `Stylist Daily Worklog`, verify pro-rated `Base Salary` math for 1-day vs. 30-day periods, and verify accurate slot availability and P&L figures under the batch query implementations.

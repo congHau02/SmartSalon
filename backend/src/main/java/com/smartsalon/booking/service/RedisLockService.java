@@ -1,7 +1,9 @@
 package com.smartsalon.booking.service;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public interface RedisLockService {
 
@@ -15,6 +17,12 @@ public interface RedisLockService {
      * Check if any 30-minute bucket in [startTime, endTime) is currently locked for a stylist.
      */
     boolean isAnySlotLocked(Long stylistId, LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * Given a collection of slot bucket keys, query Redis in a single batch (multiGet)
+     * and return the set of keys that are currently locked (non-null in Redis).
+     */
+    Set<String> getLockedKeys(Collection<String> keys);
 
     /**
      * Release all 30-minute bucket locks in [startTime, endTime) for a stylist.

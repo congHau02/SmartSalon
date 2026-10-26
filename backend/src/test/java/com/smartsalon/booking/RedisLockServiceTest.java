@@ -102,6 +102,17 @@ class RedisLockServiceTest {
     }
 
     @Test
+    @DisplayName("getLockedKeys should return set of keys where values are non-null in Redis")
+    void shouldReturnLockedKeysBatch() {
+        List<String> keys = List.of("key1", "key2", "key3");
+        when(valueOperations.multiGet(keys)).thenReturn(java.util.Arrays.asList("LOCKED", null, "BK-001"));
+
+        java.util.Set<String> locked = redisLockService.getLockedKeys(keys);
+
+        assertThat(locked).containsExactlyInAnyOrder("key1", "key3");
+    }
+
+    @Test
     @DisplayName("unlockSlots should delete all bucket keys")
     void shouldDeleteAllBucketKeys() {
         redisLockService.unlockSlots(stylistId, startTime, endTime);
