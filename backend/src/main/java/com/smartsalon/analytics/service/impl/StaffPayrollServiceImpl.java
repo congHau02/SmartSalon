@@ -48,6 +48,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
     private final BookingRepository bookingRepository;
     private final CommissionLedgerRepository commissionLedgerRepository;
     private final ServiceReviewRepository serviceReviewRepository;
+    private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String STATUS_CANCELLED = "CANCELLED";
@@ -136,7 +137,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
 
         return StaffPayrollSummaryResponse.builder()
                 .branchId(branch != null ? branch.getId() : null)
-                .branchName(branch != null ? branch.getName() : "Tất cả chi nhánh")
+                .branchName(branch != null ? branch.getName() : "TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£ chi nhÃƒÂ¡nh")
                 .startDate(actualStart)
                 .endDate(actualEnd)
                 .totalStaffCount(staffResponses.size())
@@ -161,6 +162,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
 
         UserEntity staff = userRepository.findByUsernameAndIsDeletedFalse(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        branchScopeGuard.checkBranchAccess(staff.getBranch() != null ? staff.getBranch().getId() : null);
 
         Long branchId = staff.getBranch() != null ? staff.getBranch().getId() : null;
 
@@ -376,6 +379,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
         UserEntity staff = userRepository.findById(staffId)
                 .filter(u -> !u.isDeleted())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        branchScopeGuard.checkBranchAccess(staff.getBranch() != null ? staff.getBranch().getId() : null);
 
         BigDecimal salaryToSet = (newBaseSalary != null && newBaseSalary.compareTo(BigDecimal.ZERO) >= 0)
                 ? newBaseSalary

@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -43,6 +45,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .toList();
 
                     var auth = new UsernamePasswordAuthenticationToken(username, null, authorities);
+                    Long branchId = claims.get("branchId") instanceof Number n ? n.longValue() : null;
+                    Long userId = claims.get("userId") instanceof Number n ? n.longValue() : null;
+                    if (branchId != null || userId != null) {
+                        Map<String, Object> details = new HashMap<>();
+                        if (branchId != null) details.put("branchId", branchId);
+                        if (userId != null) details.put("userId", userId);
+                        auth.setDetails(details);
+                    }
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (Exception ignored) {

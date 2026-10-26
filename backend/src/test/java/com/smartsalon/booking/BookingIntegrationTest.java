@@ -149,6 +149,7 @@ class BookingIntegrationTest {
         // Verify lookup by phone
         mockMvc.perform(get("/api/v1/bookings/lookup")
                         .param("phone", "0977889900")
+                        .param("bookingCode", bookingCode)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(1000))

@@ -71,7 +71,7 @@ public class PayOSServiceImpl implements PayOSService {
     @Value("${app.payos.cancel-url:http://localhost:5173/customer/booking?step=4}")
     private String cancelUrl;
 
-    @Value("${app.payos.simulation-enabled:true}")
+    @Value("${app.payos.simulation-enabled:false}")
     private boolean simulationEnabled;
 
     public PayOSServiceImpl(

@@ -16,6 +16,8 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
 
     Optional<BookingEntity> findByBookingCodeAndIsDeletedFalse(String bookingCode);
 
+    Optional<BookingEntity> findByCustomerPhoneAndBookingCodeAndIsDeletedFalse(String customerPhone, String bookingCode);
+
     List<BookingEntity> findByCustomerPhoneAndIsDeletedFalseOrderByBookingTimeDesc(String customerPhone);
 
     List<BookingEntity> findByCustomerIdAndIsDeletedFalseOrderByBookingTimeDesc(Long customerId);

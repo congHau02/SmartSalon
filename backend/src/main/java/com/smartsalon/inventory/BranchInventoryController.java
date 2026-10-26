@@ -3,6 +3,7 @@ package com.smartsalon.inventory;
 import com.smartsalon.common.ApiResponse;
 import com.smartsalon.inventory.dto.*;
 import com.smartsalon.inventory.service.InventoryService;
+import com.smartsalon.security.BranchScopeGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,6 +21,7 @@ import java.util.List;
 public class BranchInventoryController {
 
     private final InventoryService inventoryService;
+    private final BranchScopeGuard branchScopeGuard;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
@@ -27,6 +29,7 @@ public class BranchInventoryController {
     public ResponseEntity<ApiResponse<List<BranchInventoryResponse>>> getBranchInventory(
             @PathVariable Long branchId,
             @RequestParam(required = false) Boolean lowStockOnly) {
+        branchScopeGuard.checkBranchAccess(branchId);
         List<BranchInventoryResponse> inventories = inventoryService.getBranchInventory(branchId, lowStockOnly);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin tồn kho chi nhánh thành công", inventories));
     }
@@ -37,6 +40,7 @@ public class BranchInventoryController {
     public ResponseEntity<ApiResponse<BranchInventoryResponse>> getBranchInventoryByProductId(
             @PathVariable Long branchId,
             @PathVariable Long productId) {
+        branchScopeGuard.checkBranchAccess(branchId);
         BranchInventoryResponse inventory = inventoryService.getBranchInventoryByProductId(branchId, productId);
         return ResponseEntity.ok(ApiResponse.success("Lấy tồn kho sản phẩm thành công", inventory));
     }
@@ -47,6 +51,7 @@ public class BranchInventoryController {
     public ResponseEntity<ApiResponse<BranchInventoryResponse>> stockIn(
             @PathVariable Long branchId,
             @Valid @RequestBody StockInRequest request) {
+        branchScopeGuard.checkBranchAccess(branchId);
         BranchInventoryResponse inventory = inventoryService.stockIn(branchId, request);
         return ResponseEntity.ok(ApiResponse.success("Nhập kho thành công", inventory));
     }
@@ -57,6 +62,7 @@ public class BranchInventoryController {
     public ResponseEntity<ApiResponse<BranchInventoryResponse>> stockAdjustment(
             @PathVariable Long branchId,
             @Valid @RequestBody StockAdjustmentRequest request) {
+        branchScopeGuard.checkBranchAccess(branchId);
         BranchInventoryResponse inventory = inventoryService.stockAdjustment(branchId, request);
         return ResponseEntity.ok(ApiResponse.success("Điều chỉnh tồn kho thành công", inventory));
     }
@@ -67,6 +73,7 @@ public class BranchInventoryController {
     public ResponseEntity<ApiResponse<List<InventoryTransactionResponse>>> getTransactions(
             @PathVariable Long branchId,
             @RequestParam(required = false) Long productId) {
+        branchScopeGuard.checkBranchAccess(branchId);
         List<InventoryTransactionResponse> transactions = inventoryService.getInventoryTransactions(branchId, productId);
         return ResponseEntity.ok(ApiResponse.success("Lấy lịch sử giao dịch kho thành công", transactions));
     }

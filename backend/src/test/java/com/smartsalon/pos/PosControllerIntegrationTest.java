@@ -182,8 +182,10 @@ class PosControllerIntegrationTest {
                         .roles(Set.of(stylistRole))
                         .build())
         );
+        stylist.setBranch(branch);
+        stylist = userRepository.save(stylist);
 
-        userRepository.findByUsernameAndIsDeletedFalse("staff.le").orElseGet(() ->
+        UserEntity staffUser = userRepository.findByUsernameAndIsDeletedFalse("staff.le").orElseGet(() ->
                 userRepository.save(UserEntity.builder()
                         .username("staff.le")
                         .passwordHash("hashed")
@@ -194,6 +196,8 @@ class PosControllerIntegrationTest {
                         .roles(Set.of(staffRole))
                         .build())
         );
+        staffUser.setBranch(branch);
+        userRepository.save(staffUser);
 
         service = ServiceEntity.builder()
                 .name("Cắt tóc tạo kiểu Test POS")

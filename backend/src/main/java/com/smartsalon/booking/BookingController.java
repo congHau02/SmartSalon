@@ -11,6 +11,7 @@ import com.smartsalon.booking.service.SlotCalculationService;
 import com.smartsalon.common.ApiResponse;
 import com.smartsalon.payment.dto.PaymentQrInfo;
 import com.smartsalon.payment.service.PayOSService;
+import com.smartsalon.security.BranchScopeGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,6 +34,7 @@ public class BookingController {
     private final SlotCalculationService slotCalculationService;
     private final BookingService bookingService;
     private final PayOSService payOSService;
+    private final BranchScopeGuard branchScopeGuard;
 
     @GetMapping("/stylists")
     @Operation(summary = "Lấy danh sách Stylist đang hoạt động theo chi nhánh")
@@ -75,8 +77,10 @@ public class BookingController {
 
     @GetMapping("/lookup")
     @Operation(summary = "Tra cứu danh sách lịch hẹn của khách hàng theo số điện thoại")
-    public ResponseEntity<ApiResponse<List<BookingResponse>>> lookupBookings(@RequestParam String phone) {
-        List<BookingResponse> response = bookingService.lookupBookingsByPhone(phone);
+    public ResponseEntity<ApiResponse<List<BookingResponse>>> lookupBookings(
+            @RequestParam String phone,
+            @RequestParam(required = false) String bookingCode) {
+        List<BookingResponse> response = bookingService.lookupBookingsByPhone(phone, bookingCode);
         return ResponseEntity.ok(ApiResponse.success("Tra cứu lịch hẹn thành công", response));
     }
 
@@ -88,7 +92,8 @@ public class BookingController {
             @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) String search) {
-        List<BookingResponse> response = bookingService.getBookings(branchId, status, date, search);
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
+        List<BookingResponse> response = bookingService.getBookings(effectiveBranchId, status, date, search);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách lịch hẹn thành công", response));
     }
 

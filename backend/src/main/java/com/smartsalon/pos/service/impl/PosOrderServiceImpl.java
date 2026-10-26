@@ -73,6 +73,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final CustomerIdentityService customerIdentityService;
     private final OrderBomResolver orderBomResolver;
     private final EntityManager entityManager;
+    private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
 
     @Value("${app.payos.bank-id:MB}")
     private String bankId;
@@ -164,6 +165,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional
     public PosOrderResponse createWalkInOrder(WalkInOrderRequest request) {
+        branchScopeGuard.checkBranchAccess(request.getBranchId());
         BranchEntity branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
 
@@ -387,11 +389,16 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .build();
     }
 
+    private OrderEntity getOrderEntity(Long orderId) {
+        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
+        return order;
+    }
     @Override
     @Transactional(readOnly = true)
     public PosOrderResponse getOrderById(Long orderId) {
-        OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        OrderEntity order = getOrderEntity(orderId);
         return mapToOrderResponse(order);
     }
 
@@ -1420,6 +1427,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional(readOnly = true)
     public StylistDailyWorklogResponse getStylistDailyWorklog(Long branchId, Long stylistId, LocalDate date) {
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
         LocalDate queryDate = date != null ? date : LocalDate.now();
         UserEntity currentUser = resolveCurrentUser();
 
@@ -1445,7 +1453,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             branch = branchRepository.findAllByIsDeletedFalseAndIsActiveTrue().stream().findFirst().orElse(null);
         }
 
-        Long finalBranchId = branch != null ? branch.getId() : 1L;
+        Long finalBranchId = effectiveBranchId != null ? effectiveBranchId : (branch != null ? branch.getId() : 1L);
         String finalBranchName = branch != null ? branch.getName() : "";
         Long finalStylistId = targetStylist != null ? targetStylist.getId() : (currentUser != null ? currentUser.getId() : null);
         String finalStylistName = targetStylist != null ? targetStylist.getFullName() : (currentUser != null ? currentUser.getFullName() : "");

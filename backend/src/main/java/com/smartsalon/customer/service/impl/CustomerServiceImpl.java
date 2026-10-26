@@ -27,6 +27,8 @@ import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,8 +60,22 @@ public class CustomerServiceImpl implements CustomerService {
 
         String cleanPhone = phone.trim();
         Optional<UserEntity> userOpt = userRepository.findByPhoneAndIsDeletedFalse(cleanPhone);
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isPrivilegedStaff = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()) &&
+                auth.getAuthorities().stream().anyMatch(a ->
+                        a.getAuthority().equals("ROLE_ADMIN") ||
+                        a.getAuthority().equals("ROLE_MANAGER") ||
+                        a.getAuthority().equals("ROLE_STAFF") ||
+                        a.getAuthority().equals("ROLE_STYLIST"));
+
+        boolean isSelfCustomer = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()) &&
+                auth.getName() != null && (auth.getName().equals(cleanPhone) || (userOpt.isPresent() && auth.getName().equals(userOpt.get().getUsername())));
+
+        boolean canViewFullPii = isPrivilegedStaff || isSelfCustomer;
+
         if (userOpt.isEmpty()) {
-            return defaultLoyaltyPreview(cleanPhone);
+            return defaultLoyaltyPreview(cleanPhone, canViewFullPii);
         }
 
         UserEntity user = userOpt.get();
@@ -67,16 +83,31 @@ public class CustomerServiceImpl implements CustomerService {
         BigDecimal spent = user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO;
         BigDecimal credit = user.getCreditBalance() != null ? user.getCreditBalance() : BigDecimal.ZERO;
 
+        if (canViewFullPii) {
+            return CustomerLoyaltyDto.builder()
+                    .customerId(user.getId())
+                    .fullName(user.getFullName())
+                    .phone(user.getPhone())
+                    .membershipTier(tier)
+                    .discountPercent(tier.getDiscountPercent())
+                    .totalSpent(spent)
+                    .nextTier(tier.getNextTier())
+                    .amountToNextTier(tier.getAmountToNextTier(spent))
+                    .creditBalance(credit)
+                    .isProvisional(user.isProvisional())
+                    .build();
+        }
+
         return CustomerLoyaltyDto.builder()
-                .customerId(user.getId())
-                .fullName(user.getFullName())
+                .customerId(null)
+                .fullName(maskFullName(user.getFullName()))
                 .phone(user.getPhone())
                 .membershipTier(tier)
                 .discountPercent(tier.getDiscountPercent())
-                .totalSpent(spent)
+                .totalSpent(null)
                 .nextTier(tier.getNextTier())
                 .amountToNextTier(tier.getAmountToNextTier(spent))
-                .creditBalance(credit)
+                .creditBalance(null)
                 .isProvisional(user.isProvisional())
                 .build();
     }
@@ -231,17 +262,44 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private CustomerLoyaltyDto defaultLoyaltyPreview(String phone) {
+        return defaultLoyaltyPreview(phone, true);
+    }
+
+    private CustomerLoyaltyDto defaultLoyaltyPreview(String phone, boolean canViewFullPii) {
         MembershipTier standard = MembershipTier.STANDARD;
         return CustomerLoyaltyDto.builder()
                 .phone(phone)
                 .membershipTier(standard)
                 .discountPercent(standard.getDiscountPercent())
-                .totalSpent(BigDecimal.ZERO)
+                .totalSpent(canViewFullPii ? BigDecimal.ZERO : null)
                 .nextTier(standard.getNextTier())
                 .amountToNextTier(standard.getAmountToNextTier(BigDecimal.ZERO))
-                .creditBalance(BigDecimal.ZERO)
+                .creditBalance(canViewFullPii ? BigDecimal.ZERO : null)
                 .isProvisional(true)
                 .build();
+    }
+
+    private String maskFullName(String fullName) {
+        if (fullName == null || fullName.isBlank()) {
+            return "***";
+        }
+        String[] parts = fullName.trim().split("\\s+");
+        if (parts.length == 1) {
+            String p = parts[0];
+            if (p.length() <= 2) return p.charAt(0) + "*";
+            return p.charAt(0) + "*".repeat(p.length() - 2) + p.charAt(p.length() - 1);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            String p = parts[i];
+            if (i > 0) sb.append(" ");
+            if (p.length() <= 2) {
+                sb.append(p.charAt(0)).append("*");
+            } else {
+                sb.append(p.charAt(0)).append("*".repeat(p.length() - 1));
+            }
+        }
+        return sb.toString();
     }
 
     @Override

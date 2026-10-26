@@ -61,6 +61,7 @@ public class BookingServiceImpl implements BookingService {
     private final RealtimeNotificationService realtimeNotificationService;
     private final com.smartsalon.user.service.CustomerIdentityService customerIdentityService;
     private final EntityManager entityManager;
+    private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -289,11 +290,37 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<BookingResponse> lookupBookingsByPhone(String phone) {
+    public List<BookingResponse> lookupBookingsByPhone(String phone, String bookingCode) {
         if (phone == null || phone.isBlank()) {
             return List.of();
         }
-        return bookingRepository.findByCustomerPhoneAndIsDeletedFalseOrderByBookingTimeDesc(phone.trim()).stream()
+        String cleanPhone = phone.trim();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isPrivilegedStaff = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()) &&
+                auth.getAuthorities().stream().anyMatch(a ->
+                        a.getAuthority().equals("ROLE_ADMIN") ||
+                        a.getAuthority().equals("ROLE_MANAGER") ||
+                        a.getAuthority().equals("ROLE_STAFF") ||
+                        a.getAuthority().equals("ROLE_STYLIST"));
+        boolean isSelfCustomer = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()) &&
+                auth.getName() != null && auth.getName().equals(cleanPhone);
+        boolean canLookupAllByPhone = isPrivilegedStaff || isSelfCustomer;
+        if (!canLookupAllByPhone) {
+            if (bookingCode == null || bookingCode.isBlank()) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR);
+            }
+            return bookingRepository.findByCustomerPhoneAndBookingCodeAndIsDeletedFalse(cleanPhone, bookingCode.trim())
+                    .map(bookingMapper::toResponse)
+                    .map(List::of)
+                    .orElseGet(List::of);
+        }
+        if (bookingCode != null && !bookingCode.isBlank()) {
+            return bookingRepository.findByCustomerPhoneAndBookingCodeAndIsDeletedFalse(cleanPhone, bookingCode.trim())
+                    .map(bookingMapper::toResponse)
+                    .map(List::of)
+                    .orElseGet(List::of);
+        }
+        return bookingRepository.findByCustomerPhoneAndIsDeletedFalseOrderByBookingTimeDesc(cleanPhone).stream()
                 .map(bookingMapper::toResponse)
                 .toList();
     }
@@ -320,6 +347,8 @@ public class BookingServiceImpl implements BookingService {
         BookingEntity booking = bookingRepository.findById(id)
                 .filter(b -> !b.isDeleted())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        branchScopeGuard.checkBranchAccess(booking.getBranch() != null ? booking.getBranch().getId() : null);
 
         BookingStatus newStatus = request.status();
         BookingStatus oldStatus = booking.getStatus();

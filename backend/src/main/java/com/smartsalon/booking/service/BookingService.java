@@ -15,7 +15,11 @@ public interface BookingService {
 
     BookingResponse getBookingByCode(String code);
 
-    List<BookingResponse> lookupBookingsByPhone(String phone);
+    List<BookingResponse> lookupBookingsByPhone(String phone, String bookingCode);
+
+    default List<BookingResponse> lookupBookingsByPhone(String phone) {
+        return lookupBookingsByPhone(phone, null);
+    }
 
     List<BookingResponse> getBookings(Long branchId, BookingStatus status, LocalDate date, String search);
 

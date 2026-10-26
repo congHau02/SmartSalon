@@ -12,6 +12,7 @@ import com.smartsalon.analytics.service.StaffPayrollService;
 import com.smartsalon.common.ApiResponse;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.security.BranchScopeGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -43,6 +44,7 @@ public class AnalyticsController {
     private final StaffPayrollService staffPayrollService;
     private final InventoryAlertsAnalyticsService inventoryAlertsAnalyticsService;
     private final ReportExportService reportExportService;
+    private final BranchScopeGuard branchScopeGuard;
 
     @Operation(summary = "Get Realized Profit & Loss (P&L) Report", description = "Calculates pro-rated revenue, Chemical COGS, Retail COGS, Commissions, Tier 1 and Tier 2 Net Profit")
     @GetMapping("/pnl")
@@ -52,7 +54,8 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        PnlAnalyticsResponse response = pnlAnalyticsService.getPnlReport(branchId, startDate, endDate);
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
+        PnlAnalyticsResponse response = pnlAnalyticsService.getPnlReport(effectiveBranchId, startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -64,7 +67,8 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        StaffPayrollSummaryResponse response = staffPayrollService.getStaffPayrollReport(branchId, startDate, endDate);
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
+        StaffPayrollSummaryResponse response = staffPayrollService.getStaffPayrollReport(effectiveBranchId, startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -91,7 +95,8 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        InventoryAlertsAnalyticsResponse response = inventoryAlertsAnalyticsService.getInventoryAlertsReport(branchId, startDate, endDate);
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
+        InventoryAlertsAnalyticsResponse response = inventoryAlertsAnalyticsService.getInventoryAlertsReport(effectiveBranchId, startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -116,8 +121,9 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        byte[] content = reportExportService.exportReport(reportType, format, branchId, startDate, endDate);
-        String filename = reportExportService.generateFilename(reportType, format, branchId, startDate, endDate);
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
+        byte[] content = reportExportService.exportReport(reportType, format, effectiveBranchId, startDate, endDate);
+        String filename = reportExportService.generateFilename(reportType, format, effectiveBranchId, startDate, endDate);
 
         MediaType mediaType = ReportFormat.parse(format).mediaType();
 

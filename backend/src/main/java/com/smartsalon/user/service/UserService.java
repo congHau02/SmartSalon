@@ -6,7 +6,9 @@ import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.security.BranchScopeGuard;
 import com.smartsalon.user.dto.UserCreateRequest;
+import com.smartsalon.user.dto.UserUpdateRequest;
 import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.RoleRepository;
@@ -29,9 +31,25 @@ public class UserService {
     private final BranchRepository branchRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
+    private final BranchScopeGuard branchScopeGuard;
 
     @Transactional
     public UserDto createStaff(UserCreateRequest request) {
+        boolean isAdmin = branchScopeGuard.isCurrentUserAdmin();
+        if (!isAdmin) {
+            // Non-admin (MANAGER) cannot assign ADMIN or MANAGER roles
+            for (String roleName : request.getRoles()) {
+                if ("ADMIN".equalsIgnoreCase(roleName) || "MANAGER".equalsIgnoreCase(roleName)) {
+                    throw new AppException(ErrorCode.FORBIDDEN);
+                }
+            }
+            // Non-admin (MANAGER) cannot assign staff to a different branch
+            Long callerBranchId = branchScopeGuard.getCallerBranchId();
+            if (request.getBranchId() == null || !request.getBranchId().equals(callerBranchId)) {
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
+        }
+
         String username = request.getUsername().trim();
         String phone = request.getPhone().trim();
 
@@ -70,17 +88,80 @@ public class UserService {
         return authService.mapToUserDto(user);
     }
 
+    @Transactional
+    public UserDto updateStaff(Long id, UserUpdateRequest request) {
+        UserEntity user = userRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        boolean isAdmin = branchScopeGuard.isCurrentUserAdmin();
+        if (!isAdmin) {
+            Long callerBranchId = branchScopeGuard.getCallerBranchId();
+            // Non-admin (MANAGER) can only update staff within their own branch
+            if (user.getBranch() == null || !callerBranchId.equals(user.getBranch().getId())) {
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
+            // Cannot modify an ADMIN account
+            if (user.getRoles().stream().anyMatch(r -> "ADMIN".equalsIgnoreCase(r.getName()))) {
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
+            // Cannot promote to ADMIN or MANAGER
+            if (request.getRoles() != null && request.getRoles().stream()
+                    .anyMatch(r -> "ADMIN".equalsIgnoreCase(r) || "MANAGER".equalsIgnoreCase(r))) {
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
+            // Cannot reassign staff to a different branch
+            if (request.getBranchId() != null && !request.getBranchId().equals(callerBranchId)) {
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
+        }
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName().trim());
+        }
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            String cleanPhone = request.getPhone().trim();
+            if (!cleanPhone.equals(user.getPhone()) && userRepository.existsByPhone(cleanPhone)) {
+                throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+            user.setPhone(cleanPhone);
+        }
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String cleanEmail = request.getEmail().trim();
+            if (!cleanEmail.equals(user.getEmail()) && userRepository.existsByEmail(cleanEmail)) {
+                throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+            user.setEmail(cleanEmail);
+        }
+        if (request.getBranchId() != null) {
+            BranchEntity newBranch = branchRepository.findByIdAndIsDeletedFalse(request.getBranchId())
+                    .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+            user.setBranch(newBranch);
+        }
+        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+            Set<RoleEntity> newRoles = new HashSet<>();
+            for (String roleName : request.getRoles()) {
+                RoleEntity role = roleRepository.findByName(roleName.toUpperCase())
+                        .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+                newRoles.add(role);
+            }
+            user.setRoles(newRoles);
+        }
+        if (request.getIsActive() != null) {
+            user.setActive(request.getIsActive());
+        }
+
+        user = userRepository.save(user);
+        return authService.mapToUserDto(user);
+    }
+
     @Transactional(readOnly = true)
     public List<UserDto> getUsers(Long branchId) {
+        Long effectiveBranchId = branchScopeGuard.getEffectiveBranchId(branchId);
         List<UserEntity> users;
-        if (branchId != null) {
-            users = userRepository.findAll().stream()
-                    .filter(u -> !u.isDeleted() && u.getBranch() != null && branchId.equals(u.getBranch().getId()))
-                    .toList();
+        if (effectiveBranchId != null) {
+            users = userRepository.findActiveStaffByBranchId(effectiveBranchId);
         } else {
-            users = userRepository.findAll().stream()
-                    .filter(u -> !u.isDeleted())
-                    .toList();
+            users = userRepository.findAllActiveStaff();
         }
         return users.stream().map(authService::mapToUserDto).toList();
     }

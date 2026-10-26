@@ -24,7 +24,7 @@ public class PayOSWebhookController {
 
     private final PayOSService payOSService;
 
-    @Value("${app.payos.simulation-enabled:true}")
+    @Value("${app.payos.simulation-enabled:false}")
     private boolean simulationEnabled;
 
     @PostMapping

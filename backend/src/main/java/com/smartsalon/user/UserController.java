@@ -3,6 +3,7 @@ package com.smartsalon.user;
 import com.smartsalon.auth.dto.UserDto;
 import com.smartsalon.common.ApiResponse;
 import com.smartsalon.user.dto.UserCreateRequest;
+import com.smartsalon.user.dto.UserUpdateRequest;
 import com.smartsalon.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +31,16 @@ public class UserController {
         UserDto userDto = userService.createStaff(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Tạo tài khoản nhân viên thành công", userDto));
+    }
+
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @Operation(summary = "Cập nhật tài khoản nhân viên")
+    public ResponseEntity<ApiResponse<UserDto>> updateStaff(
+            @PathVariable Long id,
+            @Valid @RequestBody UserUpdateRequest request) {
+        UserDto userDto = userService.updateStaff(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật tài khoản nhân viên thành công", userDto));
     }
 
     @GetMapping
