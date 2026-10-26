@@ -79,6 +79,7 @@ public class OrderEntity extends BaseEntity {
     @Column(name = "settled_at")
     private java.time.Instant settledAt;
 
+    @org.hibernate.annotations.BatchSize(size = 50)
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItemEntity> items = new ArrayList<>();

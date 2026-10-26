@@ -88,7 +88,7 @@ public class RedisLockServiceImpl implements RedisLockService {
         try {
             List<String> values = redisTemplate.opsForValue().multiGet(keyList);
             if (values != null) {
-                for (int i = 0; i < keyList.size(); i++) {
+                for (int i = 0; i < Math.min(keyList.size(), values.size()); i++) {
                     if (values.get(i) != null) {
                         locked.add(keyList.get(i));
                     }

@@ -66,7 +66,7 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
         Map<Long, ServiceReviewRepository.StylistReviewStats> statsMap = serviceReviewRepository
                 .getReviewStatsByStylistIds(stylistIds)
                 .stream()
-                .collect(Collectors.toMap(ServiceReviewRepository.StylistReviewStats::getStylistId, s -> s));
+                .collect(Collectors.toMap(ServiceReviewRepository.StylistReviewStats::getStylistId, s -> s, (s1, s2) -> s1));
 
         return users.stream()
                 .map(u -> {
