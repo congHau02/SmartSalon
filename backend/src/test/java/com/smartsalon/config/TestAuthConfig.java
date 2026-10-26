@@ -31,11 +31,6 @@ public class TestAuthConfig {
             public void revoke(Long userId, String token) {
                 tokens.remove(userId + ":" + token);
             }
-
-            @Override
-            public void revokeAll(Long userId) {
-                tokens.keySet().removeIf(k -> k.startsWith(userId + ":"));
-            }
         };
     }
 
@@ -78,12 +73,6 @@ public class TestAuthConfig {
             public void unlockSlots(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
                 java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
                 keys.forEach(locks::remove);
-            }
-
-            @Override
-            public java.util.List<String> getLockedSlots(Long stylistId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
-                java.util.List<String> keys = com.smartsalon.booking.service.impl.RedisLockServiceImpl.generateBucketKeys(stylistId, startTime, endTime);
-                return keys.stream().filter(locks::containsKey).toList();
             }
         };
     }

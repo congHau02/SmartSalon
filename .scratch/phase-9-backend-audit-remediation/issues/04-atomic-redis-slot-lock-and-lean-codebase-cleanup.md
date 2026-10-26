@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Unified POS Order Settlement, Pessimistic Concurrency Locking & Settlement-Time Retained Deposit Accounting, 02: Multi-Branch Authorization Guard, Staff Privilege Escalation Prevention & Public PII/Production Hardening, 03: Settlement-Date (`settledAt`) Financial Alignment, Pro-Rated Tier-2 P&L Base Salary & Batch Query (`N+1`) Optimization
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Multi-slot Redis lock acquisition sets all slot keys and their 5-minute expiration TTL atomically (via a single Redis Lua script or atomic pipeline with zombie key `TTL < 0` self-healing), ensuring no slot key can ever be left in Redis without an expiration TTL.
-- [ ] The unused `revokeAll` refresh token method (which invoked the blocking Redis `KEYS` command) and the unused `getLockedSlots` lock method are removed from the token store and lock service interfaces and implementations.
-- [ ] The PDF report exporter caches the Vietnamese TrueType font byte arrays once in memory rather than reading classpath font files on every PDF export request, and falls back to a valid standard PDF font instead of passing an empty byte array if font resources are missing.
-- [ ] The unused `mapstruct` dependency and annotation processor are removed from the Maven build configuration.
-- [ ] The three unreferenced repository interfaces (`BookingServiceItemRepository`, `ServiceDefaultStepRepository`, `OrderItemRepository`), three unreferenced repository query methods, and three legacy duplicate stock fields on the `Master Product` entity (`branchId`, `currentStockUnits`, `currentVolume`) are removed, and the full backend test suite compiles and passes cleanly.
+- [x] Multi-slot Redis lock acquisition sets all slot keys and their 5-minute expiration TTL atomically (via a single Redis Lua script or atomic pipeline with zombie key `TTL < 0` self-healing), ensuring no slot key can ever be left in Redis without an expiration TTL.
+- [x] The unused `revokeAll` refresh token method (which invoked the blocking Redis `KEYS` command) and the unused `getLockedSlots` lock method are removed from the token store and lock service interfaces and implementations.
+- [x] The PDF report exporter caches the Vietnamese TrueType font byte arrays once in memory rather than reading classpath font files on every PDF export request, and falls back to a valid standard PDF font instead of passing an empty byte array if font resources are missing.
+- [x] The unused `mapstruct` dependency and annotation processor are removed from the Maven build configuration.
+- [x] The three unreferenced repository interfaces (`BookingServiceItemRepository`, `ServiceDefaultStepRepository`, `OrderItemRepository`), three unreferenced repository query methods, and three legacy duplicate stock fields on the `Master Product` entity (`branchId`, `currentStockUnits`, `currentVolume`) are removed, and the full backend test suite compiles and passes cleanly.

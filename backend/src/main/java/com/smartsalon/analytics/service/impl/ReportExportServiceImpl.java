@@ -772,7 +772,7 @@ public class ReportExportServiceImpl implements ReportExportService {
     // PDF HELPER METHODS & TRUE-TYPE FONT LOADING
     // =========================================================================
 
-    private record FontHolder(
+    record FontHolder(
             Font brandFont,
             Font titleFont,
             Font subTitleFont,
@@ -787,12 +787,41 @@ public class ReportExportServiceImpl implements ReportExportService {
             Font signatureDescFont
     ) {}
 
-    private FontHolder loadVietnameseFonts() throws IOException {
-        byte[] regularBytes = loadResourceBytes("/fonts/Roboto-Regular.ttf");
-        byte[] boldBytes = loadResourceBytes("/fonts/Roboto-Bold.ttf");
+    private static final byte[] CACHED_ROBOTO_REGULAR_BYTES = readClasspathFontQuietly("/fonts/Roboto-Regular.ttf");
+    private static final byte[] CACHED_ROBOTO_BOLD_BYTES = readClasspathFontQuietly("/fonts/Roboto-Bold.ttf");
 
-        BaseFont regularBase = BaseFont.createFont("Roboto-Regular.ttf", BaseFont.IDENTITY_H, true, true, regularBytes, null);
-        BaseFont boldBase = BaseFont.createFont("Roboto-Bold.ttf", BaseFont.IDENTITY_H, true, true, boldBytes, null);
+    private static byte[] readClasspathFontQuietly(String path) {
+        try (InputStream is = ReportExportServiceImpl.class.getResourceAsStream(path)) {
+            if (is == null) {
+                return null;
+            }
+            return is.readAllBytes();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private FontHolder loadVietnameseFonts() throws IOException {
+        return buildFontHolder(CACHED_ROBOTO_REGULAR_BYTES, CACHED_ROBOTO_BOLD_BYTES);
+    }
+
+    static FontHolder buildFontHolder(byte[] regularBytes, byte[] boldBytes) throws IOException {
+        BaseFont regularBase = null;
+        BaseFont boldBase = null;
+
+        if (regularBytes != null && regularBytes.length > 0 && boldBytes != null && boldBytes.length > 0) {
+            try {
+                regularBase = BaseFont.createFont("Roboto-Regular.ttf", BaseFont.IDENTITY_H, true, true, regularBytes, null);
+                boldBase = BaseFont.createFont("Roboto-Bold.ttf", BaseFont.IDENTITY_H, true, true, boldBytes, null);
+            } catch (Exception e) {
+                log.warn("Failed to create Roboto TrueType fonts from cached bytes, falling back to Helvetica: {}", e.getMessage());
+            }
+        }
+
+        if (regularBase == null || boldBase == null) {
+            regularBase = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+            boldBase = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+        }
 
         return new FontHolder(
                 new Font(boldBase, 11, Font.BOLD, new Color(100, 116, 139)),
@@ -808,17 +837,6 @@ public class ReportExportServiceImpl implements ReportExportService {
                 new Font(boldBase, 9, Font.BOLD, new Color(15, 23, 42)),
                 new Font(regularBase, 8, Font.ITALIC, new Color(100, 116, 139))
         );
-    }
-
-    private byte[] loadResourceBytes(String path) throws IOException {
-        try (InputStream is = getClass().getResourceAsStream(path)) {
-            if (is == null) {
-                log.warn("Classpath resource '{}' not found, falling back to embedded Arial", path);
-                // Fallback to system font if classpath fails
-                return new byte[0];
-            }
-            return is.readAllBytes();
-        }
     }
 
     private void addDocumentHeader(Document doc, FontHolder fonts, String title, String branchName, String periodStr) throws DocumentException {

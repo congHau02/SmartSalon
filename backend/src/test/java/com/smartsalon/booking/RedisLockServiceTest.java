@@ -58,27 +58,58 @@ class RedisLockServiceTest {
     }
 
     @Test
-    @DisplayName("tryLockSlots should atomically acquire all buckets and set 300s TTL when keys are free")
+    @DisplayName("tryLockSlots should atomically acquire all buckets and set 300s TTL via Lua script when keys are free")
     void shouldLockSlotsSuccessfully() {
-        when(valueOperations.multiSetIfAbsent(anyMap())).thenReturn(Boolean.TRUE);
+        when(redisTemplate.execute(eq(RedisLockServiceImpl.LOCK_SCRIPT), anyList(), eq("BK-TEST-001"), eq("300")))
+                .thenReturn(Boolean.TRUE);
 
         boolean locked = redisLockService.tryLockSlots(stylistId, startTime, endTime, "BK-TEST-001");
 
         assertThat(locked).isTrue();
-        verify(valueOperations).multiSetIfAbsent(anyMap());
-        verify(redisTemplate, times(3)).expire(anyString(), eq(Duration.ofSeconds(300)));
+        verify(redisTemplate).execute(eq(RedisLockServiceImpl.LOCK_SCRIPT), anyList(), eq("BK-TEST-001"), eq("300"));
     }
 
     @Test
-    @DisplayName("tryLockSlots should return false when any bucket collides")
+    @DisplayName("tryLockSlots should return false when Lua script detects collision on any bucket")
     void shouldFailWhenAnyBucketCollides() {
-        when(valueOperations.multiSetIfAbsent(anyMap())).thenReturn(Boolean.FALSE);
+        when(redisTemplate.execute(eq(RedisLockServiceImpl.LOCK_SCRIPT), anyList(), eq("BK-TEST-002"), eq("300")))
+                .thenReturn(Boolean.FALSE);
 
         boolean locked = redisLockService.tryLockSlots(stylistId, startTime, endTime, "BK-TEST-002");
 
         assertThat(locked).isFalse();
-        verify(valueOperations).multiSetIfAbsent(anyMap());
-        verify(redisTemplate, never()).expire(anyString(), any(Duration.class));
+        verify(redisTemplate).execute(eq(RedisLockServiceImpl.LOCK_SCRIPT), anyList(), eq("BK-TEST-002"), eq("300"));
+    }
+
+    @Test
+    @DisplayName("tryLockSlots should safely return false on Redis exception")
+    void shouldReturnFalseOnRedisException() {
+        when(redisTemplate.execute(eq(RedisLockServiceImpl.LOCK_SCRIPT), anyList(), eq("BK-TEST-003"), eq("300")))
+                .thenThrow(new RuntimeException("Redis connection refused"));
+
+        boolean locked = redisLockService.tryLockSlots(stylistId, startTime, endTime, "BK-TEST-003");
+
+        assertThat(locked).isFalse();
+    }
+
+    @Test
+    @DisplayName("tryLockSlots should safely validate inputs")
+    void shouldReturnFalseOnInvalidInputs() {
+        assertThat(redisLockService.tryLockSlots(null, startTime, endTime, "BK-TEST")).isFalse();
+        assertThat(redisLockService.tryLockSlots(stylistId, null, endTime, "BK-TEST")).isFalse();
+        assertThat(redisLockService.tryLockSlots(stylistId, endTime, startTime, "BK-TEST")).isFalse();
+    }
+
+    @Test
+    @DisplayName("LOCK_SLOTS_LUA_SCRIPT should contain atomic check-and-set and zombie key TTL self-healing")
+    void luaScriptShouldContainSelfHealingAndAtomicTtl() {
+        String script = RedisLockServiceImpl.LOCK_SCRIPT.getScriptAsString();
+        assertThat(script)
+                .contains("redis.call('EXISTS', key)")
+                .contains("redis.call('TTL', key)")
+                .contains("currentTtl == -1")
+                .contains("redis.call('EXPIRE', key, tonumber(ARGV[2]))")
+                .contains("redis.call('SET', key, ARGV[1], 'EX', tonumber(ARGV[2]))");
     }
 
     @Test

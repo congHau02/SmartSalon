@@ -21,9 +21,6 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class ProductEntity extends BaseEntity {
 
-    @Column(name = "branch_id")
-    private Long branchId;
-
     @Column(name = "name", nullable = false, length = 150)
     private String name;
 
@@ -43,14 +40,6 @@ public class ProductEntity extends BaseEntity {
     @Column(name = "volume_unit", nullable = false, length = 20)
     @Builder.Default
     private String volumeUnit = "ml";
-
-    @Column(name = "current_stock_units", nullable = false)
-    @Builder.Default
-    private int currentStockUnits = 0;
-
-    @Column(name = "current_volume", nullable = false, precision = 12, scale = 2)
-    @Builder.Default
-    private BigDecimal currentVolume = BigDecimal.ZERO;
 
     @Column(name = "min_stock_alert_units", nullable = false)
     @Builder.Default

@@ -28,9 +28,4 @@ public interface RedisLockService {
      * Release all 30-minute bucket locks in [startTime, endTime) for a stylist.
      */
     void unlockSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime);
-
-    /**
-     * List all locked bucket keys in [startTime, endTime) for a stylist.
-     */
-    List<String> getLockedSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime);
 }

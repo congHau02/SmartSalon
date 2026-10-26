@@ -37,16 +37,6 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
             @Param("now") LocalDateTime now);
 
     @Query("SELECT b FROM BookingEntity b WHERE b.branch.id = :branchId AND b.isDeleted = false " +
-           "AND b.bookingTime < :windowEnd AND b.endTime > :windowStart " +
-           "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +
-           "     OR (b.status = 'PENDING_PAYMENT' AND b.slotLockExpiresAt > :now))")
-    List<BookingEntity> findOverlappingBookingsByBranch(
-            @Param("branchId") Long branchId,
-            @Param("windowStart") LocalDateTime windowStart,
-            @Param("windowEnd") LocalDateTime windowEnd,
-            @Param("now") LocalDateTime now);
-
-    @Query("SELECT b FROM BookingEntity b WHERE b.branch.id = :branchId AND b.isDeleted = false " +
            "AND b.bookingTime >= :dayStart AND b.bookingTime < :dayEnd " +
            "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +
            "     OR (b.status = 'PENDING_PAYMENT' AND b.slotLockExpiresAt > :now))")

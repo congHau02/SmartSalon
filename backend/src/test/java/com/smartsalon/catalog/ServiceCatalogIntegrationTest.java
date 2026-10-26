@@ -101,8 +101,6 @@ class ServiceCatalogIntegrationTest {
                             .unit("hộp")
                             .volumeOrWeightPerUnit(new BigDecimal("500.00"))
                             .volumeUnit("gram")
-                            .currentStockUnits(10)
-                            .currentVolume(new BigDecimal("5000.00"))
                             .minStockAlertUnits(2)
                             .costPrice(new BigDecimal("450000.00"))
                             .retailPrice(new BigDecimal("600000.00"))

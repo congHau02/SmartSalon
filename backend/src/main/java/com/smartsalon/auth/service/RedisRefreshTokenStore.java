@@ -6,7 +6,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.util.Set;
 
 @Slf4j
 @Component
@@ -34,15 +33,6 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     public void revoke(Long userId, String token) {
         String key = buildKey(userId, token);
         redisTemplate.delete(key);
-    }
-
-    @Override
-    public void revokeAll(Long userId) {
-        String pattern = KEY_PREFIX + userId + ":*";
-        Set<String> keys = redisTemplate.keys(pattern);
-        if (keys != null && !keys.isEmpty()) {
-            redisTemplate.delete(keys);
-        }
     }
 
     private String buildKey(Long userId, String token) {

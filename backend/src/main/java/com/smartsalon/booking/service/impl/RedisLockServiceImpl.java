@@ -4,6 +4,8 @@ import com.smartsalon.booking.service.RedisLockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -18,6 +20,27 @@ public class RedisLockServiceImpl implements RedisLockService {
     private final StringRedisTemplate redisTemplate;
     public static final Duration LOCK_TTL = Duration.ofSeconds(300);
 
+    private static final String LOCK_SLOTS_LUA_SCRIPT =
+            "local anyLocked = false\n" +
+            "for i, key in ipairs(KEYS) do\n" +
+            "    if redis.call('EXISTS', key) == 1 then\n" +
+            "        anyLocked = true\n" +
+            "        local currentTtl = redis.call('TTL', key)\n" +
+            "        if currentTtl == -1 then\n" +
+            "            redis.call('EXPIRE', key, tonumber(ARGV[2]))\n" +
+            "        end\n" +
+            "    end\n" +
+            "end\n" +
+            "if anyLocked then\n" +
+            "    return false\n" +
+            "end\n" +
+            "for i, key in ipairs(KEYS) do\n" +
+            "    redis.call('SET', key, ARGV[1], 'EX', tonumber(ARGV[2]))\n" +
+            "end\n" +
+            "return true\n";
+
+    public static final RedisScript<Boolean> LOCK_SCRIPT = new DefaultRedisScript<>(LOCK_SLOTS_LUA_SCRIPT, Boolean.class);
+
     @Override
     public boolean tryLockSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime, String lockOwner) {
         if (stylistId == null || startTime == null || endTime == null || !startTime.isBefore(endTime)) {
@@ -29,17 +52,14 @@ public class RedisLockServiceImpl implements RedisLockService {
             return false;
         }
 
-        Map<String, String> keyValues = new LinkedHashMap<>();
-        for (String key : keys) {
-            keyValues.put(key, lockOwner != null ? lockOwner : "LOCKED");
-        }
-
         try {
-            Boolean success = redisTemplate.opsForValue().multiSetIfAbsent(keyValues);
+            Boolean success = redisTemplate.execute(
+                    LOCK_SCRIPT,
+                    keys,
+                    lockOwner != null ? lockOwner : "LOCKED",
+                    String.valueOf(LOCK_TTL.toSeconds())
+            );
             if (Boolean.TRUE.equals(success)) {
-                for (String key : keys) {
-                    redisTemplate.expire(key, LOCK_TTL);
-                }
                 log.info("Locked {} slot bucket(s) for stylist {} with owner {}", keys.size(), stylistId, lockOwner);
                 return true;
             } else {
@@ -114,28 +134,6 @@ public class RedisLockServiceImpl implements RedisLockService {
                 log.error("Redis error releasing slot locks for stylist {}: {}", stylistId, e.getMessage());
             }
         }
-    }
-
-    @Override
-    public List<String> getLockedSlots(Long stylistId, LocalDateTime startTime, LocalDateTime endTime) {
-        List<String> locked = new ArrayList<>();
-        if (stylistId == null || startTime == null || endTime == null) {
-            return locked;
-        }
-        List<String> keys = generateBucketKeys(stylistId, startTime, endTime);
-        try {
-            List<String> values = redisTemplate.opsForValue().multiGet(keys);
-            if (values != null) {
-                for (int i = 0; i < keys.size(); i++) {
-                    if (values.get(i) != null) {
-                        locked.add(keys.get(i));
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("Redis error querying locked slots: {}", e.getMessage());
-        }
-        return locked;
     }
 
     public static List<String> generateBucketKeys(Long stylistId, LocalDateTime startTime, LocalDateTime endTime) {

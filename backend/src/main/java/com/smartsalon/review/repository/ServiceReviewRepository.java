@@ -21,10 +21,6 @@ public interface ServiceReviewRepository extends JpaRepository<ServiceReviewEnti
 
     Optional<ServiceReviewEntity> findByOrderIdAndIsDeletedFalse(Long orderId);
 
-    List<ServiceReviewEntity> findByCustomerIdAndIsDeletedFalseOrderByCreatedAtDesc(Long customerId);
-
-    List<ServiceReviewEntity> findByStylistIdAndIsDeletedFalse(Long stylistId);
-
     @Query("SELECT COUNT(r) FROM ServiceReviewEntity r WHERE r.stylist.id = :stylistId AND r.isDeleted = false")
     long countByStylistId(@Param("stylistId") Long stylistId);
 
