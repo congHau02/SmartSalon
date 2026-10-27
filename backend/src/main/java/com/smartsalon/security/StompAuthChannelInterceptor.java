@@ -120,12 +120,6 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                 return n.longValue();
             }
         }
-        if (auth != null && auth.getName() != null) {
-            try {
-                return branchScopeGuard.getCallerBranchId();
-            } catch (Exception ignored) {
-            }
-        }
         return null;
     }
 }

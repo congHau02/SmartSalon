@@ -137,7 +137,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
 
         return StaffPayrollSummaryResponse.builder()
                 .branchId(branch != null ? branch.getId() : null)
-                .branchName(branch != null ? branch.getName() : "TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£ chi nhÃƒÂ¡nh")
+                .branchName(branch != null ? branch.getName() : "Tất cả chi nhánh")
                 .startDate(actualStart)
                 .endDate(actualEnd)
                 .totalStaffCount(staffResponses.size())

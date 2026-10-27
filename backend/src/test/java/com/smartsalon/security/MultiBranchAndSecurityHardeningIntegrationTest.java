@@ -348,8 +348,7 @@ public class MultiBranchAndSecurityHardeningIntegrationTest {
     @Test
     @DisplayName("Fallback Exception Handler: Returns safe UNCATEGORIZED_EXCEPTION message without leaking raw details")
     void globalExceptionHandler_returnsSafe500Message() throws Exception {
-        mockMvc.perform(get("/api/v1/system/simulate-error")
-                        .param("type", "uncaught")
+        mockMvc.perform(get("/api/v1/test-support/uncaught")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenAdmin)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isInternalServerError())

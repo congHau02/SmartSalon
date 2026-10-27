@@ -35,9 +35,6 @@ public class SystemController {
         if ("stock".equalsIgnoreCase(type)) {
             throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
         }
-        if ("uncaught".equalsIgnoreCase(type)) {
-            throw new RuntimeException("Raw database connection failure: syntax error near SELECT * FROM orders");
-        }
         throw new AppException(ErrorCode.VALIDATION_ERROR);
     }
 }

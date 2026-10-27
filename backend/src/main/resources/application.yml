@@ -6,7 +6,7 @@ spring:
     name: smart-salon-backend
   threads:
     virtual:
-      enabled: true # KÃ­ch hoáº¡t Java 25 Virtual Threads cho bÃ i toÃ¡n Concurrency
+      enabled: true # Kích hoạt Java 25 Virtual Threads cho bài toán Concurrency
 
   datasource:
     url: jdbc:mysql://localhost:3306/smart_salon_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
@@ -16,7 +16,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate # Äá»ƒ Flyway quáº£n lÃ½ hoÃ n toÃ n Schema
+      ddl-auto: validate # Để Flyway quản lý hoàn toàn Schema
     show-sql: false
     properties:
       hibernate:
@@ -37,8 +37,8 @@ spring:
 app:
   jwt:
     secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-    access-expiration-ms: 3600000 # 1 giá»
-    refresh-expiration-ms: 604800000 # 7 ngÃ y
+    access-expiration-ms: 3600000 # 1 giờ
+    refresh-expiration-ms: 604800000 # 7 ngày
   cors:
     allowed-origins: "http://localhost:5173"
   payos:

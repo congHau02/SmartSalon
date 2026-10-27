@@ -1,6 +1,6 @@
 # 0006 Multi-Bucket Redis Slot Lock and Least-Workload Stylist Auto-Assignment
 
-We implemented atomic multi-bucket Redis distributed locks (`multiSetIfAbsent` with 300-second TTL) across 30-minute time buckets paired with a least-workload stylist load-balancing selector for "Any Available Stylist" bookings.
+We implemented atomic multi-bucket Redis distributed locks (a Lua script in `RedisLockServiceImpl` with 300-second TTL) across 30-minute time buckets paired with a least-workload stylist load-balancing selector for "Any Available Stylist" bookings.
 
 ## Context
 
@@ -10,7 +10,7 @@ Salon services vary widely in duration (from 30-minute haircuts to 120-minute ch
 
 1. **Multi-Bucket Atomic Redis Lock**:
    - Operating hours (`08:30` to `20:30`) are discretized into 30-minute `Slot` buckets.
-   - A booking spanning `[startTime, endTime)` computes all covered 30-minute buckets and acquires keys `lock:slot:{stylistId}:{date}:{HH:mm}` atomically via Redis `MSETNX` (`opsForValue().multiSetIfAbsent(...)`), setting a 300-second (5-minute) TTL on each bucket.
+   - A booking spanning `[startTime, endTime)` computes all covered 30-minute buckets and acquires keys `lock:slot:{stylistId}:{date}:{HH:mm}` atomically via a Lua script (all-or-nothing `SET NX`) in `RedisLockServiceImpl`, setting a 300-second (5-minute) TTL on each bucket.
 2. **Dual-Layer Overlap & Expiration Enforcement**:
    - `SlotCalculationService` evaluates a slot as available only if every 30-minute bucket in `[RequestStart, RequestEnd)` is free of Redis locks AND has no overlapping database `Booking` satisfying `(RequestStart < ExistingEnd) AND (RequestEnd > ExistingStart)` in active states (`CONFIRMED`, `CHECKED_IN`, `IN_PROGRESS`, or `PENDING_PAYMENT` where `slot_lock_expires_at > NOW()`).
    - A scheduled background job (`@Scheduled`) periodically sweeps `PENDING_PAYMENT` bookings whose `slot_lock_expires_at <= NOW()`, transitioning them to `EXPIRED` and releasing any residual Redis lock keys.

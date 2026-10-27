@@ -1,7 +1,5 @@
 package com.smartsalon.security;
 
-import com.smartsalon.branch.entity.BranchEntity;
-import com.smartsalon.branch.repository.BranchRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
 import com.smartsalon.user.entity.UserEntity;
@@ -19,7 +17,6 @@ import java.util.Map;
 public class BranchScopeGuard {
 
     private final UserRepository userRepository;
-    private final BranchRepository branchRepository;
 
     public boolean isAdmin(Authentication auth) {
         if (auth == null) {
@@ -59,7 +56,7 @@ public class BranchScopeGuard {
         if (user != null && user.getBranch() != null) {
             return user.getBranch().getId();
         }
-        return branchRepository.findAll().stream().map(BranchEntity::getId).findFirst().orElse(null);
+        return null;
     }
 
     public void checkBranchAccess(Long targetBranchId) {

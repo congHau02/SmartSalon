@@ -116,7 +116,7 @@ class BookingServiceTest {
                 new com.smartsalon.user.service.CustomerIdentityServiceImpl(
                         userRepository, roleRepository, passwordEncoder);
         com.smartsalon.security.BranchScopeGuard branchScopeGuard =
-                new com.smartsalon.security.BranchScopeGuard(userRepository, branchRepository);
+                new com.smartsalon.security.BranchScopeGuard(userRepository);
         bookingService = new BookingServiceImpl(
                 bookingRepository,
                 branchRepository,

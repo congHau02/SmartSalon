@@ -89,6 +89,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse checkInBooking(Long bookingId) {
         BookingEntity booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(booking.getBranch() != null ? booking.getBranch().getId() : null);
 
         if (booking.isDeleted()) {
             throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
@@ -260,6 +261,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public DispatchBoardResponse getDispatchBoard(Long branchId, LocalDate date) {
         BranchEntity branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(branchId);
 
         LocalDate targetDate = (date != null) ? date : LocalDate.now();
         LocalDateTime dayStart = targetDate.atStartOfDay();
@@ -407,6 +409,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse addServiceItem(Long orderId, AddServiceItemRequest request) {
         OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
@@ -450,6 +453,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse addProductItem(Long orderId, AddProductItemRequest request) {
         OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
@@ -485,6 +489,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse updateOrder(Long orderId, UpdateOrderRequest request) {
         OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
@@ -510,6 +515,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse removeOrderItem(Long orderId, Long itemId) {
         OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
@@ -535,6 +541,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosStepAssignmentResponse updateStepAssignment(Long orderId, Long stepId, UpdateStepAssignmentRequest request) {
         OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
@@ -570,6 +577,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosStepAssignmentResponse updateStepStatus(Long orderId, Long stepId, UpdateStepStatusRequest request) {
         OrderEntity order = orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
@@ -672,6 +680,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public TechnicalLogResponse getVisualLog(Long orderId) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         Optional<TechnicalLogEntity> existingLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(orderId);
 
@@ -739,6 +748,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public TechnicalLogResponse saveVisualLog(Long orderId, SaveTechnicalLogRequest request) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         UserEntity customer = order.getCustomer();
         if (customer == null) {
@@ -817,6 +827,16 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .build();
     }
 
+    /** Non-mutating preview: unpaid orders show the amount net of the customer's available credit. */
+    private BigDecimal payableAfterCredit(OrderEntity order, BigDecimal amount) {
+        if (amount == null || order.getStatus() == OrderStatus.PAID || order.getCustomer() == null
+                || "walkin.guest".equalsIgnoreCase(order.getCustomer().getUsername())) {
+            return amount;
+        }
+        BigDecimal credit = order.getCustomer().getCreditBalance() != null ? order.getCustomer().getCreditBalance() : BigDecimal.ZERO;
+        return credit.signum() > 0 ? amount.subtract(credit).max(BigDecimal.ZERO) : amount;
+    }
+
     private PosOrderResponse mapToOrderResponse(OrderEntity order) {
         List<PosOrderItemResponse> itemResponses = order.getItems().stream()
                 .filter(i -> !i.isDeleted())
@@ -873,7 +893,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .customerDiscountPercent(customerDiscountPercent)
                 .customerCreditBalance(customerCreditBalance)
                 .depositDeducted(order.getDepositDeducted())
-                .finalAmount(order.getFinalAmount())
+                .finalAmount(payableAfterCredit(order, order.getFinalAmount()))
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())
                 .notes(order.getNotes())
@@ -905,6 +925,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse checkoutOrder(Long orderId, CheckoutRequest request) {
         OrderEntity order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.isDeleted()) {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
@@ -1089,19 +1110,13 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosVietQrResponse getPosVietQr(Long orderId, BigDecimal draftDiscountAmount) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
 
         if (order.isDeleted()) {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
         }
 
-        BigDecimal finalAmount = order.calculateFinalAmountWithDraftDiscount(draftDiscountAmount);
-        if (order.getStatus() != OrderStatus.PAID && order.getCustomer() != null
-                && !"walkin.guest".equalsIgnoreCase(order.getCustomer().getUsername())) {
-            BigDecimal credit = order.getCustomer().getCreditBalance() != null ? order.getCustomer().getCreditBalance() : BigDecimal.ZERO;
-            if (credit.compareTo(BigDecimal.ZERO) > 0) {
-                finalAmount = finalAmount.subtract(credit).max(BigDecimal.ZERO);
-            }
-        }
+        BigDecimal finalAmount = payableAfterCredit(order, order.calculateFinalAmountWithDraftDiscount(draftDiscountAmount));
         String desc = order.getOrderCode();
         String qrCodeUrl = com.smartsalon.payment.VietQrUrlBuilder.buildCompactQrUrl(
                 bankId, accountNo, accountName, finalAmount, desc);
@@ -1123,6 +1138,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public CommissionLedgerSummaryResponse getCommissionLedger(Long branchId, LocalDate date) {
         BranchEntity branch = branchRepository.findByIdAndIsDeletedFalse(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(branchId);
 
         LocalDate queryDate = date != null ? date : LocalDate.now();
         Instant startDate = queryDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
@@ -1225,6 +1241,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse createQuickServiceTicket(QuickServiceTicketRequest request) {
         BranchEntity branch = branchRepository.findByIdAndIsDeletedFalse(request.getBranchId())
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(request.getBranchId());
 
         UserEntity currentUser = resolveCurrentUser();
         UserEntity assignedStylist = null;
@@ -1332,6 +1349,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     public PosOrderResponse quickCompleteBooking(Long bookingId, QuickCompleteBookingRequest request) {
         BookingEntity booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        branchScopeGuard.checkBranchAccess(booking.getBranch() != null ? booking.getBranch().getId() : null);
 
         if (booking.isDeleted()) {
             throw new AppException(ErrorCode.BOOKING_NOT_FOUND);

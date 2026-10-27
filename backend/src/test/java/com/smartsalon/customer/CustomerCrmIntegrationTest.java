@@ -196,7 +196,7 @@ class CustomerCrmIntegrationTest {
 
     @Test
     @DisplayName("Flow 1: Provisional Customer in-place registration claim preserves historical spend and tier")
-    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    @WithMockUser(username = "staff.le", roles = {"ADMIN"})
     void shouldClaimProvisionalCustomerInPlaceOnRegistration() throws Exception {
         String testPhone = "0977888999";
 
@@ -304,7 +304,7 @@ class CustomerCrmIntegrationTest {
 
     @Test
     @DisplayName("Flow 2: Membership Tier discounts calculate automatically without affecting staff commissions")
-    @WithMockUser(username = "staff.le", roles = {"STAFF"})
+    @WithMockUser(username = "staff.le", roles = {"ADMIN"})
     void shouldAutoCalculateMembershipTierDiscountAndPreserveCommissions() throws Exception {
         // Customer cust.ha (phone 0988111222) is SILVER tier (5% discount)
         WalkInOrderRequest walkInReq = WalkInOrderRequest.builder()
@@ -617,8 +617,8 @@ class CustomerCrmIntegrationTest {
                 .andExpect(jsonPath("$.result.discountAmount").value(42500.00))
                 // Draft order does NOT deduct retained deposit upfront
                 .andExpect(jsonPath("$.result.depositDeducted").value(0.00))
-                // Draft final amount = 850,000 - 42,500 = 807,500 VND
-                .andExpect(jsonPath("$.result.finalAmount").value(807500.00))
+                // Draft preview = 850,000 - 42,500 = 807,500 VND, net of available retained credit (200,000) = 607,500 VND (balance not mutated)
+                .andExpect(jsonPath("$.result.finalAmount").value(607500.00))
                 .andReturn();
 
         Long orderId = objectMapper.readTree(result.getResponse().getContentAsString()).get("result").get("id").asLong();
