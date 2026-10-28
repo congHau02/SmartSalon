@@ -21,6 +21,7 @@ import { CustomerServicesPage } from "./features/catalog/CustomerServicesPage";
 import { CustomerProfilePage } from "./features/customer/CustomerProfilePage";
 import { RealtimeProvider, RealtimeToastContainer } from "./features/realtime";
 import { DispatchBoardPage } from "./features/pos/DispatchBoardPage";
+import { ShiftRosterPage } from "./features/shifts/ShiftRosterPage";
 
 export default function App() {
   return (
@@ -53,6 +54,7 @@ export default function App() {
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<DashboardPage />} />
                   <Route path="bookings" element={<AdminBookingsPage />} />
+                  <Route path="shifts" element={<ShiftRosterPage />} />
                   <Route path="services" element={<ServicesPage />} />
                   <Route path="products" element={<ProductsPage />} />
                   <Route path="inventory" element={<BranchInventoryPage />} />

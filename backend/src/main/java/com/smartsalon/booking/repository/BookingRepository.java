@@ -36,6 +36,17 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
             @Param("windowEnd") LocalDateTime windowEnd,
             @Param("now") LocalDateTime now);
 
+    @Query("SELECT b FROM BookingEntity b WHERE b.staff.id = :staffId AND b.isDeleted = false " +
+           "AND b.bookingTime >= :startOfDay AND b.bookingTime < :endOfDay " +
+           "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +
+           "     OR (b.status = 'PENDING_PAYMENT' AND (b.slotLockExpiresAt IS NULL OR b.slotLockExpiresAt > :now))) " +
+           "ORDER BY b.bookingTime ASC")
+    List<BookingEntity> findActiveBookingsByStylistAndDay(
+            @Param("staffId") Long staffId,
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay,
+            @Param("now") LocalDateTime now);
+
     @Query("SELECT b FROM BookingEntity b WHERE b.branch.id = :branchId AND b.isDeleted = false " +
            "AND b.bookingTime >= :dayStart AND b.bookingTime < :dayEnd " +
            "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +

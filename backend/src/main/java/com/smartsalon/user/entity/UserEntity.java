@@ -69,6 +69,10 @@ public class UserEntity extends BaseEntity {
     @Builder.Default
     private boolean isProvisional = false;
 
+    @Column(name = "attendance_pin", nullable = false, length = 10)
+    @Builder.Default
+    private String attendancePin = "1234";
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

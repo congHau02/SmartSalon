@@ -1,0 +1,13 @@
+# 01: Branch Shift Templates, Weekly Shift Roster Matrix & Booking Conflict Guard
+
+**What to build:** Salon managers and administrators can open the **"Lịch trực & Chấm công"** workspace (`/admin/shifts`) in the Admin Portal to view and configure branch `Shift Templates` (`Ca Sáng 08:30–15:00` with 60-minute `Overtime Slot Window`, `Ca Chiều 14:00–20:30`, `Ca Cả ngày 08:30–20:30`), manage a 7-day weekly `Shift Roster` matrix across all stylists and staff at the branch, and copy the previous week's roster forward in a single click. Whenever a manager attempts to switch a stylist's daily cell to `OFF` or to a narrower `Shift Template` on a date where that stylist already has active customer `Bookings` (`PENDING_PAYMENT`, `CONFIRMED`, `CHECKED_IN`, `IN_PROGRESS`) whose time window falls outside the new shift start or exceeds its 60-minute `Overtime Slot Window`, the backend rejects the change with `HTTP 409 Conflict` and the UI displays a clear conflict dialog listing the affected `Bookings` (`bookingCode`, customer name, time window) so the manager can reassign them on the `Dispatch Board` first. Includes the V8 database migration and rolling 60-day schedule/attendance seed data across both branches.
+
+**Blocked by:** None (can start immediately)
+
+**Status:** done
+
+- [x] Database migration V8 adds `attendance_pin` (`DEFAULT '1234'`) to users, creates `shift_templates`, `staff_schedules`, and `staff_attendances` with `(user_id, date)` uniqueness constraints, and seeds preset `Shift Templates` (`MORNING`, `AFTERNOON`, `FULL_DAY`) plus a rolling window of schedules and attendances for both active branches.
+- [x] `GET /api/v1/shifts/templates`, `POST`/`PUT /api/v1/shifts/templates`, `GET /api/v1/shifts/roster`, `PUT /api/v1/shifts/roster`, and `POST /api/v1/shifts/roster/copy-week` enforce multi-branch access control (`ADMIN` and branch-scoped `MANAGER`).
+- [x] Modifying or cancelling (`OFF`) a stylist's `Shift Roster` entry when an active `Booking` on that date falls outside `[newShift.startTime, newShift.endTime)` or ends past `min(20:30, newShift.endTime + newShift.maxOvertimeMinutes)` returns `HTTP 409 Conflict` with the conflicting booking details.
+- [x] The Admin Portal includes the **"Lịch trực & Chấm công"** (`/admin/shifts`) workspace displaying branch `Shift Templates`, the interactive 7-day Weekly Matrix Roster grid, a 1-click **"Sao chép lịch tuần trước"** action, and a Booking Conflict modal when a change is blocked.
+- [x] Automated backend integration tests (`MockMvc`) and frontend tests verify the V8 migration, weekly roster CRUD, copy-week behavior, and `HTTP 409 Conflict` protection.

@@ -214,5 +214,35 @@ class FlywayMigrationTest {
                 "SELECT COUNT(*) FROM orders WHERE status = 'PAID' AND settled_by_user_id IS NOT NULL AND settled_at IS NOT NULL", Integer.class);
         assertTrue(settledOrdersCount != null && settledOrdersCount >= 4,
                 "Expected all historical PAID orders to have settled_by_user_id and settled_at populated");
+
+        // 12. Verify V8 Schema & Seeds: attendance_pin, shift_templates, staff_schedules, staff_attendances
+        assertTrue(result.migrationsExecuted >= 8, "Expected at least 8 migrations (including V8)");
+        jdbcTemplate.execute("SELECT attendance_pin FROM users WHERE 1=0");
+        jdbcTemplate.execute("SELECT branch_id, code, name, start_time, end_time, max_overtime_minutes, is_active FROM shift_templates WHERE 1=0");
+        jdbcTemplate.execute("SELECT branch_id, user_id, shift_template_id, schedule_date, status, notes FROM staff_schedules WHERE 1=0");
+        jdbcTemplate.execute("SELECT branch_id, user_id, schedule_id, attendance_date, clock_in_at, clock_out_at, status, overtime_minutes FROM staff_attendances WHERE 1=0");
+
+        // Verify shift templates seeded for both branches
+        Integer templateCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM shift_templates WHERE is_active = 1", Integer.class);
+        assertEquals(6, templateCount, "Expected exactly 6 active shift templates across branches 1 & 2");
+
+        // Verify manager accounts seeded
+        Integer managerCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users u " +
+                "JOIN user_roles ur ON u.id = ur.user_id " +
+                "JOIN roles r ON ur.role_id = r.id " +
+                "WHERE r.name = 'MANAGER' AND u.attendance_pin = '1234'", Integer.class);
+        assertTrue(managerCount != null && managerCount >= 2, "Expected at least 2 manager users with default PIN");
+
+        // Verify rolling schedules seeded
+        Integer scheduleCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM staff_schedules", Integer.class);
+        assertTrue(scheduleCount != null && scheduleCount >= 300, "Expected at least 300 rolling schedule records (61 days * 5 staff)");
+
+        // Verify attendances seeded
+        Integer attendanceCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM staff_attendances", Integer.class);
+        assertTrue(attendanceCount != null && attendanceCount >= 100, "Expected at least 100 attendance records");
     }
 }

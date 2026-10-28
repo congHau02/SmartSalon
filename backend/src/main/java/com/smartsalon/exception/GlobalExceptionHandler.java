@@ -16,11 +16,12 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException.class)
-    public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
+    public ResponseEntity<ApiResponse<Object>> handleAppException(AppException ex) {
         ErrorCode errorCode = ex.getErrorCode();
+        String message = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : errorCode.getMessage();
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(ApiResponse.error(errorCode.getCode(), errorCode.getMessage()));
+                .body(new ApiResponse<>(errorCode.getCode(), message, ex.getData(), java.time.Instant.now()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -147,3 +147,27 @@ _Avoid_: Shift declaration form, manual ticket count
 **Personal Payroll Statement**:
 An individual staff member's private compensation and performance statement for a selected period, combining Base Salary, earned Commission Ledger entries, and personal KPI metrics without exposing peer salaries.
 _Avoid_: Branch payroll sheet, public salary board
+
+**Shift Template**:
+A reusable branch-level work period definition (such as Morning Shift, Afternoon Shift, or Full-Day Shift) specifying standard start and end times for staff scheduling.
+_Avoid_: Work slot, preset hours, time template
+
+**Shift Roster**:
+The assigned calendar mapping of stylists and staff to specific Shift Templates (or off-duty days) on given dates at a branch.
+_Avoid_: Timesheet, work calendar, duty table
+
+**Overtime Slot Window**:
+The maximum permissible extension window (up to 60 minutes past a stylist's scheduled shift end time, bounded by branch closing time) during which a service starting within the shift may finish.
+_Avoid_: Grace period, late booking buffer, after-hours slot
+
+**Staff Attendance**:
+An audited daily timekeeping record capturing a staff member's actual clock-in, break, and clock-out timestamps against their scheduled Shift Roster entry.
+_Avoid_: Punch card, check-in log, presence log
+
+**Overtime Commission Multiplier**:
+A premium multiplier (`1.2x`) applied to the commission earned on a Service Step performed during a stylist's Overtime Slot Window or outside their scheduled shift hours.
+_Avoid_: Late bonus, after-hours tip, surge rate
+
+**Shift-Prorated Base Salary**:
+The effective monthly base compensation earned by a staff member after scaling their contractual Base Salary by the ratio of completed valid shifts to total scheduled shifts in the period, plus credit for extra covered shifts.
+_Avoid_: Hourly wage, attendance deduction, net retainer
