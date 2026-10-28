@@ -1,10 +1,5 @@
 import React, { useState } from "react";
-import {
-  Sparkles,
-  AlertCircle,
-  Scissors,
-  CheckCircle2,
-} from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/useAuth";
 import { useBranch } from "../branch/useBranch";
@@ -17,6 +12,7 @@ import { CommissionLedgerModal } from "./CommissionLedgerModal";
 import { StylistDailyWorklogModal } from "./StylistDailyWorklogModal";
 import { PinAttendanceModal } from "./components/PinAttendanceModal";
 import { DispatchBoardHeader } from "./components/DispatchBoardHeader";
+import { DispatchToast, useToast } from "./components/DispatchToast";
 import { toLocalDateISO, shiftLocalDateISO } from "../../lib/utils";
 import { useDispatchBoard, useCheckInBooking } from "./usePosQueries";
 import { QUERY_KEYS } from "../../lib/queryKeys";
@@ -35,17 +31,12 @@ export function DispatchBoardPage() {
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [selectedAttendanceStylist, setSelectedAttendanceStylist] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [toastMessage, setToastMessage] = useState(null);
+  const { toastMessage, showToast, clearToast } = useToast();
   const [checkingInBookingId, setCheckingInBookingId] = useState(null);
 
   const handlePrevDay = () => setSelectedDate((prev) => shiftLocalDateISO(prev, -1));
   const handleNextDay = () => setSelectedDate((prev) => shiftLocalDateISO(prev, 1));
   const handleToday = () => setSelectedDate(toLocalDateISO());
-
-  const showToast = (message, type = "success") => {
-    setToastMessage({ message, type });
-    setTimeout(() => setToastMessage(null), 3500);
-  };
 
   const {
     data: boardData,
@@ -79,30 +70,7 @@ export function DispatchBoardPage() {
 
   return (
     <div className="space-y-6">
-      {toastMessage && (
-        <div
-          className={`p-3.5 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-lg animate-in fade-in duration-200 ${
-            toastMessage.type === "success"
-              ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
-              : "bg-rose-500/15 border border-rose-500/30 text-rose-300"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {toastMessage.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-400" />
-            )}
-            <span>{toastMessage.message}</span>
-          </div>
-          <button
-            onClick={() => setToastMessage(null)}
-            className="text-xs hover:opacity-75 cursor-pointer"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
+      <DispatchToast toast={toastMessage} onClose={clearToast} />
 
       <DispatchBoardHeader
         branchContext={{
@@ -123,7 +91,7 @@ export function DispatchBoardPage() {
         onViewModeChange={setViewMode}
         actions={{
           onRefresh: refetch,
-          isRefreshing,
+          isRefreshing: isRefetching,
           onOpenCommissionLedger: () => setIsCommissionLedgerOpen(true),
           onOpenStylistWorklog: () => setIsStylistWorklogOpen(true),
           onOpenWalkIn: () => setIsWalkInOpen(true),
