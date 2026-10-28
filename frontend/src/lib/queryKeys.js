@@ -20,6 +20,8 @@ export const QUERY_KEYS = {
     stylistId,
     date,
   ],
+  posTodayAttendance: (branchId) =>
+    branchId != null ? ["pos-today-attendance", branchId] : ["pos-today-attendance"],
 };
 
 export function invalidateRealtimeCaches(queryClient) {
@@ -28,6 +30,7 @@ export function invalidateRealtimeCaches(queryClient) {
     QUERY_KEYS.booking,
     QUERY_KEYS.pos,
     QUERY_KEYS.dispatch,
+    ["pos-today-attendance"],
     QUERY_KEYS.order(),
     QUERY_KEYS.commissionLedger(),
     ["stylist-daily-worklog"],

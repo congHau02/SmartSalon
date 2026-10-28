@@ -38,6 +38,24 @@ public class StylistDailyWorklogResponse {
     @Builder.Default
     private BigDecimal totalSelfCollectedAmount = BigDecimal.ZERO;
 
+    // Shift & Attendance Info
+    private String shiftCode;
+    private String shiftName;
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm")
+    private java.time.LocalTime shiftStartTime;
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm")
+    private java.time.LocalTime shiftEndTime;
+    private Boolean isWorking;
+    private com.smartsalon.shift.entity.StaffAttendanceStatus attendanceStatus;
+    private java.time.LocalDateTime clockInAt;
+    private java.time.LocalDateTime breakStartAt;
+    private java.time.LocalDateTime breakEndAt;
+    private java.time.LocalDateTime clockOutAt;
+    private int overtimeMinutes;
+
+    @Builder.Default
+    private List<PersonalWeeklyScheduleDayDto> weeklySchedule = new ArrayList<>();
+
     // Itemized tickets and upcoming bookings
     @Builder.Default
     private List<StylistWorklogTicketDto> tickets = new ArrayList<>();

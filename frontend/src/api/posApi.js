@@ -124,4 +124,16 @@ export const posApi = {
     const response = await axiosClient.get("/pos/stylist/daily-worklog", { params });
     return response?.result || response?.data || response;
   },
+
+  getTodayAttendance: async (branchId) => {
+    const params = {};
+    if (branchId) params.branchId = branchId;
+    const response = await axiosClient.get("/pos/attendance/today", { params });
+    return response?.result || response?.data || response;
+  },
+
+  submitAttendanceAction: async (data) => {
+    const response = await axiosClient.post("/pos/attendance/action", data);
+    return response?.result || response?.data || response;
+  },
 };

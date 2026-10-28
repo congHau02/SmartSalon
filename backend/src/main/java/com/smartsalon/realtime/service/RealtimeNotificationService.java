@@ -28,4 +28,6 @@ public interface RealtimeNotificationService {
     void notifyVisualLogSaved(OrderEntity order);
 
     void notifyOrderCheckedOut(OrderEntity order);
+
+    void notifyAttendanceUpdated(com.smartsalon.shift.entity.StaffAttendanceEntity attendance, String action);
 }

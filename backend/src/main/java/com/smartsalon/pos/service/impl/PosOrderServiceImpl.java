@@ -80,6 +80,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final EntityManager entityManager;
     private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
     private final StaffScheduleRepository staffScheduleRepository;
+    private final com.smartsalon.shift.repository.StaffAttendanceRepository staffAttendanceRepository;
 
     @Value("${app.payos.bank-id:MB}")
     private String bankId;
@@ -357,6 +358,11 @@ public class PosOrderServiceImpl implements PosOrderService {
         Map<Long, StaffScheduleEntity> scheduleMap = branchSchedules.stream()
                 .filter(s -> s.getUser() != null)
                 .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s, (s1, s2) -> s1));
+        List<com.smartsalon.shift.entity.StaffAttendanceEntity> branchAttendances = staffAttendanceRepository
+                .findByBranchIdAndAttendanceDateAndIsDeletedFalse(branchId, targetDate);
+        Map<Long, com.smartsalon.shift.entity.StaffAttendanceEntity> attendanceMap = branchAttendances.stream()
+                .filter(a -> a.getUser() != null)
+                .collect(Collectors.toMap(a -> a.getUser().getId(), a -> a, (a1, a2) -> a1));
         List<StylistAvailabilityDto> stylistDtos = new ArrayList<>();
 
         for (UserEntity stylist : stylists) {
@@ -407,6 +413,12 @@ public class PosOrderServiceImpl implements PosOrderService {
                 isWorking = true;
             }
 
+            com.smartsalon.shift.entity.StaffAttendanceEntity attendance = attendanceMap.get(stylist.getId());
+            com.smartsalon.shift.entity.StaffAttendanceStatus attendanceStatus = (attendance != null) ? attendance.getStatus() : null;
+            LocalDateTime clockInAt = (attendance != null) ? attendance.getClockInAt() : null;
+            LocalDateTime clockOutAt = (attendance != null) ? attendance.getClockOutAt() : null;
+            int overtimeMinutes = (attendance != null) ? attendance.getOvertimeMinutes() : 0;
+
             stylistDtos.add(StylistAvailabilityDto.builder()
                     .stylistId(stylist.getId())
                     .fullName(stylist.getFullName())
@@ -421,6 +433,10 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .shiftStartTime(shiftStart)
                     .shiftEndTime(shiftEnd)
                     .isWorking(isWorking)
+                    .attendanceStatus(attendanceStatus)
+                    .clockInAt(clockInAt)
+                    .clockOutAt(clockOutAt)
+                    .overtimeMinutes(overtimeMinutes)
                     .build());
         }
 
@@ -695,6 +711,33 @@ public class PosOrderServiceImpl implements PosOrderService {
     private UserEntity resolveDefaultStaff(BranchEntity branch) {
         List<UserEntity> stylists = userRepository.findActiveStylistsByBranchId(branch.getId());
         if (!stylists.isEmpty()) {
+            LocalDate today = LocalDate.now();
+            List<StaffScheduleEntity> branchSchedules = staffScheduleRepository.findByBranchIdAndScheduleDateAndIsDeletedFalse(branch.getId(), today);
+            Map<Long, StaffScheduleEntity> scheduleMap = branchSchedules.stream()
+                    .filter(s -> s.getUser() != null)
+                    .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s, (s1, s2) -> s1));
+
+            List<com.smartsalon.shift.entity.StaffAttendanceEntity> branchAttendances = staffAttendanceRepository.findByBranchIdAndAttendanceDateAndIsDeletedFalse(branch.getId(), today);
+            Map<Long, com.smartsalon.shift.entity.StaffAttendanceEntity> attendanceMap = branchAttendances.stream()
+                    .filter(a -> a.getUser() != null)
+                    .collect(Collectors.toMap(a -> a.getUser().getId(), a -> a, (a1, a2) -> a1));
+
+            List<UserEntity> availableStylists = stylists.stream()
+                    .filter(s -> {
+                        StaffScheduleEntity sched = scheduleMap.get(s.getId());
+                        if (sched != null && sched.getStatus() == StaffScheduleStatus.OFF) return false;
+                        com.smartsalon.shift.entity.StaffAttendanceEntity att = attendanceMap.get(s.getId());
+                        if (att != null && (att.getStatus() == com.smartsalon.shift.entity.StaffAttendanceStatus.ABSENT
+                                || att.getStatus() == com.smartsalon.shift.entity.StaffAttendanceStatus.ON_BREAK)) {
+                            return false;
+                        }
+                        return true;
+                    })
+                    .toList();
+
+            if (!availableStylists.isEmpty()) {
+                return availableStylists.get(0);
+            }
             return stylists.get(0);
         }
         return userRepository.findAllActiveStylists().stream()
@@ -1663,7 +1706,97 @@ public class PosOrderServiceImpl implements PosOrderService {
             }
         }
 
+        // Weekly schedule and today shift/attendance for stylist
+        String worklogShiftCode = null;
+        String worklogShiftName = null;
+        LocalTime worklogShiftStart = null;
+        LocalTime worklogShiftEnd = null;
+        Boolean worklogIsWorking = true;
+        com.smartsalon.shift.entity.StaffAttendanceStatus worklogAttendanceStatus = null;
+        LocalDateTime worklogClockIn = null;
+        LocalDateTime worklogBreakStart = null;
+        LocalDateTime worklogBreakEnd = null;
+        LocalDateTime worklogClockOut = null;
+        int worklogOvertimeMinutes = 0;
+        List<PersonalWeeklyScheduleDayDto> weeklyScheduleList = new ArrayList<>();
+
+        if (finalStylistId != null) {
+            StaffScheduleEntity todaySched = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(finalStylistId, queryDate).orElse(null);
+            com.smartsalon.shift.entity.StaffAttendanceEntity todayAtt = staffAttendanceRepository.findByUserIdAndAttendanceDateAndIsDeletedFalse(finalStylistId, queryDate).orElse(null);
+
+            if (todaySched != null && todaySched.getStatus() == StaffScheduleStatus.WORKING && todaySched.getShiftTemplate() != null) {
+                worklogShiftCode = todaySched.getShiftTemplate().getCode();
+                worklogShiftName = todaySched.getShiftTemplate().getName();
+                worklogShiftStart = todaySched.getShiftTemplate().getStartTime();
+                worklogShiftEnd = todaySched.getShiftTemplate().getEndTime();
+                worklogIsWorking = true;
+            } else if (todaySched != null && todaySched.getStatus() == StaffScheduleStatus.OFF) {
+                worklogShiftCode = "OFF";
+                worklogShiftName = "Nghỉ (OFF)";
+                worklogIsWorking = false;
+            } else {
+                worklogShiftCode = "FULL_DAY";
+                worklogShiftName = "Ca Cả ngày";
+                worklogShiftStart = LocalTime.of(8, 30);
+                worklogShiftEnd = LocalTime.of(20, 30);
+                worklogIsWorking = true;
+            }
+
+            if (todayAtt != null) {
+                worklogAttendanceStatus = todayAtt.getStatus();
+                worklogClockIn = todayAtt.getClockInAt();
+                worklogBreakStart = todayAtt.getBreakStartAt();
+                worklogBreakEnd = todayAtt.getBreakEndAt();
+                worklogClockOut = todayAtt.getClockOutAt();
+                worklogOvertimeMinutes = todayAtt.getOvertimeMinutes();
+            }
+
+            LocalDate monday = queryDate.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+            List<StaffScheduleEntity> weekScheds = staffScheduleRepository.findByUserIdAndScheduleDateBetweenAndIsDeletedFalseOrderByScheduleDateAsc(finalStylistId, monday, monday.plusDays(6));
+            Map<LocalDate, StaffScheduleEntity> wsMap = weekScheds.stream().collect(Collectors.toMap(StaffScheduleEntity::getScheduleDate, s -> s, (s1, s2) -> s1));
+
+            List<com.smartsalon.shift.entity.StaffAttendanceEntity> weekAtts = staffAttendanceRepository.findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(finalStylistId, monday, monday.plusDays(6));
+            Map<LocalDate, com.smartsalon.shift.entity.StaffAttendanceEntity> waMap = weekAtts.stream().collect(Collectors.toMap(com.smartsalon.shift.entity.StaffAttendanceEntity::getAttendanceDate, a -> a, (a1, a2) -> a1));
+
+            String[] dNames = {"T2", "T3", "T4", "T5", "T6", "T7", "CN"};
+            for (int i = 0; i < 7; i++) {
+                LocalDate d = monday.plusDays(i);
+                StaffScheduleEntity s = wsMap.get(d);
+                com.smartsalon.shift.entity.StaffAttendanceEntity a = waMap.get(d);
+
+                String sc = (s != null && s.getShiftTemplate() != null) ? s.getShiftTemplate().getCode() : (s != null && s.getStatus() == StaffScheduleStatus.OFF ? "OFF" : "FULL_DAY");
+                String sn = (s != null && s.getShiftTemplate() != null) ? s.getShiftTemplate().getName() : (s != null && s.getStatus() == StaffScheduleStatus.OFF ? "Nghỉ (OFF)" : "Ca Cả ngày");
+                LocalTime st = (s != null && s.getShiftTemplate() != null) ? s.getShiftTemplate().getStartTime() : (sc.equals("OFF") ? null : LocalTime.of(8, 30));
+                LocalTime et = (s != null && s.getShiftTemplate() != null) ? s.getShiftTemplate().getEndTime() : (sc.equals("OFF") ? null : LocalTime.of(20, 30));
+                Boolean iw = (s != null) ? (s.getStatus() == StaffScheduleStatus.WORKING) : true;
+                String as = (a != null && a.getStatus() != null) ? a.getStatus().name() : null;
+
+                weeklyScheduleList.add(PersonalWeeklyScheduleDayDto.builder()
+                        .date(d)
+                        .dayOfWeek(dNames[i])
+                        .shiftCode(sc)
+                        .shiftName(sn)
+                        .shiftStartTime(st)
+                        .shiftEndTime(et)
+                        .isWorking(iw)
+                        .attendanceStatus(as)
+                        .build());
+            }
+        }
+
         return StylistDailyWorklogResponse.builder()
+                .shiftCode(worklogShiftCode)
+                .shiftName(worklogShiftName)
+                .shiftStartTime(worklogShiftStart)
+                .shiftEndTime(worklogShiftEnd)
+                .isWorking(worklogIsWorking)
+                .attendanceStatus(worklogAttendanceStatus)
+                .clockInAt(worklogClockIn)
+                .breakStartAt(worklogBreakStart)
+                .breakEndAt(worklogBreakEnd)
+                .clockOutAt(worklogClockOut)
+                .overtimeMinutes(worklogOvertimeMinutes)
+                .weeklySchedule(weeklyScheduleList)
                 .stylistId(finalStylistId)
                 .stylistName(finalStylistName)
                 .branchId(finalBranchId)

@@ -28,4 +28,8 @@ public class StylistAvailabilityDto {
     @JsonFormat(pattern = "HH:mm")
     private LocalTime shiftEndTime;
     private Boolean isWorking;
+    private com.smartsalon.shift.entity.StaffAttendanceStatus attendanceStatus;
+    private java.time.LocalDateTime clockInAt;
+    private java.time.LocalDateTime clockOutAt;
+    private int overtimeMinutes;
 }

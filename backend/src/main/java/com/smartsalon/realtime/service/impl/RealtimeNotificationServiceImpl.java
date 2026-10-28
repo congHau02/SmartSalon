@@ -324,4 +324,35 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
 
         sendDispatchEvent(branchId, event);
     }
+
+    @Override
+    public void notifyAttendanceUpdated(com.smartsalon.shift.entity.StaffAttendanceEntity attendance, String action) {
+        if (attendance == null || attendance.getBranch() == null) {
+            return;
+        }
+        Long branchId = attendance.getBranch().getId();
+        com.smartsalon.user.entity.UserEntity user = attendance.getUser();
+        String staffName = user != null ? user.getFullName() : "Nhân viên";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("attendanceId", attendance.getId());
+        data.put("userId", user != null ? user.getId() : null);
+        data.put("action", action != null ? action : "");
+        data.put("status", attendance.getStatus() != null ? attendance.getStatus().name() : "");
+        data.put("overtimeMinutes", attendance.getOvertimeMinutes());
+        data.put("branchId", branchId);
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("ATTENDANCE_UPDATED")
+                .branchId(branchId)
+                .referenceId(attendance.getId())
+                .code(user != null ? user.getUsername() : null)
+                .title("Cập nhật chấm công: " + staffName)
+                .message(staffName + " - " + (attendance.getStatus() != null ? attendance.getStatus().name() : ""))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendDispatchEvent(branchId, event);
+    }
 }

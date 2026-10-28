@@ -17,6 +17,9 @@ public interface StaffScheduleRepository extends JpaRepository<StaffScheduleEnti
     List<StaffScheduleEntity> findByBranchIdAndScheduleDateBetweenAndIsDeletedFalseOrderByScheduleDateAsc(
             Long branchId, LocalDate startDate, LocalDate endDate);
 
+    List<StaffScheduleEntity> findByUserIdAndScheduleDateBetweenAndIsDeletedFalseOrderByScheduleDateAsc(
+            Long userId, LocalDate startDate, LocalDate endDate);
+
     List<StaffScheduleEntity> findByBranchIdAndScheduleDateAndIsDeletedFalse(Long branchId, LocalDate scheduleDate);
 
     @Query("SELECT s FROM StaffScheduleEntity s WHERE s.branch.id = :branchId AND s.scheduleDate BETWEEN :startDate AND :endDate AND s.isDeleted = false")

@@ -4,9 +4,9 @@
 
 **Blocked by:** 01: Branch Shift Templates, Weekly Shift Roster Matrix & Booking Conflict Guard, 02: Shift-Aware Slot Calculation Engine & 60-Minute Overtime Slot Window
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `GET /api/v1/pos/attendance/today?branchId={id}` returns each branch staff member's scheduled shift template for today, live `Staff Attendance` status (`PRESENT`, `ON_BREAK`, `COMPLETED`, `ABSENT`), clock-in/break/clock-out timestamps, and overtime minutes.
-- [ ] `POST /api/v1/pos/attendance/action` verifies the staff member's 4-digit `attendance_pin` (returning `HTTP 400 Bad Request` on invalid PIN, while permitting `ADMIN`/`MANAGER`/`STAFF` override), updates attendance timestamps and `overtimeMinutes`, and broadcasts a real-time event to `/topic/branch/{branchId}/dispatch`.
-- [ ] Today's slot calculation and Least-Workload stylist assignment automatically exclude stylists whose today `Staff Attendance` is `ABSENT` or who are currently `ON_BREAK`.
-- [ ] The `/pos` workspace stylist status strip and `Stylist Daily Worklog` display live shift and presence badges, personal weekly shift schedule summary, and a 1-touch 4-digit PIN modal (`Clock-in`, `Tạm nghỉ`, `Clock-out`), verified by backend `MockMvc` and frontend Vitest tests.
+- [x] `GET /api/v1/pos/attendance/today?branchId={id}` returns each branch staff member's scheduled shift template for today, live `Staff Attendance` status (`PRESENT`, `ON_BREAK`, `COMPLETED`, `ABSENT`), clock-in/break/clock-out timestamps, and overtime minutes.
+- [x] `POST /api/v1/pos/attendance/action` verifies the staff member's 4-digit `attendance_pin` (returning `HTTP 400 Bad Request` on invalid PIN, while permitting `ADMIN`/`MANAGER`/`STAFF` override), updates attendance timestamps and `overtimeMinutes`, and broadcasts a real-time event to `/topic/branch/{branchId}/dispatch`.
+- [x] Today's slot calculation and Least-Workload stylist assignment automatically exclude stylists whose today `Staff Attendance` is `ABSENT` or who are currently `ON_BREAK`.
+- [x] The `/pos` workspace stylist status strip and `Stylist Daily Worklog` display live shift and presence badges, personal weekly shift schedule summary, and a 1-touch 4-digit PIN modal (`Clock-in`, `Tạm nghỉ`, `Clock-out`), verified by backend `MockMvc` and frontend Vitest tests.

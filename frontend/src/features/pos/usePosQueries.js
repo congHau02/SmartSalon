@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { posApi } from "../../api/posApi";
-import { QUERY_KEYS } from "../../lib/queryKeys";
+import { QUERY_KEYS, invalidateRealtimeCaches } from "../../lib/queryKeys";
 
 /**
  * Hook for fetching Dispatch Board data with polling.
@@ -123,6 +123,42 @@ export function useCheckoutOrder(orderId, { onSuccess, onError } = {}) {
   return useMutation({
     mutationFn: (payload) => posApi.checkoutOrder(orderId, payload),
     onSuccess: (data, variables, context) => {
+      if (onSuccess) onSuccess(data, variables, context);
+    },
+    onError: (err, variables, context) => {
+      if (onError) onError(err, variables, context);
+    },
+  });
+}
+
+/**
+ * Hook for fetching today's staff shift and live attendance list.
+ */
+export function useTodayAttendance(branchId, options = {}) {
+  return useQuery({
+    queryKey: QUERY_KEYS.posTodayAttendance(branchId),
+    queryFn: () => posApi.getTodayAttendance(branchId),
+    enabled: Boolean(branchId),
+    staleTime: 15000,
+    ...options,
+  });
+}
+
+/**
+ * Hook for submitting a 1-touch PIN attendance action.
+ */
+export function useAttendanceAction({ branchId, onSuccess, onError } = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload) => posApi.submitAttendanceAction(payload),
+    onSuccess: (data, variables, context) => {
+      invalidateRealtimeCaches(queryClient);
+      if (branchId) {
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.posTodayAttendance(branchId),
+        });
+      }
       if (onSuccess) onSuccess(data, variables, context);
     },
     onError: (err, variables, context) => {

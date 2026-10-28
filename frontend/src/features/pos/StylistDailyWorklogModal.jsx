@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { X, Calendar, ChevronLeft, ChevronRight, Plus, Loader2, Sparkles, User, RefreshCw } from "lucide-react";
+import { X, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { toLocalDateISO, shiftLocalDateISO } from "../../lib/utils";
 import { useStylistDailyWorklog, useQuickCompleteBooking } from "./useStylistWorklog";
 import { StylistDailyWorklogKpis } from "./components/StylistDailyWorklogKpis";
 import { StylistCompletedTicketsList } from "./components/StylistCompletedTicketsList";
 import { StylistUpcomingBookingsList } from "./components/StylistUpcomingBookingsList";
 import { QuickServiceTicketModal } from "./components/QuickServiceTicketModal";
+import { StylistWorklogShiftBanner } from "./components/StylistWorklogShiftBanner";
+import { PinAttendanceModal } from "./components/PinAttendanceModal";
+import { WorklogControlsBar } from "./components/WorklogControlsBar";
 
 export function StylistDailyWorklogModal({
   isOpen,
@@ -24,6 +27,7 @@ export function StylistDailyWorklogModal({
   const [selectedStylistId, setSelectedStylistId] = useState(() => currentUserId || stylists[0]?.id || "");
   const [activeTab, setActiveTab] = useState("completed"); // "completed" | "upcoming"
   const [isQuickTicketOpen, setIsQuickTicketOpen] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [completingId, setCompletingId] = useState(null);
   const [quickCompleteMethod, setQuickCompleteMethod] = useState("CASH");
 
@@ -110,65 +114,19 @@ export function StylistDailyWorklogModal({
             </div>
           </div>
 
-          {/* Controls Bar: Date navigation & Stylist selector */}
-          <div className="p-3 bg-slate-850 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Date navigation */}
-              <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700">
-                <button
-                  onClick={handlePrevDay}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs font-mono font-semibold text-white px-2 focus:outline-none cursor-pointer"
-                />
-                <button
-                  onClick={handleNextDay}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleToday}
-                  className="px-2 py-0.5 text-[11px] font-semibold text-pink-400 hover:text-pink-300 rounded cursor-pointer"
-                >
-                  Hôm nay
-                </button>
-              </div>
-
-              {/* Stylist Selector (only for Admin/Manager/Staff) */}
-              {!isOnlyStylist && stylists.length > 0 && (
-                <div className="flex items-center gap-1.5 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                  <select
-                    value={selectedStylistId}
-                    onChange={(e) => setSelectedStylistId(e.target.value)}
-                    className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer"
-                  >
-                    {stylists.map((st) => (
-                      <option key={st.id} value={st.id} className="bg-slate-800 text-white">
-                        {st.fullName || st.username}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Ticket Button */}
-            <button
-              onClick={() => setIsQuickTicketOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white font-bold text-xs shadow-md shadow-pink-900/30 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Tạo phiếu cắt nhanh</span>
-            </button>
-          </div>
+          {/* Controls Bar */}
+          <WorklogControlsBar
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            handlePrevDay={handlePrevDay}
+            handleNextDay={handleNextDay}
+            handleToday={handleToday}
+            isOnlyStylist={isOnlyStylist}
+            stylists={stylists}
+            selectedStylistId={selectedStylistId}
+            setSelectedStylistId={setSelectedStylistId}
+            onOpenQuickTicket={() => setIsQuickTicketOpen(true)}
+          />
 
           {/* Modal Content */}
           <div className="p-5 space-y-5 overflow-y-auto flex-1">
@@ -179,6 +137,12 @@ export function StylistDailyWorklogModal({
               </div>
             ) : (
               <>
+                {/* Shift & Live Presence Banner with 7-Day Schedule */}
+                <StylistWorklogShiftBanner
+                  worklogData={worklogData}
+                  onOpenAttendance={() => setIsPinModalOpen(true)}
+                />
+
                 {/* Production KPIs and Shift Handover */}
                 <StylistDailyWorklogKpis data={worklogData} />
 
@@ -249,6 +213,26 @@ export function StylistDailyWorklogModal({
         onSuccess={(order) => {
           refetch();
           onOrderCompleted?.(order);
+        }}
+      />
+
+      {/* 1-Touch PIN Attendance Modal */}
+      <PinAttendanceModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        branchId={branchId}
+        initialStaff={
+          stylists.find((s) => s.id === Number(selectedStylistId)) || {
+            userId: Number(selectedStylistId),
+            fullName: worklogData?.stylistName,
+            shiftCode: worklogData?.shiftCode,
+            shiftName: worklogData?.shiftName,
+            attendanceStatus: worklogData?.attendanceStatus,
+          }
+        }
+        userRoles={userRoles}
+        onSuccess={() => {
+          refetch();
         }}
       />
     </>

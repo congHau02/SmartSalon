@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import com.smartsalon.pos.service.MediaStorageService;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/pos")
@@ -27,6 +28,7 @@ public class PosController {
 
     private final PosOrderService posOrderService;
     private final MediaStorageService mediaStorageService;
+    private final com.smartsalon.pos.service.PosAttendanceService posAttendanceService;
 
     @PostMapping("/bookings/{bookingId}/check-in")
     @Operation(summary = "Check-in lịch hẹn và tự động mở đơn hàng POS")
@@ -195,5 +197,21 @@ public class PosController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         StylistDailyWorklogResponse response = posOrderService.getStylistDailyWorklog(branchId, stylistId, date);
         return ResponseEntity.ok(ApiResponse.success("Lấy dữ liệu tổng kết ngày thành công", response));
+    }
+
+    @GetMapping("/attendance/today")
+    @Operation(summary = "Lấy danh sách phân ca và trạng thái chấm công hôm nay của nhân sự chi nhánh")
+    public ResponseEntity<ApiResponse<List<PosStaffAttendanceDto>>> getTodayAttendance(
+            @RequestParam(required = false) Long branchId) {
+        List<PosStaffAttendanceDto> response = posAttendanceService.getTodayAttendance(branchId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chấm công hôm nay thành công", response));
+    }
+
+    @PostMapping("/attendance/action")
+    @Operation(summary = "Chấm công nhân sự qua mã PIN 4 chữ số hoặc ghi đè quản trị")
+    public ResponseEntity<ApiResponse<PosStaffAttendanceDto>> executeAttendanceAction(
+            @Valid @RequestBody PosAttendanceActionRequest request) {
+        PosStaffAttendanceDto response = posAttendanceService.executeAttendanceAction(request);
+        return ResponseEntity.ok(ApiResponse.success("Thực hiện chấm công thành công", response));
     }
 }

@@ -15,5 +15,8 @@ public interface StaffAttendanceRepository extends JpaRepository<StaffAttendance
     List<StaffAttendanceEntity> findByBranchIdAndAttendanceDateBetweenAndIsDeletedFalse(
             Long branchId, LocalDate startDate, LocalDate endDate);
 
+    List<StaffAttendanceEntity> findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(
+            Long userId, LocalDate startDate, LocalDate endDate);
+
     List<StaffAttendanceEntity> findByBranchIdAndAttendanceDateAndIsDeletedFalse(Long branchId, LocalDate attendanceDate);
 }

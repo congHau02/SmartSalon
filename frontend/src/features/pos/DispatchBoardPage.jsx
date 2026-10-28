@@ -15,6 +15,7 @@ import { WalkInModal } from "./WalkInModal";
 import { PosOrderDrawer } from "./PosOrderDrawer";
 import { CommissionLedgerModal } from "./CommissionLedgerModal";
 import { StylistDailyWorklogModal } from "./StylistDailyWorklogModal";
+import { PinAttendanceModal } from "./components/PinAttendanceModal";
 import { DispatchBoardHeader } from "./components/DispatchBoardHeader";
 import { toLocalDateISO, shiftLocalDateISO } from "../../lib/utils";
 import { useDispatchBoard, useCheckInBooking } from "./usePosQueries";
@@ -31,6 +32,8 @@ export function DispatchBoardPage() {
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
   const [isCommissionLedgerOpen, setIsCommissionLedgerOpen] = useState(false);
   const [isStylistWorklogOpen, setIsStylistWorklogOpen] = useState(false);
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+  const [selectedAttendanceStylist, setSelectedAttendanceStylist] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [checkingInBookingId, setCheckingInBookingId] = useState(null);
@@ -127,7 +130,14 @@ export function DispatchBoardPage() {
         }}
       />
 
-      <StylistAvailabilityStrip stylists={stylists} />
+      <StylistAvailabilityStrip
+        stylists={stylists}
+        isLoading={isLoading}
+        onOpenAttendance={(stylist) => {
+          setSelectedAttendanceStylist(stylist || null);
+          setIsAttendanceModalOpen(true);
+        }}
+      />
 
       {isLoading ? (
         <div className="h-96 flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -216,6 +226,23 @@ export function DispatchBoardPage() {
           });
           showToast(`Đã hoàn thành đơn hàng ${order.orderCode}`);
           setSelectedOrder(order);
+        }}
+      />
+
+      <PinAttendanceModal
+        isOpen={isAttendanceModalOpen}
+        onClose={() => {
+          setIsAttendanceModalOpen(false);
+          setSelectedAttendanceStylist(null);
+        }}
+        branchId={selectedBranchId}
+        initialStaff={selectedAttendanceStylist}
+        userRoles={user?.roles || []}
+        onSuccess={(data) => {
+          showToast(`Chấm công thành công cho ${data.fullName}! Trạng thái: ${data.attendanceStatus || "Hoàn thành"}`);
+          queryClient.invalidateQueries({
+            queryKey: QUERY_KEYS.posBoard(selectedBranchId, selectedDate),
+          });
         }}
       />
     </div>
