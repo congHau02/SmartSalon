@@ -4,6 +4,7 @@ import com.smartsalon.analytics.AnalyticsPeriod;
 import com.smartsalon.analytics.dto.DailyPnlResponse;
 import com.smartsalon.analytics.dto.OrderPnlResponse;
 import com.smartsalon.analytics.dto.PnlAnalyticsResponse;
+import com.smartsalon.shift.service.impl.ShiftPayrollHelper;
 import com.smartsalon.analytics.service.PnlAnalyticsService;
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
@@ -21,9 +22,7 @@ import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import com.smartsalon.pos.repository.OrderRepository;
 import com.smartsalon.pos.service.OrderBomResolver;
-import com.smartsalon.shift.entity.StaffAttendanceStatus;
 import com.smartsalon.shift.entity.StaffScheduleEntity;
-import com.smartsalon.shift.entity.StaffScheduleStatus;
 import com.smartsalon.shift.repository.StaffAttendanceRepository;
 import com.smartsalon.shift.repository.StaffScheduleRepository;
 import com.smartsalon.user.entity.UserEntity;
@@ -171,14 +170,19 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
         long daysInPeriod = ChronoUnit.DAYS.between(actualStart, actualEnd) + 1;
         BigDecimal totalBaseSalaries = BigDecimal.ZERO;
 
+        List<Long> staffIds = activeStaff.stream().map(UserEntity::getId).collect(Collectors.toList());
+        Map<Long, List<StaffScheduleEntity>> schedulesByStaff = staffIds.isEmpty() ? Map.of()
+                : staffScheduleRepository.findByUserIdInAndScheduleDateBetweenAndIsDeletedFalse(staffIds, actualStart, actualEnd)
+                        .stream().collect(Collectors.groupingBy(s -> s.getUser().getId()));
+        Map<Long, Set<LocalDate>> attendedByStaff = staffIds.isEmpty() ? Map.of()
+                : ShiftPayrollHelper.attendedDatesByStaff(staffAttendanceRepository
+                        .findByUserIdInAndAttendanceDateBetweenAndIsDeletedFalse(staffIds, actualStart, actualEnd));
+        Map<Long, Set<LocalDate>> stepDatesByStaff = ShiftPayrollHelper.completedStepDatesByStaff(orders);
+
         for (UserEntity staff : activeStaff) {
             BigDecimal contractSalary = staff.getBaseSalary() != null ? staff.getBaseSalary() : BigDecimal.ZERO;
-            List<StaffScheduleEntity> staffSchedules = staffScheduleRepository
-                    .findByUserIdAndScheduleDateBetweenAndIsDeletedFalseOrderByScheduleDateAsc(staff.getId(), actualStart, actualEnd);
-
-            long scheduledCount = staffSchedules.stream()
-                    .filter(s -> s.getStatus() == StaffScheduleStatus.WORKING && s.getShiftTemplate() != null)
-                    .count();
+            int scheduledCount = ShiftPayrollHelper
+                    .scheduledWorkingDates(schedulesByStaff.getOrDefault(staff.getId(), List.of())).size();
 
             BigDecimal staffProratedSalary;
             if (scheduledCount == 0) {
@@ -188,36 +192,13 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                         .divide(BigDecimal.valueOf(30), 0, RoundingMode.HALF_UP)
                         .setScale(2, RoundingMode.HALF_UP);
             } else {
-                // Worked dates: PRESENT/COMPLETED attendance OR a completed PAID step (spec L121)
-                Set<LocalDate> workedDates = staffAttendanceRepository
-                        .findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(staff.getId(), actualStart, actualEnd)
-                        .stream()
-                        .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED
-                                || a.getStatus() == StaffAttendanceStatus.PRESENT)
-                        .map(a -> a.getAttendanceDate())
-                        .collect(Collectors.toCollection(HashSet::new));
-                for (OrderEntity o : orders) {
-                    if (o.getItems() == null) continue;
-                    for (OrderItemEntity item : o.getItems()) {
-                        if (item.isDeleted() || item.getStepAssignments() == null) continue;
-                        for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
-                            if (step.getStaff() != null && staff.getId().equals(step.getStaff().getId())
-                                    && step.getCompletedAt() != null) {
-                                workedDates.add(step.getCompletedAt().toLocalDate());
-                            }
-                        }
-                    }
-                }
-                long completedCount = workedDates.size();
-
-                staffProratedSalary = contractSalary
-                        .multiply(BigDecimal.valueOf(completedCount))
-                        .divide(BigDecimal.valueOf(scheduledCount), 0, RoundingMode.HALF_UP)
+                int workedCount = ShiftPayrollHelper.union(
+                        attendedByStaff.get(staff.getId()), stepDatesByStaff.get(staff.getId())).size();
+                staffProratedSalary = ShiftPayrollHelper.prorate(contractSalary, workedCount, scheduledCount)
                         .setScale(2, RoundingMode.HALF_UP);
             }
             totalBaseSalaries = totalBaseSalaries.add(staffProratedSalary);
         }
-
         BigDecimal trueNetProfit = totalOperationalProfit.subtract(totalBaseSalaries);
         BigDecimal netProfitAfterPayrollMarginPercentage = BigDecimal.ZERO;
         if (totalNetRevenue.compareTo(BigDecimal.ZERO) > 0) {

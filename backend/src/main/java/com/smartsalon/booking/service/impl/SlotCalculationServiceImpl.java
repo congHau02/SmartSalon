@@ -1,5 +1,7 @@
 package com.smartsalon.booking.service.impl;
 
+import com.smartsalon.shift.service.impl.ShiftDayView;
+
 import com.smartsalon.booking.dto.AvailableSlotsResponse;
 import com.smartsalon.booking.dto.SlotDto;
 import com.smartsalon.booking.dto.SlotStatus;
@@ -101,43 +103,7 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                             : 0L;
 
                     StaffScheduleEntity schedule = scheduleMap.get(u.getId());
-                    String shiftCode = null;
-                    String shiftName = null;
-                    LocalTime shiftStart = null;
-                    LocalTime shiftEnd = null;
-                    Integer maxOvertime = 0;
-                    Boolean isWorking = true;
-
-                    if (schedule != null && schedule.getStatus() == StaffScheduleStatus.WORKING && schedule.getShiftTemplate() != null) {
-                        shiftCode = schedule.getShiftTemplate().getCode();
-                        shiftName = schedule.getShiftTemplate().getName();
-                        shiftStart = schedule.getShiftTemplate().getStartTime();
-                        shiftEnd = schedule.getShiftTemplate().getEndTime();
-                        maxOvertime = schedule.getShiftTemplate().getMaxOvertimeMinutes();
-                        isWorking = true;
-                    } else if (schedule != null && schedule.getStatus() == StaffScheduleStatus.OFF) {
-                        shiftCode = "OFF";
-                        shiftName = "Nghỉ (OFF)";
-                        shiftStart = null;
-                        shiftEnd = null;
-                        maxOvertime = 0;
-                        isWorking = false;
-                    } else if (hasBranchRoster) {
-                        shiftCode = "OFF";
-                        shiftName = "Không xếp ca";
-                        shiftStart = null;
-                        shiftEnd = null;
-                        maxOvertime = 0;
-                        isWorking = false;
-                    } else {
-                        // Far-future date fallback without published roster
-                        shiftCode = "FULL_DAY";
-                        shiftName = "Ca Cả ngày (Mặc định)";
-                        shiftStart = OPENING_TIME;
-                        shiftEnd = CLOSING_TIME;
-                        maxOvertime = 0;
-                        isWorking = true;
-                    }
+                    ShiftDayView sv = ShiftDayView.resolve(schedule, hasBranchRoster);
 
                     return new StylistDto(
                             u.getId(),
@@ -148,12 +114,12 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                             u.getAvatarUrl(),
                             avgRating,
                             reviewCount,
-                            shiftCode,
-                            shiftName,
-                            shiftStart,
-                            shiftEnd,
-                            maxOvertime,
-                            isWorking
+                            sv.code(),
+                            sv.name(),
+                            sv.start(),
+                            sv.end(),
+                            sv.maxOvertimeMinutes(),
+                            sv.working()
                     );
                 })
                 .toList();

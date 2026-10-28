@@ -1,5 +1,7 @@
 package com.smartsalon.pos.service.impl;
 
+import com.smartsalon.shift.service.impl.ShiftDayView;
+
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingServiceItemEntity;
 import com.smartsalon.booking.entity.BookingStatus;
@@ -392,27 +394,12 @@ public class PosOrderServiceImpl implements PosOrderService {
             LocalTime shiftEnd = null;
             Boolean isWorking = true;
 
-            if (schedule != null && schedule.getStatus() == StaffScheduleStatus.WORKING && schedule.getShiftTemplate() != null) {
-                shiftCode = schedule.getShiftTemplate().getCode();
-                shiftName = schedule.getShiftTemplate().getName();
-                shiftStart = schedule.getShiftTemplate().getStartTime();
-                shiftEnd = schedule.getShiftTemplate().getEndTime();
-                isWorking = true;
-            } else if (schedule != null && schedule.getStatus() == StaffScheduleStatus.OFF) {
-                shiftCode = "OFF";
-                shiftName = "Nghỉ (OFF)";
-                isWorking = false;
-            } else if (hasBranchRoster) {
-                shiftCode = "OFF";
-                shiftName = "Không xếp ca";
-                isWorking = false;
-            } else {
-                shiftCode = "FULL_DAY";
-                shiftName = "Ca Cả ngày";
-                shiftStart = LocalTime.of(8, 30);
-                shiftEnd = LocalTime.of(20, 30);
-                isWorking = true;
-            }
+            ShiftDayView sv = ShiftDayView.resolve(schedule, hasBranchRoster);
+            shiftCode = sv.code();
+            shiftName = sv.name();
+            shiftStart = sv.start();
+            shiftEnd = sv.end();
+            isWorking = sv.working();
 
             com.smartsalon.shift.entity.StaffAttendanceEntity attendance = attendanceMap.get(stylist.getId());
             com.smartsalon.shift.entity.StaffAttendanceStatus attendanceStatus = (attendance != null) ? attendance.getStatus() : null;
@@ -1792,23 +1779,12 @@ public class PosOrderServiceImpl implements PosOrderService {
             StaffScheduleEntity todaySched = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(finalStylistId, queryDate).orElse(null);
             com.smartsalon.shift.entity.StaffAttendanceEntity todayAtt = staffAttendanceRepository.findByUserIdAndAttendanceDateAndIsDeletedFalse(finalStylistId, queryDate).orElse(null);
 
-            if (todaySched != null && todaySched.getStatus() == StaffScheduleStatus.WORKING && todaySched.getShiftTemplate() != null) {
-                worklogShiftCode = todaySched.getShiftTemplate().getCode();
-                worklogShiftName = todaySched.getShiftTemplate().getName();
-                worklogShiftStart = todaySched.getShiftTemplate().getStartTime();
-                worklogShiftEnd = todaySched.getShiftTemplate().getEndTime();
-                worklogIsWorking = true;
-            } else if (todaySched != null && todaySched.getStatus() == StaffScheduleStatus.OFF) {
-                worklogShiftCode = "OFF";
-                worklogShiftName = "Nghỉ (OFF)";
-                worklogIsWorking = false;
-            } else {
-                worklogShiftCode = "FULL_DAY";
-                worklogShiftName = "Ca Cả ngày";
-                worklogShiftStart = LocalTime.of(8, 30);
-                worklogShiftEnd = LocalTime.of(20, 30);
-                worklogIsWorking = true;
-            }
+            ShiftDayView wv = ShiftDayView.resolve(todaySched, false);
+            worklogShiftCode = wv.code();
+            worklogShiftName = wv.name();
+            worklogShiftStart = wv.start();
+            worklogShiftEnd = wv.end();
+            worklogIsWorking = wv.working();
 
             if (todayAtt != null) {
                 worklogAttendanceStatus = todayAtt.getStatus();

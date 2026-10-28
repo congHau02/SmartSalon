@@ -1,5 +1,7 @@
 package com.smartsalon.pos.service.impl;
 
+import com.smartsalon.shift.service.impl.ShiftDayView;
+
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.branch.repository.BranchRepository;
 import com.smartsalon.exception.AppException;
@@ -250,38 +252,15 @@ public class PosAttendanceServiceImpl implements PosAttendanceService {
                 .findFirst()
                 .orElse("STAFF");
 
-        Long shiftTemplateId = null;
-        String shiftCode = null;
-        String shiftName = null;
-        LocalTime shiftStartTime = null;
-        LocalTime shiftEndTime = null;
-        Integer maxOvertimeMinutes = 0;
-        Boolean isWorking = true;
-
-        if (schedule != null && schedule.getStatus() == StaffScheduleStatus.WORKING && schedule.getShiftTemplate() != null) {
-            ShiftTemplateEntity t = schedule.getShiftTemplate();
-            shiftTemplateId = t.getId();
-            shiftCode = t.getCode();
-            shiftName = t.getName();
-            shiftStartTime = t.getStartTime();
-            shiftEndTime = t.getEndTime();
-            maxOvertimeMinutes = t.getMaxOvertimeMinutes();
-            isWorking = true;
-        } else if (schedule != null && schedule.getStatus() == StaffScheduleStatus.OFF) {
-            shiftCode = "OFF";
-            shiftName = "Nghỉ (OFF)";
-            isWorking = false;
-        } else if (hasBranchRoster) {
-            shiftCode = "OFF";
-            shiftName = "Không xếp ca (OFF)";
-            isWorking = false;
-        } else {
-            shiftCode = "FULL_DAY";
-            shiftName = "Ca Cả ngày";
-            shiftStartTime = LocalTime.of(8, 30);
-            shiftEndTime = LocalTime.of(20, 30);
-            isWorking = true;
-        }
+        ShiftDayView sv = ShiftDayView.resolve(schedule, hasBranchRoster);
+        Long shiftTemplateId = sv.working() && schedule != null && schedule.getShiftTemplate() != null
+                ? schedule.getShiftTemplate().getId() : null;
+        String shiftCode = sv.code();
+        String shiftName = sv.name();
+        LocalTime shiftStartTime = sv.start();
+        LocalTime shiftEndTime = sv.end();
+        Integer maxOvertimeMinutes = sv.maxOvertimeMinutes();
+        Boolean isWorking = sv.working();
 
         Long attendanceId = null;
         StaffAttendanceStatus attendanceStatus = null;
