@@ -24,5 +24,6 @@ public class CommissionLedgerEntryDto {
     private BigDecimal amount;
     private String status;
     private String calculationNotes;
+    private Boolean isOvertime;
     private Instant createdAt;
 }

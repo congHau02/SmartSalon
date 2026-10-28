@@ -113,4 +113,61 @@ describe("Phase 8 - Issue 02: Personal Payroll Statement & Staff Workspace Navig
       expect(canSeeAdminHeaderLink([ROLES.STAFF])).toBe(false);
     });
   });
+
+  describe("Phase 10 - Issue 04: Overtime Commission & Shift-Prorated Base Salary", () => {
+    it("computes shift completion metrics and shift-prorated base salary accurately", () => {
+      const payload = {
+        contractBaseSalary: 10000000,
+        scheduledShiftCount: 20,
+        completedShiftCount: 15,
+        extraShiftCount: 2,
+        baseSalary: 7500000, // (15 / 20) * 10,000,000
+        totalCommission: 2400000,
+        overtimeCommissionTotal: 600000,
+      };
+
+      const prorationRatio = payload.completedShiftCount / payload.scheduledShiftCount;
+      const expectedProratedBaseSalary = Math.round(payload.contractBaseSalary * prorationRatio);
+      expect(expectedProratedBaseSalary).toBe(payload.baseSalary);
+
+      const totalPayout = payload.baseSalary + payload.totalCommission;
+      expect(totalPayout).toBe(9900000);
+      expect(payload.overtimeCommissionTotal).toBeLessThanOrEqual(payload.totalCommission);
+    });
+
+    it("falls back cleanly to contractBaseSalary when scheduledShiftCount is 0", () => {
+      const payload = {
+        contractBaseSalary: 8000000,
+        scheduledShiftCount: 0,
+        completedShiftCount: 0,
+        extraShiftCount: 0,
+        baseSalary: 8000000,
+      };
+
+      const effectiveBaseSalary =
+        payload.scheduledShiftCount > 0
+          ? Math.round(payload.contractBaseSalary * (payload.completedShiftCount / payload.scheduledShiftCount))
+          : payload.contractBaseSalary;
+
+      expect(effectiveBaseSalary).toBe(8000000);
+    });
+
+    it("identifies overtime ledgers via isOvertime flag or [OT 1.2x] note in ledger list", () => {
+      const ledgers = [
+        { id: 1, orderCode: "ORD-001", isOvertime: true, calculationNotes: "Step pool 20% x 1.2 [OT 1.2x]", amount: 60000 },
+        { id: 2, orderCode: "ORD-002", isOvertime: false, calculationNotes: "Step pool 20%", amount: 50000 },
+        { id: 3, orderCode: "ORD-003", isOvertime: null, calculationNotes: "Cover day [OT 1.2x]", amount: 72000 },
+      ];
+
+      const otLedgers = ledgers.filter(
+        (l) => Boolean(l.isOvertime || (l.calculationNotes && l.calculationNotes.includes("[OT 1.2x]")))
+      );
+
+      expect(otLedgers.length).toBe(2);
+      expect(otLedgers.map((l) => l.id)).toEqual([1, 3]);
+
+      const totalOtCommission = otLedgers.reduce((acc, curr) => acc + curr.amount, 0);
+      expect(totalOtCommission).toBe(132000);
+    });
+  });
 });

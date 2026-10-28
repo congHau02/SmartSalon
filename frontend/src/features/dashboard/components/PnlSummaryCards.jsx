@@ -29,8 +29,10 @@ export function PnlSummaryCards({ data, isLoading }) {
 
   if (!data) return null;
 
+  const totalBaseSalaries = data.totalBaseSalaries != null ? data.totalBaseSalaries : (data.fixedBaseSalaryCost || 0);
+  const trueNetProfit = data.trueNetProfit != null ? data.trueNetProfit : (data.netProfitAfterPayroll || 0);
   const isOpProfitPositive = (data.operationalNetProfit || 0) >= 0;
-  const isNetProfitPositive = (data.netProfitAfterPayroll || 0) >= 0;
+  const isNetProfitPositive = trueNetProfit >= 0;
 
   return (
     <div className="space-y-4">
@@ -203,19 +205,19 @@ export function PnlSummaryCards({ data, isLoading }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
-            {/* Lương cứng cố định */}
+            {/* Lương nhân sự theo ca */}
             <div>
-              <div className="text-xs text-slate-400 font-medium">Lương cứng nhân sự (Base Salary)</div>
+              <div className="text-xs text-slate-400 font-medium">Lương nhân sự theo ca (Base Salary)</div>
               <div className="text-xl font-black text-rose-300 mt-1">
-                -{formatCurrency(data.fixedBaseSalaryCost)}
+                -{formatCurrency(totalBaseSalaries)}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Khấu trừ cố định định kỳ</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Khấu trừ lương theo ca thực tế</div>
             </div>
 
             {/* Lợi nhuận ròng sau lương */}
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-slate-300 font-medium">LN ròng sau lương cứng</span>
+                <span className="text-xs text-slate-300 font-medium">Lợi nhuận ròng (True Net Profit)</span>
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                   isNetProfitPositive ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
                 }`}>
@@ -225,10 +227,10 @@ export function PnlSummaryCards({ data, isLoading }) {
               <div className={`text-xl font-black mt-1 ${
                 isNetProfitPositive ? "text-emerald-400" : "text-rose-400"
               }`}>
-                {formatCurrency(data.netProfitAfterPayroll)}
+                {formatCurrency(trueNetProfit)}
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">
-                = LN Vận hành - Lương cứng
+                = LN Vận hành - Lương theo ca
               </div>
             </div>
           </div>

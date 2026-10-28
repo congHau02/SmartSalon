@@ -36,7 +36,9 @@ public class PnlAnalyticsResponse {
     private BigDecimal grossMarginPercentage;
     private BigDecimal netProfitMarginPercentage;
     private BigDecimal fixedBaseSalaryCost;
+    private BigDecimal totalBaseSalaries;
     private BigDecimal netProfitAfterPayroll;
+    private BigDecimal trueNetProfit;
     private BigDecimal netProfitAfterPayrollMarginPercentage;
     private List<DailyPnlResponse> dailySeries;
     private List<OrderPnlResponse> orders;

@@ -60,29 +60,39 @@ export function PersonalPayrollLedgerTable({ ledgers = [] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {filteredLedgers.map((l, idx) => (
-                <tr key={l.id || idx} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3">
-                    <div className="font-mono font-bold text-pink-400">{l.orderCode || "—"}</div>
-                    <div className="text-[10px] text-slate-400">{formatDate(l.createdAt)}</div>
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <div className="font-semibold text-slate-100">{l.serviceName || "Dịch vụ"}</div>
-                    <div className="text-[11px] text-slate-400">{l.stepName || "Công đoạn"}</div>
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    <span className="inline-block px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-mono font-semibold">
-                      {l.commissionRate != null ? `${Number(l.commissionRate)}%` : "—"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-[11px] text-slate-400 max-w-xs truncate">
-                    {l.calculationNotes || "Hạch toán theo bước dịch vụ"}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">
-                    +{formatCurrency(l.amount)}
-                  </td>
-                </tr>
-              ))}
+              {filteredLedgers.map((l, idx) => {
+                const isOt = Boolean(l.isOvertime || (l.calculationNotes && l.calculationNotes.includes("[OT 1.2x]")));
+                return (
+                  <tr key={l.id || idx} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="py-2.5 px-3">
+                      <div className="font-mono font-bold text-pink-400">{l.orderCode || "—"}</div>
+                      <div className="text-[10px] text-slate-400">{formatDate(l.createdAt)}</div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-slate-100 flex items-center gap-1.5">
+                        <span>{l.serviceName || "Dịch vụ"}</span>
+                        {isOt && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 tracking-wider">
+                            OT 1.2x
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-400">{l.stepName || "Công đoạn"}</div>
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-mono font-semibold">
+                        {l.commissionRate != null ? `${Number(l.commissionRate)}%` : "—"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-[11px] text-slate-400 max-w-xs truncate" title={l.calculationNotes}>
+                      {l.calculationNotes || "Hạch toán theo bước dịch vụ"}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">
+                      +{formatCurrency(l.amount)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

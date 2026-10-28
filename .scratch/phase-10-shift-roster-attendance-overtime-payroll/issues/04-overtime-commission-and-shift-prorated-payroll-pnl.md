@@ -4,9 +4,9 @@
 
 **Blocked by:** 01: Branch Shift Templates, Weekly Shift Roster Matrix & Booking Conflict Guard, 03: 1-Touch POS PIN Staff Attendance & Real-Time Dispatch Board Presence
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Settling a POS `Order` (standard checkout or `Quick Service Ticket`) applies the `1.2x` `Overtime Commission Multiplier` to any `Service Step` whose stylist completed the order past their scheduled `shift.endTime` (or on an `OFF` cover day), recording `[OT 1.2x]` in the `Commission Ledger` notes.
-- [ ] `GET /api/v1/analytics/my-payroll` and `GET /api/v1/analytics/staff-payroll` compute and return `scheduledShiftCount`, `completedShiftCount`, `extraShiftCount`, `contractBaseSalary`, `baseSalary` (set to `Shift-Prorated Base Salary`), and `overtimeCommissionTotal`, falling back cleanly to `contractBaseSalary` for historical periods without scheduled shifts.
-- [ ] `GET /api/v1/analytics/pnl` sums the `Shift-Prorated Base Salary` of branch staff for Tier-2 `totalBaseSalaries` so `trueNetProfit` reflects real attendance-adjusted labor expenses.
-- [ ] The POS `Personal Payroll Statement` modal and Admin `Staff Payroll` view render shift completion metrics (`Số ca hoàn thành / Tổng ca`), `Contract Base Salary` vs. `Shift-Prorated Base Salary`, `Overtime Commission Total`, and `OT 1.2x` badges on itemized ledger entries, passing all backend and frontend tests.
+- [x] Settling a POS `Order` (standard checkout or `Quick Service Ticket`) applies the `1.2x` `Overtime Commission Multiplier` to any `Service Step` whose stylist completed the order past their scheduled `shift.endTime` (or on an `OFF` cover day), recording `[OT 1.2x]` in the `Commission Ledger` notes.
+- [x] `GET /api/v1/analytics/my-payroll` and `GET /api/v1/analytics/staff-payroll` compute and return `scheduledShiftCount`, `completedShiftCount`, `extraShiftCount`, `contractBaseSalary`, `baseSalary` (set to `Shift-Prorated Base Salary`), and `overtimeCommissionTotal`, falling back cleanly to `contractBaseSalary` for historical periods without scheduled shifts.
+- [x] `GET /api/v1/analytics/pnl` sums the `Shift-Prorated Base Salary` of branch staff for Tier-2 `totalBaseSalaries` so `trueNetProfit` reflects real attendance-adjusted labor expenses.
+- [x] The POS `Personal Payroll Statement` modal and Admin `Staff Payroll` view render shift completion metrics (`Số ca hoàn thành / Tổng ca`), `Contract Base Salary` vs. `Shift-Prorated Base Salary`, `Overtime Commission Total`, and `OT 1.2x` badges on itemized ledger entries, passing all backend and frontend tests.

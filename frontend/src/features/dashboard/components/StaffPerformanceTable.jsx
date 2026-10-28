@@ -36,7 +36,8 @@ export function StaffPerformanceTable({
           <thead className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             <tr>
               <th className="py-3 px-4">Nhân sự</th>
-              <th className="py-3 px-4">Lương cứng tháng</th>
+              <th className="py-3 px-4">Lương cơ bản</th>
+              <th className="py-3 px-3 text-center">Ca trực</th>
               <th className="py-3 px-3 text-center">Đơn / Công đoạn</th>
               <th className="py-3 px-4 text-right">Tổng hoa hồng</th>
               <th className="py-3 px-4 text-right">Tổng thực lĩnh</th>
@@ -88,7 +89,26 @@ export function StaffPerformanceTable({
 
                   {/* Base Salary */}
                   <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
-                    {formatCurrency(staff.baseSalary || 0)}
+                    <div>{formatCurrency(staff.baseSalary || 0)}</div>
+                    {staff.contractBaseSalary != null && (
+                      <div className="text-[10px] text-slate-400 font-normal">
+                        HĐ: {formatCurrency(staff.contractBaseSalary)}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Shift Attendance */}
+                  <td className="py-3.5 px-3 text-center">
+                    <div className="inline-flex flex-col items-center">
+                      <span className="font-mono font-semibold text-slate-800 text-xs">
+                        {staff.completedShiftCount || 0} / {staff.scheduledShiftCount || 0} ca
+                      </span>
+                      {staff.extraShiftCount > 0 && (
+                        <span className="text-[10px] text-emerald-600 font-medium">
+                          +{staff.extraShiftCount} ca ngoài
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Orders & Steps */}
@@ -102,7 +122,12 @@ export function StaffPerformanceTable({
 
                   {/* Total Commission */}
                   <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-600">
-                    +{formatCurrency(staff.totalCommission || 0)}
+                    <div>+{formatCurrency(staff.totalCommission || 0)}</div>
+                    {staff.overtimeCommissionTotal > 0 && (
+                      <div className="text-[10px] text-amber-600 font-medium">
+                        Tăng ca: +{formatCurrency(staff.overtimeCommissionTotal)}
+                      </div>
+                    )}
                   </td>
 
                   {/* Total Payout */}

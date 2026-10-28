@@ -20,6 +20,12 @@ import com.smartsalon.pos.entity.StepAssignmentStatus;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import com.smartsalon.pos.repository.OrderRepository;
 import com.smartsalon.review.repository.ServiceReviewRepository;
+import com.smartsalon.shift.entity.StaffAttendanceEntity;
+import com.smartsalon.shift.entity.StaffAttendanceStatus;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
+import com.smartsalon.shift.entity.StaffScheduleStatus;
+import com.smartsalon.shift.repository.StaffAttendanceRepository;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
 import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
@@ -49,6 +55,8 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
     private final CommissionLedgerRepository commissionLedgerRepository;
     private final ServiceReviewRepository serviceReviewRepository;
     private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
+    private final StaffScheduleRepository staffScheduleRepository;
+    private final StaffAttendanceRepository staffAttendanceRepository;
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String STATUS_CANCELLED = "CANCELLED";
@@ -90,6 +98,11 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
         BigDecimal totalBaseSalarySum = BigDecimal.ZERO;
         BigDecimal totalCommissionSum = BigDecimal.ZERO;
         BigDecimal totalPayrollPayoutSum = BigDecimal.ZERO;
+        int totalScheduledShiftsSum = 0;
+        int totalCompletedShiftsSum = 0;
+        int totalExtraShiftsSum = 0;
+        BigDecimal totalContractBaseSalarySum = BigDecimal.ZERO;
+        BigDecimal totalOvertimeCommissionSum = BigDecimal.ZERO;
 
         int totalBookedStylistsCount = 0;
         BigDecimal sumRequestedRate = BigDecimal.ZERO;
@@ -108,6 +121,11 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
             totalBaseSalarySum = totalBaseSalarySum.add(staffResp.getBaseSalary());
             totalCommissionSum = totalCommissionSum.add(staffResp.getTotalCommission());
             totalPayrollPayoutSum = totalPayrollPayoutSum.add(staffResp.getTotalPayout());
+            totalScheduledShiftsSum += (staffResp.getScheduledShiftCount() != null ? staffResp.getScheduledShiftCount() : 0);
+            totalCompletedShiftsSum += (staffResp.getCompletedShiftCount() != null ? staffResp.getCompletedShiftCount() : 0);
+            totalExtraShiftsSum += (staffResp.getExtraShiftCount() != null ? staffResp.getExtraShiftCount() : 0);
+            totalContractBaseSalarySum = totalContractBaseSalarySum.add(staffResp.getContractBaseSalary() != null ? staffResp.getContractBaseSalary() : BigDecimal.ZERO);
+            totalOvertimeCommissionSum = totalOvertimeCommissionSum.add(staffResp.getOvertimeCommissionTotal() != null ? staffResp.getOvertimeCommissionTotal() : BigDecimal.ZERO);
 
             if (staffResp.getCompletedBookingCount() > 0) {
                 totalBookedStylistsCount++;
@@ -143,6 +161,11 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .totalStaffCount(staffResponses.size())
                 .totalCompletedOrders(totalCompletedOrdersSum)
                 .totalCompletedSteps(totalCompletedStepsSum)
+                .totalScheduledShifts(totalScheduledShiftsSum)
+                .totalCompletedShifts(totalCompletedShiftsSum)
+                .totalExtraShifts(totalExtraShiftsSum)
+                .totalContractBaseSalary(totalContractBaseSalarySum)
+                .totalOvertimeCommission(totalOvertimeCommissionSum)
                 .totalBaseSalary(totalBaseSalarySum)
                 .totalCommission(totalCommissionSum)
                 .totalPayrollPayout(totalPayrollPayoutSum)
@@ -205,6 +228,11 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .map(CommissionLedgerEntity::safeAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        BigDecimal totalOvertimeCommission = staffLedgers.stream()
+                .filter(l -> l.getCalculationNotes() != null && l.getCalculationNotes().contains("[OT 1.2x]"))
+                .map(CommissionLedgerEntity::safeAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         List<CommissionLedgerDetailResponse> ledgerDetails = staffLedgers.stream()
                 .map(l -> CommissionLedgerDetailResponse.builder()
                         .id(l.getId())
@@ -216,6 +244,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                         .amount(l.safeAmount())
                         .status(l.getStatus())
                         .calculationNotes(l.getCalculationNotes())
+                        .isOvertime(l.getCalculationNotes() != null && l.getCalculationNotes().contains("[OT 1.2x]"))
                         .createdAt(l.getCreatedAt())
                         .build())
                 .toList();
@@ -316,7 +345,44 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 : BigDecimal.ZERO.setScale(1);
         long reviewCount = serviceReviewRepository.countByStylistId(staffId);
 
-        BigDecimal baseSalary = staff.getBaseSalary() != null ? staff.getBaseSalary() : BigDecimal.ZERO;
+        List<StaffScheduleEntity> staffSchedules = staffScheduleRepository
+                .findByUserIdAndScheduleDateBetweenAndIsDeletedFalseOrderByScheduleDateAsc(staffId, startDate, endDate);
+
+        int scheduledShiftCount = (int) staffSchedules.stream()
+                .filter(s -> s.getStatus() == StaffScheduleStatus.WORKING && s.getShiftTemplate() != null)
+                .count();
+
+        List<StaffAttendanceEntity> staffAttendances = staffAttendanceRepository
+                .findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(staffId, startDate, endDate);
+
+        List<StaffAttendanceEntity> completedAttendances = staffAttendances.stream()
+                .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED)
+                .toList();
+
+        int completedShiftCount = completedAttendances.size();
+
+        int extraShiftCount = 0;
+        for (StaffAttendanceEntity att : completedAttendances) {
+            boolean wasScheduledWorking = staffSchedules.stream().anyMatch(s ->
+                    s.getScheduleDate().equals(att.getAttendanceDate())
+                            && s.getStatus() == StaffScheduleStatus.WORKING
+                            && s.getShiftTemplate() != null);
+            if (!wasScheduledWorking) {
+                extraShiftCount++;
+            }
+        }
+
+        BigDecimal contractBaseSalary = staff.getBaseSalary() != null ? staff.getBaseSalary() : BigDecimal.ZERO;
+        BigDecimal baseSalary;
+        if (scheduledShiftCount == 0) {
+            // Historical period fallback without scheduled shifts
+            baseSalary = contractBaseSalary;
+        } else {
+            baseSalary = contractBaseSalary
+                    .multiply(BigDecimal.valueOf(completedShiftCount))
+                    .divide(BigDecimal.valueOf(scheduledShiftCount), 2, RoundingMode.HALF_UP);
+        }
+
         BigDecimal totalPayout = baseSalary.add(totalCommission);
 
         List<String> roleNames = staff.getRoles() != null
@@ -335,7 +401,12 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .branchName(staff.getBranch() != null ? staff.getBranch().getName() : "")
                 .startDate(startDate)
                 .endDate(endDate)
+                .contractBaseSalary(contractBaseSalary)
                 .baseSalary(baseSalary)
+                .scheduledShiftCount(scheduledShiftCount)
+                .completedShiftCount(completedShiftCount)
+                .extraShiftCount(extraShiftCount)
+                .overtimeCommissionTotal(totalOvertimeCommission)
                 .completedOrderCount(completedOrderIds.size())
                 .completedStepCount(completedStepCount)
                 .totalCommission(totalCommission)

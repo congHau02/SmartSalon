@@ -21,6 +21,11 @@ import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
 import com.smartsalon.pos.repository.OrderRepository;
 import com.smartsalon.pos.service.OrderBomResolver;
+import com.smartsalon.shift.entity.StaffAttendanceStatus;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
+import com.smartsalon.shift.entity.StaffScheduleStatus;
+import com.smartsalon.shift.repository.StaffAttendanceRepository;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +53,8 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
     private final CommissionLedgerRepository commissionLedgerRepository;
     private final UserRepository userRepository;
     private final OrderBomResolver orderBomResolver;
+    private final StaffScheduleRepository staffScheduleRepository;
+    private final StaffAttendanceRepository staffAttendanceRepository;
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
@@ -156,25 +163,48 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                     .setScale(2, RoundingMode.HALF_UP);
         }
 
-        // Fixed base salary cost (Tier 2) pro-rated by days in period / 30
+        // Shift-Prorated Base Salary (Tier 2) from completed valid shifts vs scheduled working shifts
         List<UserEntity> activeStaff = (branchId != null)
                 ? userRepository.findActiveStaffByBranchId(branchId)
                 : userRepository.findAllActiveStaff();
 
-        BigDecimal monthlyBaseSalaryTotal = activeStaff.stream()
-                .map(u -> u.getBaseSalary() != null ? u.getBaseSalary() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         long daysInPeriod = ChronoUnit.DAYS.between(actualStart, actualEnd) + 1;
-        BigDecimal fixedBaseSalaryCost = monthlyBaseSalaryTotal
-                .multiply(BigDecimal.valueOf(daysInPeriod))
-                .divide(BigDecimal.valueOf(30), 0, RoundingMode.HALF_UP)
-                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalBaseSalaries = BigDecimal.ZERO;
 
-        BigDecimal netProfitAfterPayroll = totalOperationalProfit.subtract(fixedBaseSalaryCost);
+        for (UserEntity staff : activeStaff) {
+            BigDecimal contractSalary = staff.getBaseSalary() != null ? staff.getBaseSalary() : BigDecimal.ZERO;
+            List<StaffScheduleEntity> staffSchedules = staffScheduleRepository
+                    .findByUserIdAndScheduleDateBetweenAndIsDeletedFalseOrderByScheduleDateAsc(staff.getId(), actualStart, actualEnd);
+
+            long scheduledCount = staffSchedules.stream()
+                    .filter(s -> s.getStatus() == StaffScheduleStatus.WORKING && s.getShiftTemplate() != null)
+                    .count();
+
+            BigDecimal staffProratedSalary;
+            if (scheduledCount == 0) {
+                // Fall back cleanly to calendar-day prorated contract base salary for periods without scheduled shifts
+                staffProratedSalary = contractSalary
+                        .multiply(BigDecimal.valueOf(daysInPeriod))
+                        .divide(BigDecimal.valueOf(30), 0, RoundingMode.HALF_UP)
+                        .setScale(2, RoundingMode.HALF_UP);
+            } else {
+                long completedCount = staffAttendanceRepository
+                        .findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(staff.getId(), actualStart, actualEnd)
+                        .stream()
+                        .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED)
+                        .count();
+
+                staffProratedSalary = contractSalary
+                        .multiply(BigDecimal.valueOf(completedCount))
+                        .divide(BigDecimal.valueOf(scheduledCount), 2, RoundingMode.HALF_UP);
+            }
+            totalBaseSalaries = totalBaseSalaries.add(staffProratedSalary);
+        }
+
+        BigDecimal trueNetProfit = totalOperationalProfit.subtract(totalBaseSalaries);
         BigDecimal netProfitAfterPayrollMarginPercentage = BigDecimal.ZERO;
         if (totalNetRevenue.compareTo(BigDecimal.ZERO) > 0) {
-            netProfitAfterPayrollMarginPercentage = netProfitAfterPayroll
+            netProfitAfterPayrollMarginPercentage = trueNetProfit
                     .divide(totalNetRevenue, 4, RoundingMode.HALF_UP)
                     .multiply(new BigDecimal("100"))
                     .setScale(2, RoundingMode.HALF_UP);
@@ -202,8 +232,10 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                 .operationalNetProfit(totalOperationalProfit)
                 .grossMarginPercentage(grossMarginPercentage)
                 .netProfitMarginPercentage(netProfitMarginPercentage)
-                .fixedBaseSalaryCost(fixedBaseSalaryCost)
-                .netProfitAfterPayroll(netProfitAfterPayroll)
+                .fixedBaseSalaryCost(totalBaseSalaries)
+                .totalBaseSalaries(totalBaseSalaries)
+                .netProfitAfterPayroll(trueNetProfit)
+                .trueNetProfit(trueNetProfit)
                 .netProfitAfterPayrollMarginPercentage(netProfitAfterPayrollMarginPercentage)
                 .dailySeries(dailySeries)
                 .orders(orderPnlList)

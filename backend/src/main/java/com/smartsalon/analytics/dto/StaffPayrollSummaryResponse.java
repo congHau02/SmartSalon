@@ -23,6 +23,11 @@ public class StaffPayrollSummaryResponse {
     private int totalStaffCount;
     private int totalCompletedOrders;
     private int totalCompletedSteps;
+    private Integer totalScheduledShifts;
+    private Integer totalCompletedShifts;
+    private Integer totalExtraShifts;
+    private BigDecimal totalContractBaseSalary;
+    private BigDecimal totalOvertimeCommission;
     private BigDecimal totalBaseSalary;
     private BigDecimal totalCommission;
     private BigDecimal totalPayrollPayout;

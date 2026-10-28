@@ -44,6 +44,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1154,6 +1155,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
     private void completeStepsAndRecordCommission(OrderEntity order) {
         LocalDateTime now = LocalDateTime.now();
+        ZoneId zone = ZoneId.of("Asia/Ho_Chi_Minh");
         for (OrderItemEntity item : order.getItems()) {
             if (item.isDeleted() || item.getItemType() != OrderItemType.SERVICE) {
                 continue;
@@ -1169,10 +1171,18 @@ public class PosOrderServiceImpl implements PosOrderService {
                 step.setStatus(StepAssignmentStatus.COMPLETED);
 
                 BigDecimal commissionAmount = step.recalculateCommissionAmount();
-                stepAssignmentRepository.save(step);
-
                 UserEntity staff = step.getStaff() != null ? step.getStaff() : resolveOrderStaff(order);
                 String calculationNotes = step.formatCalculationNotes();
+
+                // 1.2x Overtime Commission Multiplier check
+                boolean isOvertime = isStepOvertime(order, step, staff, now, zone);
+                if (isOvertime) {
+                    commissionAmount = commissionAmount.multiply(new BigDecimal("1.2")).setScale(0, RoundingMode.HALF_UP);
+                    step.setCommissionAmount(commissionAmount);
+                    calculationNotes = (calculationNotes != null ? calculationNotes : "") + " [OT 1.2x]";
+                }
+
+                stepAssignmentRepository.save(step);
 
                 CommissionLedgerEntity ledger = CommissionLedgerEntity.builder()
                         .staff(staff)
@@ -1185,6 +1195,59 @@ public class PosOrderServiceImpl implements PosOrderService {
                 commissionLedgerRepository.save(ledger);
             }
         }
+    }
+
+    private boolean isStepOvertime(OrderEntity order, OrderStepAssignmentEntity step, UserEntity staff, LocalDateTime now, ZoneId zone) {
+        if (staff == null) {
+            return false;
+        }
+
+        LocalDate stepDate;
+        if (order.getBooking() != null && order.getBooking().getBookingTime() != null) {
+            stepDate = order.getBooking().getBookingTime().toLocalDate();
+        } else if (step.getCompletedAt() != null) {
+            stepDate = step.getCompletedAt().toLocalDate();
+        } else if (order.getSettledAt() != null) {
+            stepDate = order.getSettledAt().atZone(zone).toLocalDate();
+        } else {
+            stepDate = now.toLocalDate();
+        }
+
+        LocalTime finishTime = step.getCompletedAt() != null ? step.getCompletedAt().toLocalTime() : now.toLocalTime();
+        if (order.getBooking() != null && order.getBooking().getEndTime() != null) {
+            LocalTime bookingFinish = order.getBooking().getEndTime().toLocalTime();
+            if (finishTime == null || bookingFinish.isAfter(finishTime)) {
+                finishTime = bookingFinish;
+            }
+        }
+
+        Optional<com.smartsalon.shift.entity.StaffScheduleEntity> scheduleOpt =
+                staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(staff.getId(), stepDate);
+
+        if (scheduleOpt.isPresent()) {
+            com.smartsalon.shift.entity.StaffScheduleEntity schedule = scheduleOpt.get();
+            if (schedule.getStatus() == StaffScheduleStatus.OFF || schedule.getShiftTemplate() == null) {
+                // Scheduled OFF cover day
+                return true;
+            }
+            LocalTime shiftEndTime = schedule.getShiftTemplate().getEndTime();
+            return finishTime.isAfter(shiftEndTime);
+        }
+
+        // Stylist has no individual schedule on this date: check if branch has published schedules
+        Long branchId = order.getBranch() != null ? order.getBranch().getId()
+                : (staff.getBranch() != null ? staff.getBranch().getId() : null);
+        if (branchId != null) {
+            List<com.smartsalon.shift.entity.StaffScheduleEntity> branchSchedules =
+                    staffScheduleRepository.findByBranchIdAndScheduleDateAndIsDeletedFalse(branchId, stepDate);
+            if (!branchSchedules.isEmpty()) {
+                // Branch has active roster, but this stylist is unscheduled -> unscheduled extra cover day
+                return true;
+            }
+        }
+
+        // Historical period or unconfigured roster date: fallback to branch standard operating closing time (20:30)
+        return finishTime.isAfter(LocalTime.of(20, 30));
     }
 
     @Override
@@ -1268,6 +1331,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .amount(amt)
                     .status(ledger.getStatus())
                     .calculationNotes(ledger.getCalculationNotes())
+                    .isOvertime(ledger.getCalculationNotes() != null && ledger.getCalculationNotes().contains("[OT 1.2x]"))
                     .createdAt(ledger.getCreatedAt())
                     .build());
         }

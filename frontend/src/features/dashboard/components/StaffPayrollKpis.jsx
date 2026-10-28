@@ -21,7 +21,11 @@ export function StaffPayrollKpis({ data }) {
           <div className="text-2xl font-black text-slate-900 tracking-tight">
             {data.totalStaffCount || 0} <span className="text-xs font-normal text-slate-500">nhân sự</span>
           </div>
-          <span className="text-[10px] text-slate-400">Đang hoạt động tại chi nhánh</span>
+          <span className="text-[10px] text-slate-400">
+            {data.totalCompletedShifts != null
+              ? `${data.totalCompletedShifts}/${data.totalScheduledShifts || 0} ca trực`
+              : "Đang hoạt động tại chi nhánh"}
+          </span>
         </div>
       </div>
 
@@ -29,7 +33,7 @@ export function StaffPayrollKpis({ data }) {
       <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Tổng lương cứng
+            Tổng lương cơ bản
           </span>
           <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
             <DollarSign className="w-4 h-4" />
@@ -39,7 +43,11 @@ export function StaffPayrollKpis({ data }) {
           <div className="text-xl font-black text-slate-900 tracking-tight">
             {formatCurrency(data.totalBaseSalary)}
           </div>
-          <span className="text-[10px] text-slate-400">Định mức chi phí cố định</span>
+          <span className="text-[10px] text-slate-400">
+            {data.totalContractBaseSalary != null
+              ? `HĐ: ${formatCurrency(data.totalContractBaseSalary)}`
+              : "Định mức chi phí cố định"}
+          </span>
         </div>
       </div>
 
@@ -57,7 +65,11 @@ export function StaffPayrollKpis({ data }) {
           <div className="text-xl font-black text-emerald-600 tracking-tight">
             +{formatCurrency(data.totalCommission)}
           </div>
-          <span className="text-[10px] text-slate-400">Từ Commission Ledger</span>
+          <span className="text-[10px] text-slate-400">
+            {data.totalOvertimeCommission > 0
+              ? `Tăng ca: +${formatCurrency(data.totalOvertimeCommission)}`
+              : "Từ Commission Ledger"}
+          </span>
         </div>
       </div>
 

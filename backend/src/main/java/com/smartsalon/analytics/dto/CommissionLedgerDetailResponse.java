@@ -23,5 +23,6 @@ public class CommissionLedgerDetailResponse {
     private BigDecimal amount;
     private String status;
     private String calculationNotes;
+    private Boolean isOvertime;
     private Instant createdAt;
 }

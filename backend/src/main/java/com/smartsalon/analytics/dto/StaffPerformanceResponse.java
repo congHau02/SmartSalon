@@ -28,6 +28,11 @@ public class StaffPerformanceResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private BigDecimal baseSalary;
+    private BigDecimal contractBaseSalary;
+    private Integer scheduledShiftCount;
+    private Integer completedShiftCount;
+    private Integer extraShiftCount;
+    private BigDecimal overtimeCommissionTotal;
     private int completedOrderCount;
     private int completedStepCount;
     private BigDecimal totalCommission;
