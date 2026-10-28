@@ -1,4 +1,7 @@
 export const QUERY_KEYS = {
+  shiftTemplates: (branchId) => ["shift-templates", branchId],
+  shiftRoster: (branchId, startDate, endDate) =>
+    startDate === undefined ? ["shift-roster", branchId] : ["shift-roster", branchId, startDate, endDate],
   booking: ["booking"],
   pos: ["pos"],
   dispatch: ["dispatch"],

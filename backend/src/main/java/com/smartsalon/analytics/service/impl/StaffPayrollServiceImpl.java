@@ -355,22 +355,32 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
         List<StaffAttendanceEntity> staffAttendances = staffAttendanceRepository
                 .findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(staffId, startDate, endDate);
 
-        List<StaffAttendanceEntity> completedAttendances = staffAttendances.stream()
-                .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED)
-                .toList();
-
-        int completedShiftCount = completedAttendances.size();
-
-        int extraShiftCount = 0;
-        for (StaffAttendanceEntity att : completedAttendances) {
-            boolean wasScheduledWorking = staffSchedules.stream().anyMatch(s ->
-                    s.getScheduleDate().equals(att.getAttendanceDate())
-                            && s.getStatus() == StaffScheduleStatus.WORKING
-                            && s.getShiftTemplate() != null);
-            if (!wasScheduledWorking) {
-                extraShiftCount++;
+        // Worked dates: PRESENT/COMPLETED attendance OR a completed PAID step (spec L121)
+        Set<LocalDate> workedDates = staffAttendances.stream()
+                .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED
+                        || a.getStatus() == StaffAttendanceStatus.PRESENT)
+                .map(StaffAttendanceEntity::getAttendanceDate)
+                .collect(Collectors.toCollection(HashSet::new));
+        for (OrderEntity order : orders) {
+            if (order.getItems() == null) continue;
+            for (OrderItemEntity item : order.getItems()) {
+                if (item.isDeleted() || item.getStepAssignments() == null) continue;
+                for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                    if (step.getStaff() != null && staffId.equals(step.getStaff().getId())
+                            && step.getStatus() == StepAssignmentStatus.COMPLETED
+                            && step.getCompletedAt() != null) {
+                        workedDates.add(step.getCompletedAt().toLocalDate());
+                    }
+                }
             }
         }
+        Set<LocalDate> scheduledWorkingDates = staffSchedules.stream()
+                .filter(s -> s.getStatus() == StaffScheduleStatus.WORKING && s.getShiftTemplate() != null)
+                .map(StaffScheduleEntity::getScheduleDate)
+                .collect(Collectors.toSet());
+
+        int completedShiftCount = workedDates.size();
+        int extraShiftCount = (int) workedDates.stream().filter(d -> !scheduledWorkingDates.contains(d)).count();
 
         BigDecimal contractBaseSalary = staff.getBaseSalary() != null ? staff.getBaseSalary() : BigDecimal.ZERO;
         BigDecimal baseSalary;
@@ -380,7 +390,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
         } else {
             baseSalary = contractBaseSalary
                     .multiply(BigDecimal.valueOf(completedShiftCount))
-                    .divide(BigDecimal.valueOf(scheduledShiftCount), 2, RoundingMode.HALF_UP);
+                    .divide(BigDecimal.valueOf(scheduledShiftCount), 0, RoundingMode.HALF_UP);
         }
 
         BigDecimal totalPayout = baseSalary.add(totalCommission);

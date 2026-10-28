@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { shiftApi } from "../../api/shiftApi";
 import { useBranch } from "../branch/useBranch";
+import { QUERY_KEYS } from "../../lib/queryKeys";
 
 function getMondayOfDate(d = new Date()) {
   const date = new Date(d);
@@ -66,7 +67,7 @@ export function useShiftRoster() {
     isLoading: isTemplatesLoading,
     refetch: refetchTemplates,
   } = useQuery({
-    queryKey: ["shift-templates", branchId],
+    queryKey: QUERY_KEYS.shiftTemplates(branchId),
     queryFn: () => shiftApi.getTemplates(branchId),
     enabled: !!branchId,
   });
@@ -78,7 +79,7 @@ export function useShiftRoster() {
     isFetching: isRosterFetching,
     refetch: refetchRoster,
   } = useQuery({
-    queryKey: ["shift-roster", branchId, startDate, endDate],
+    queryKey: QUERY_KEYS.shiftRoster(branchId, startDate, endDate),
     queryFn: () => shiftApi.getWeeklyRoster(branchId, startDate, endDate),
     enabled: !!branchId && !!startDate,
   });
@@ -91,12 +92,12 @@ export function useShiftRoster() {
         cells: [cell],
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shift-roster", branchId] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.shiftRoster(branchId) });
     },
     onError: (err) => {
       if (err.response?.status === 409) {
         const errorResult = err.response?.data?.result || [];
-        const message = err.response?.data?.message || "Xung đột lịch hẹn của Stylist";
+        const message = err.response?.data?.message || "Xung Ä‘á»™t lá»‹ch háº¹n cá»§a Stylist";
         setConflictData({ bookings: errorResult, message });
       }
     },
@@ -111,12 +112,12 @@ export function useShiftRoster() {
         targetStartDate: startDate,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shift-roster", branchId] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.shiftRoster(branchId) });
     },
     onError: (err) => {
       if (err.response?.status === 409) {
         const errorResult = err.response?.data?.result || [];
-        const message = err.response?.data?.message || "Xung đột lịch hẹn khi sao chép tuần";
+        const message = err.response?.data?.message || "Xung Ä‘á»™t lá»‹ch háº¹n khi sao chÃ©p tuáº§n";
         setConflictData({ bookings: errorResult, message });
       }
     },
@@ -127,8 +128,8 @@ export function useShiftRoster() {
     mutationFn: ({ id, data }) =>
       id ? shiftApi.updateTemplate(id, data) : shiftApi.createTemplate(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shift-templates", branchId] });
-      queryClient.invalidateQueries({ queryKey: ["shift-roster", branchId] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.shiftTemplates(branchId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.shiftRoster(branchId) });
       setTemplateModalData(null);
     },
   });

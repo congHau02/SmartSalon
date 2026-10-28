@@ -1231,7 +1231,10 @@ public class PosOrderServiceImpl implements PosOrderService {
                 return true;
             }
             LocalTime shiftEndTime = schedule.getShiftTemplate().getEndTime();
-            return finishTime.isAfter(shiftEndTime);
+            LocalTime shiftStartTime = schedule.getShiftTemplate().getStartTime();
+            boolean startedEarly = order.getBooking() != null && order.getBooking().getBookingTime() != null
+                    && order.getBooking().getBookingTime().toLocalTime().isBefore(shiftStartTime);
+            return startedEarly || finishTime.isAfter(shiftEndTime);
         }
 
         // Stylist has no individual schedule on this date: check if branch has published schedules

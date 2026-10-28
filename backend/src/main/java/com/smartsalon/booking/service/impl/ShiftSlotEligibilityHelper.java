@@ -59,7 +59,11 @@ public final class ShiftSlotEligibilityHelper {
                 return false;
             }
         } else {
-            // Far-future date or unscheduled stylist fallback to standard branch operating hours (08:30–20:30)
+            // Roster published for this date: an unscheduled stylist is OFF (spec L95)
+            if (hasBranchRoster) {
+                return false;
+            }
+            // Far-future date with no published roster: fallback to standard branch operating hours (08:30–20:30)
             if (slotStart.isBefore(OPENING_TIME) || !slotStart.isBefore(CLOSING_TIME)) {
                 return false;
             }

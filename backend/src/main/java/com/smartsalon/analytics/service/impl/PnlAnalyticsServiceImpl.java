@@ -188,15 +188,32 @@ public class PnlAnalyticsServiceImpl implements PnlAnalyticsService {
                         .divide(BigDecimal.valueOf(30), 0, RoundingMode.HALF_UP)
                         .setScale(2, RoundingMode.HALF_UP);
             } else {
-                long completedCount = staffAttendanceRepository
+                // Worked dates: PRESENT/COMPLETED attendance OR a completed PAID step (spec L121)
+                Set<LocalDate> workedDates = staffAttendanceRepository
                         .findByUserIdAndAttendanceDateBetweenAndIsDeletedFalseOrderByAttendanceDateAsc(staff.getId(), actualStart, actualEnd)
                         .stream()
-                        .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED)
-                        .count();
+                        .filter(a -> a.getStatus() == StaffAttendanceStatus.COMPLETED
+                                || a.getStatus() == StaffAttendanceStatus.PRESENT)
+                        .map(a -> a.getAttendanceDate())
+                        .collect(Collectors.toCollection(HashSet::new));
+                for (OrderEntity o : orders) {
+                    if (o.getItems() == null) continue;
+                    for (OrderItemEntity item : o.getItems()) {
+                        if (item.isDeleted() || item.getStepAssignments() == null) continue;
+                        for (OrderStepAssignmentEntity step : item.getStepAssignments()) {
+                            if (step.getStaff() != null && staff.getId().equals(step.getStaff().getId())
+                                    && step.getCompletedAt() != null) {
+                                workedDates.add(step.getCompletedAt().toLocalDate());
+                            }
+                        }
+                    }
+                }
+                long completedCount = workedDates.size();
 
                 staffProratedSalary = contractSalary
                         .multiply(BigDecimal.valueOf(completedCount))
-                        .divide(BigDecimal.valueOf(scheduledCount), 2, RoundingMode.HALF_UP);
+                        .divide(BigDecimal.valueOf(scheduledCount), 0, RoundingMode.HALF_UP)
+                        .setScale(2, RoundingMode.HALF_UP);
             }
             totalBaseSalaries = totalBaseSalaries.add(staffProratedSalary);
         }
