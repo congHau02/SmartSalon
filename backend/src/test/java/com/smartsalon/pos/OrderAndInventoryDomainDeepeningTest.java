@@ -4,18 +4,22 @@ import com.smartsalon.analytics.dto.StockAlertLevel;
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.entity.DepositStatus;
+import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.catalog.entity.ServiceDefaultStepEntity;
 import com.smartsalon.catalog.entity.ServiceEntity;
 import com.smartsalon.inventory.entity.BranchInventoryEntity;
 import com.smartsalon.inventory.entity.ProductEntity;
 import com.smartsalon.payment.VietQrUrlBuilder;
 import com.smartsalon.pos.entity.*;
+import com.smartsalon.shift.entity.StaffAttendanceEntity;
+import com.smartsalon.shift.entity.StaffAttendanceStatus;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.service.CustomerIdentityService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -218,5 +222,75 @@ class OrderAndInventoryDomainDeepeningTest {
 
         String qrUrl = VietQrUrlBuilder.buildCompactQrUrl("MB", "0988888888", "SMART SALON VIETNAM", new BigDecimal("120000"), "ORD-123");
         assertThat(qrUrl).isEqualTo("https://img.vietqr.io/image/MB-0988888888-compact2.png?amount=120000&addInfo=ORD-123&accountName=SMART+SALON+VIETNAM");
+    }
+
+    @Test
+    @DisplayName("StaffAttendanceEntity.createForAction: khởi tạo đúng status và timestamp theo từng action")
+    void staffAttendanceEntity_createForAction_initializesProperly() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 28, 8, 30);
+        LocalDate today = now.toLocalDate();
+        BranchEntity branch = BranchEntity.builder().name("Chi nhánh 1").build();
+        UserEntity user = UserEntity.builder().fullName("Nguyễn Văn A").build();
+
+        StaffAttendanceEntity in = StaffAttendanceEntity.createForAction(branch, user, null, today, "CLOCK_IN", now, "Vào ca");
+        assertThat(in.getStatus()).isEqualTo(StaffAttendanceStatus.PRESENT);
+        assertThat(in.getClockInAt()).isEqualTo(now);
+        assertThat(in.getBreakStartAt()).isNull();
+
+        StaffAttendanceEntity brk = StaffAttendanceEntity.createForAction(branch, user, null, today, "TOGGLE_BREAK", now, "Nghỉ trưa");
+        assertThat(brk.getStatus()).isEqualTo(StaffAttendanceStatus.ON_BREAK);
+        assertThat(brk.getClockInAt()).isEqualTo(now);
+        assertThat(brk.getBreakStartAt()).isEqualTo(now);
+
+        StaffAttendanceEntity out = StaffAttendanceEntity.createForAction(branch, user, null, today, "CLOCK_OUT", now, "Hết ca");
+        assertThat(out.getStatus()).isEqualTo(StaffAttendanceStatus.COMPLETED);
+        assertThat(out.getClockInAt()).isEqualTo(now);
+        assertThat(out.getClockOutAt()).isEqualTo(now);
+
+        StaffAttendanceEntity absent = StaffAttendanceEntity.createForAction(branch, user, null, today, "MARK_ABSENT", now, "Nghỉ phép");
+        assertThat(absent.getStatus()).isEqualTo(StaffAttendanceStatus.ABSENT);
+        assertThat(absent.getClockInAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("StaffAttendanceEntity: toggleBreak và clockOut trên bản ghi đã vắng mặt không bị ghi đè clockInAt")
+    void staffAttendanceEntity_existingAbsentRecord_doesNotOverwriteClockInAt() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 28, 14, 0);
+        StaffAttendanceEntity absentRecord = StaffAttendanceEntity.builder()
+                .status(StaffAttendanceStatus.ABSENT)
+                .clockInAt(null)
+                .build();
+
+        absentRecord.toggleBreak(now, "Tạm nghỉ");
+        assertThat(absentRecord.getStatus()).isEqualTo(StaffAttendanceStatus.ON_BREAK);
+        assertThat(absentRecord.getClockInAt()).isNull();
+
+        absentRecord.clockOut(now.plusHours(1), null, "Về");
+        assertThat(absentRecord.getStatus()).isEqualTo(StaffAttendanceStatus.COMPLETED);
+        assertThat(absentRecord.getClockInAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("BookingEntity.canCancelOnline: tuân thủ đúng policy 2 tiếng và trạng thái hợp lệ")
+    void bookingEntity_canCancelOnline_rules() {
+        LocalDateTime refNow = LocalDateTime.of(2026, 10, 28, 10, 0);
+
+        BookingEntity bookingValid = BookingEntity.builder()
+                .status(BookingStatus.CONFIRMED)
+                .bookingTime(refNow.plusHours(3))
+                .build();
+        assertThat(bookingValid.canCancelOnline(refNow)).isTrue();
+
+        BookingEntity bookingTooLate = BookingEntity.builder()
+                .status(BookingStatus.CONFIRMED)
+                .bookingTime(refNow.plusMinutes(90))
+                .build();
+        assertThat(bookingTooLate.canCancelOnline(refNow)).isFalse();
+
+        BookingEntity bookingCancelled = BookingEntity.builder()
+                .status(BookingStatus.CANCELLED)
+                .bookingTime(refNow.plusHours(4))
+                .build();
+        assertThat(bookingCancelled.canCancelOnline(refNow)).isFalse();
     }
 }

@@ -46,7 +46,7 @@ public class PosVisualLogService {
             if (!bomItems.isEmpty() || StringUtils.hasText(techLog.getActualBomJson())) {
                 Long staffId = techLog.getStaff() != null ? techLog.getStaff().getId() : null;
                 String staffName = techLog.getStaff() != null ? techLog.getStaff().getFullName() : null;
-                return buildResponse(techLog, order, bomItems, true, staffId, staffName);
+                return PosOrderMapper.toTechnicalLogResponse(techLog, order, bomItems, true, staffId, staffName);
             }
         }
 
@@ -55,7 +55,7 @@ public class PosVisualLogService {
         Long suggestedStaffId = suggestedStaff != null ? suggestedStaff.getId() : null;
         String suggestedStaffName = suggestedStaff != null ? suggestedStaff.getFullName() : null;
 
-        return buildResponse(existingLogOpt.orElse(null), order, synthesizedBomItems, false, suggestedStaffId, suggestedStaffName);
+        return PosOrderMapper.toTechnicalLogResponse(existingLogOpt.orElse(null), order, synthesizedBomItems, false, suggestedStaffId, suggestedStaffName);
     }
 
     @Transactional
@@ -87,7 +87,7 @@ public class PosVisualLogService {
 
         Long staffId = saved.getStaff() != null ? saved.getStaff().getId() : null;
         String staffName = saved.getStaff() != null ? saved.getStaff().getFullName() : null;
-        return buildResponse(saved, order, items, true, staffId, staffName);
+        return PosOrderMapper.toTechnicalLogResponse(saved, order, items, true, staffId, staffName);
     }
 
     private OrderEntity findOrderAndCheckBranch(Long orderId) {
@@ -135,41 +135,5 @@ public class PosVisualLogService {
             log.error("Failed to serialize bomItems for order {}: {}", orderId, e.getMessage());
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
-    }
-
-    private TechnicalLogResponse buildResponse(
-            TechnicalLogEntity techLog,
-            OrderEntity order,
-            List<ActualBomItemDto> bomItems,
-            boolean isSaved,
-            Long staffId,
-            String staffName) {
-
-        Long customerId = (techLog != null && techLog.getCustomer() != null)
-                ? techLog.getCustomer().getId()
-                : (order.getCustomer() != null ? order.getCustomer().getId() : null);
-        String customerName = order.getCustomerName() != null
-                ? order.getCustomerName()
-                : (techLog != null && techLog.getCustomer() != null
-                        ? techLog.getCustomer().getFullName()
-                        : (order.getCustomer() != null ? order.getCustomer().getFullName() : null));
-
-        return TechnicalLogResponse.builder()
-                .id(techLog != null ? techLog.getId() : null)
-                .orderId(order.getId())
-                .orderCode(order.getOrderCode())
-                .customerId(customerId)
-                .customerName(customerName)
-                .staffId(staffId)
-                .staffName(staffName)
-                .formulaNotes(techLog != null ? techLog.getFormulaNotes() : null)
-                .hairConditionNotes(techLog != null ? techLog.getHairConditionNotes() : null)
-                .beforeImageUrl(techLog != null ? techLog.getBeforeImageUrl() : null)
-                .afterImageUrl(techLog != null ? techLog.getAfterImageUrl() : null)
-                .bomItems(bomItems)
-                .isSaved(isSaved)
-                .createdAt(techLog != null ? techLog.getCreatedAt() : null)
-                .updatedAt(techLog != null ? techLog.getUpdatedAt() : null)
-                .build();
     }
 }

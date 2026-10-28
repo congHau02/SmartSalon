@@ -120,6 +120,11 @@ public class CustomerPortalMapper {
         );
     }
 
+    public List<CustomerStylistDto> resolveParticipatingStylists(OrderEntity order) {
+        Optional<TechnicalLogEntity> techLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(order.getId());
+        return resolveParticipatingStylists(order, techLogOpt.orElse(null));
+    }
+
     public CustomerOrderResponse toOrderResponse(OrderEntity order) {
         Optional<TechnicalLogEntity> techLogOpt = technicalLogRepository.findByOrderIdAndIsDeletedFalse(order.getId());
         Optional<ServiceReviewEntity> reviewOpt = serviceReviewRepository.findByOrderIdAndIsDeletedFalse(order.getId());

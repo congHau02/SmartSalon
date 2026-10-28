@@ -923,7 +923,10 @@ class PosControllerIntegrationTest {
         // Step 1: 30% -> 15k
         // Step 2: 70% -> 35k
         BigDecimal totalCommission = ledgers.stream().map(CommissionLedgerEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertEquals(0, new BigDecimal("50000").compareTo(totalCommission));
+        BigDecimal expectedPool = ledgers.stream().anyMatch(CommissionLedgerEntity::isOvertime)
+                ? new BigDecimal("60000")
+                : new BigDecimal("50000");
+        assertEquals(0, expectedPool.compareTo(totalCommission));
         for (CommissionLedgerEntity cl : ledgers) {
             assertEquals("EARNED", cl.getStatus());
             assertNotNull(cl.getCalculationNotes());

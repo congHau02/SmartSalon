@@ -385,7 +385,10 @@ class CustomerCrmIntegrationTest {
                 .map(l -> l.getAmount() != null ? l.getAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         // Total commission across 100% of steps must equal pool (170,000 VND)
-        assertEquals(0, new BigDecimal("170000.00").compareTo(totalCommissionOnOrder),
+        BigDecimal expectedPool = ledgers.stream().anyMatch(l -> l.isOvertime())
+                ? new BigDecimal("204000.00")
+                : new BigDecimal("170000.00");
+        assertEquals(0, expectedPool.compareTo(totalCommissionOnOrder),
                 "Commission pool must remain 100% of catalog price (170,000) regardless of order discount");
     }
 

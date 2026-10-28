@@ -389,8 +389,8 @@ class PosConcurrencyIntegrationTest {
                 .isActive(true)
                 .build());
 
-        LocalDateTime time1 = LocalDateTime.now().plusDays(15).withHour(10).withMinute(0).withSecond(0).withNano(0);
-        LocalDateTime time2 = LocalDateTime.now().plusDays(16).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime time1 = LocalDateTime.now().plusDays(45).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime time2 = LocalDateTime.now().plusDays(46).withHour(10).withMinute(0).withSecond(0).withNano(0);
 
         CreateBookingRequest req1 = new CreateBookingRequest(
                 branch.getId(),

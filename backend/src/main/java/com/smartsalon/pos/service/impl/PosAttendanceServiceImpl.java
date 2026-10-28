@@ -62,7 +62,7 @@ public class PosAttendanceServiceImpl implements PosAttendanceService {
 
         List<PosStaffAttendanceDto> dtos = new ArrayList<>();
         for (UserEntity staff : staffMembers) {
-            dtos.add(mapToDto(staff, scheduleMap.get(staff.getId()), attendanceMap.get(staff.getId()), hasBranchRoster));
+            dtos.add(PosAttendanceMapper.toDto(staff, scheduleMap.get(staff.getId()), attendanceMap.get(staff.getId()), hasBranchRoster));
         }
         return dtos;
     }
@@ -87,25 +87,28 @@ public class PosAttendanceServiceImpl implements PosAttendanceService {
                 .findByUserIdAndScheduleDateAndIsDeletedFalse(targetUser.getId(), today).orElse(null);
         StaffAttendanceEntity attendance = staffAttendanceRepository
                 .findByUserIdAndAttendanceDateAndIsDeletedFalse(targetUser.getId(), today)
-                .orElseGet(() -> StaffAttendanceEntity.builder()
-                        .branch(branch)
-                        .user(targetUser)
-                        .schedule(schedule)
-                        .attendanceDate(today)
-                        .status(null)
-                        .overtimeMinutes(0)
-                        .notes(request.getNotes())
-                        .build());
+                .orElse(null);
 
         String action = request.getAction() != null ? request.getAction().toUpperCase().trim() : "";
-        applyAttendanceAction(attendance, action, schedule, request.getNotes(), isPrivileged);
+        if (attendance == null) {
+            if ("MARK_ABSENT".equals(action) && !isPrivileged) {
+                throw new AppException(ErrorCode.FORBIDDEN, "Chỉ Quản lý hoặc Nhân viên lễ tân mới có quyền đánh dấu vắng mặt");
+            }
+            attendance = StaffAttendanceEntity.createForAction(
+                    branch, targetUser, schedule, today, action, LocalDateTime.now(), request.getNotes());
+            if (attendance.getStatus() == null) {
+                throw new AppException(ErrorCode.ATTENDANCE_ACTION_INVALID, "Thao tác chấm công không hợp lệ: " + action);
+            }
+        } else {
+            applyAttendanceAction(attendance, action, schedule, request.getNotes(), isPrivileged);
+        }
 
         StaffAttendanceEntity saved = staffAttendanceRepository.save(attendance);
         realtimeNotificationService.notifyAttendanceUpdated(saved, action);
 
         boolean hasBranchRoster = !staffScheduleRepository
                 .findByBranchIdAndScheduleDateAndIsDeletedFalse(effectiveBranchId, today).isEmpty();
-        return mapToDto(targetUser, schedule, saved, hasBranchRoster);
+        return PosAttendanceMapper.toDto(targetUser, schedule, saved, hasBranchRoster);
     }
 
     private void applyAttendanceAction(
@@ -149,45 +152,5 @@ public class PosAttendanceServiceImpl implements PosAttendanceService {
         if (enteredPin == null || !enteredPin.trim().equals(userPin)) {
             throw new AppException(ErrorCode.INVALID_ATTENDANCE_PIN);
         }
-    }
-
-    private PosStaffAttendanceDto mapToDto(
-            UserEntity staff,
-            StaffScheduleEntity schedule,
-            StaffAttendanceEntity attendance,
-            boolean hasBranchRoster) {
-
-        String roleName = staff.getRoles().stream()
-                .map(r -> r.getName())
-                .filter(name -> "STYLIST".equals(name) || "STAFF".equals(name) || "MANAGER".equals(name))
-                .findFirst()
-                .orElse("STAFF");
-
-        ShiftDayView sv = ShiftDayView.resolve(schedule, hasBranchRoster);
-        Long shiftTemplateId = sv.working() && schedule != null && schedule.getShiftTemplate() != null
-                ? schedule.getShiftTemplate().getId() : null;
-
-        return PosStaffAttendanceDto.builder()
-                .userId(staff.getId())
-                .fullName(staff.getFullName())
-                .phone(staff.getPhone())
-                .avatarUrl(staff.getAvatarUrl())
-                .roleName(roleName)
-                .shiftTemplateId(shiftTemplateId)
-                .shiftCode(sv.code())
-                .shiftName(sv.name())
-                .shiftStartTime(sv.start())
-                .shiftEndTime(sv.end())
-                .maxOvertimeMinutes(sv.maxOvertimeMinutes())
-                .isWorking(sv.working())
-                .attendanceId(attendance != null ? attendance.getId() : null)
-                .attendanceStatus(attendance != null ? attendance.getStatus() : null)
-                .clockInAt(attendance != null ? attendance.getClockInAt() : null)
-                .breakStartAt(attendance != null ? attendance.getBreakStartAt() : null)
-                .breakEndAt(attendance != null ? attendance.getBreakEndAt() : null)
-                .clockOutAt(attendance != null ? attendance.getClockOutAt() : null)
-                .overtimeMinutes(attendance != null ? attendance.getOvertimeMinutes() : 0)
-                .notes(attendance != null ? attendance.getNotes() : null)
-                .build();
     }
 }

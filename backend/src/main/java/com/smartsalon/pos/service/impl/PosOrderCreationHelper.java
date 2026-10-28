@@ -37,8 +37,20 @@ public class PosOrderCreationHelper {
     private final ProductRepository productRepository;
     private final PosStaffResolutionHelper staffResolutionHelper;
 
-    public PosStaffResolutionHelper staffResolution() {
-        return staffResolutionHelper;
+    public UserEntity resolveCurrentUser() {
+        return staffResolutionHelper.resolveCurrentUser();
+    }
+
+    public void checkBranchAccess(Long branchId) {
+        staffResolutionHelper.checkBranchAccess(branchId);
+    }
+
+    public UserEntity findActiveStaffByIdOrThrow(Long id, String errorMessage) {
+        return staffResolutionHelper.findActiveStaffByIdOrThrow(id, errorMessage);
+    }
+
+    public UserEntity resolveDefaultStaff(BranchEntity branch) {
+        return staffResolutionHelper.resolveDefaultStaff(branch);
     }
 
     public BookingEntity findBookingOrThrow(Long bookingId) {

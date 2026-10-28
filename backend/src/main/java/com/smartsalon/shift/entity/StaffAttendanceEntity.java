@@ -59,6 +59,43 @@ public class StaffAttendanceEntity extends BaseEntity {
     @Column(name = "notes", length = 255)
     private String notes;
 
+    public static StaffAttendanceEntity createForAction(
+            BranchEntity branch,
+            UserEntity user,
+            StaffScheduleEntity schedule,
+            LocalDate date,
+            String action,
+            LocalDateTime now,
+            String notes) {
+        StaffAttendanceEntity entity = StaffAttendanceEntity.builder()
+                .branch(branch)
+                .user(user)
+                .schedule(schedule)
+                .attendanceDate(date)
+                .overtimeMinutes(0)
+                .notes(notes)
+                .build();
+        switch (action) {
+            case "CLOCK_IN" -> {
+                entity.status = StaffAttendanceStatus.PRESENT;
+                entity.clockInAt = now;
+            }
+            case "TOGGLE_BREAK" -> {
+                entity.status = StaffAttendanceStatus.ON_BREAK;
+                entity.clockInAt = now;
+                entity.breakStartAt = now;
+            }
+            case "CLOCK_OUT" -> {
+                entity.status = StaffAttendanceStatus.COMPLETED;
+                entity.clockInAt = now;
+                entity.clockOutAt = now;
+            }
+            case "MARK_ABSENT" -> entity.status = StaffAttendanceStatus.ABSENT;
+            default -> entity.status = null;
+        }
+        return entity;
+    }
+
     public void clockIn(LocalDateTime now, String notes) {
         if (this.clockInAt == null) {
             this.clockInAt = now;
@@ -70,16 +107,10 @@ public class StaffAttendanceEntity extends BaseEntity {
     }
 
     public void toggleBreak(LocalDateTime now, String notes) {
-        if (this.clockInAt == null && this.status == null) {
-            this.clockInAt = now;
-        }
         if (this.status == StaffAttendanceStatus.ON_BREAK) {
             this.status = StaffAttendanceStatus.PRESENT;
             this.breakEndAt = now;
         } else {
-            if (this.clockInAt == null) {
-                this.clockInAt = now;
-            }
             this.status = StaffAttendanceStatus.ON_BREAK;
             this.breakStartAt = now;
         }
@@ -89,9 +120,6 @@ public class StaffAttendanceEntity extends BaseEntity {
     }
 
     public void clockOut(LocalDateTime now, StaffScheduleEntity effectiveSchedule, String notes) {
-        if (this.clockInAt == null) {
-            this.clockInAt = now;
-        }
         this.clockOutAt = now;
         this.status = StaffAttendanceStatus.COMPLETED;
         if (this.breakStartAt != null && this.breakEndAt == null) {

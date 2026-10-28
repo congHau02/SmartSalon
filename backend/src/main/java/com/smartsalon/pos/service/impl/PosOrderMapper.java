@@ -2,14 +2,17 @@ package com.smartsalon.pos.service.impl;
 
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.pos.dto.*;
+import com.smartsalon.pos.entity.CommissionLedgerEntity;
 import com.smartsalon.pos.entity.OrderEntity;
 import com.smartsalon.pos.entity.OrderItemEntity;
 import com.smartsalon.pos.entity.OrderStepAssignmentEntity;
 import com.smartsalon.pos.entity.TechnicalLogEntity;
 import com.smartsalon.user.entity.MembershipTier;
+import com.smartsalon.user.entity.UserEntity;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Component
@@ -123,7 +126,7 @@ public class PosOrderMapper {
                 .build();
     }
 
-    public TechnicalLogResponse toTechnicalLogResponse(
+    public static TechnicalLogResponse toTechnicalLogResponse(
             TechnicalLogEntity techLog,
             OrderEntity order,
             List<ActualBomItemDto> bomItems,
@@ -156,6 +159,63 @@ public class PosOrderMapper {
                 .isSaved(isSaved)
                 .createdAt(techLog != null ? techLog.getCreatedAt() : null)
                 .updatedAt(techLog != null ? techLog.getUpdatedAt() : null)
+                .build();
+    }
+
+    public CommissionLedgerEntryDto toCommissionEntryDto(CommissionLedgerEntity ledger, BigDecimal amt) {
+        UserEntity staff = ledger.getStaff();
+        return CommissionLedgerEntryDto.builder()
+                .id(ledger.getId())
+                .staffId(staff != null ? staff.getId() : null)
+                .staffName(staff != null ? staff.getFullName() : null)
+                .orderId(ledger.getOrder() != null ? ledger.getOrder().getId() : null)
+                .orderCode(ledger.getOrder() != null ? ledger.getOrder().getOrderCode() : null)
+                .serviceName(ledger.resolveServiceName())
+                .stepName(ledger.resolveStepName())
+                .commissionRate(ledger.resolveCommissionRate())
+                .amount(amt)
+                .status(ledger.getStatus())
+                .calculationNotes(ledger.getCalculationNotes())
+                .isOvertime(ledger.isOvertime())
+                .createdAt(ledger.getCreatedAt())
+                .build();
+    }
+
+    public StylistDailyWorklogResponse toWorklogResponse(
+            PosStaffScheduleQueryHelper.WorklogContext ctx,
+            LocalDate queryDate,
+            BigDecimal totalEarnedCommission,
+            PosWorklogMetricsAccumulator metrics,
+            List<DispatchBoardBookingDto> upcomingBookings,
+            PosStaffScheduleQueryHelper.StylistShiftSnapshot shift) {
+        return StylistDailyWorklogResponse.builder()
+                .shiftCode(shift.shiftCode())
+                .shiftName(shift.shiftName())
+                .shiftStartTime(shift.shiftStartTime())
+                .shiftEndTime(shift.shiftEndTime())
+                .isWorking(shift.isWorking())
+                .attendanceStatus(shift.attendanceStatus())
+                .clockInAt(shift.clockInAt())
+                .breakStartAt(shift.breakStartAt())
+                .breakEndAt(shift.breakEndAt())
+                .clockOutAt(shift.clockOutAt())
+                .overtimeMinutes(shift.overtimeMinutes())
+                .weeklySchedule(shift.weeklySchedule())
+                .stylistId(ctx.stylistId())
+                .stylistName(ctx.stylistName())
+                .branchId(ctx.branchId())
+                .branchName(ctx.branchName())
+                .date(queryDate)
+                .totalTicketCount(metrics.totalTicketCount)
+                .totalCompletedStepCount(metrics.totalCompletedStepCount)
+                .totalServiceRevenue(metrics.totalServiceRevenue)
+                .totalEarnedCommission(totalEarnedCommission)
+                .selfSettledOrderCount(metrics.selfSettledOrderCount)
+                .cashCollectedToHandover(metrics.cashCollectedToHandover)
+                .transferCollectedAmount(metrics.transferCollectedAmount)
+                .totalSelfCollectedAmount(metrics.cashCollectedToHandover.add(metrics.transferCollectedAmount))
+                .tickets(metrics.tickets)
+                .upcomingBookings(upcomingBookings)
                 .build();
     }
 }

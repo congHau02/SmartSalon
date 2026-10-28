@@ -62,13 +62,13 @@ public class PosSettlementService {
         order.recalculateTotals();
 
         String paymentMethod = resolvePaymentMethod(request != null ? request.getPaymentMethod() : null);
-        return executeUnifiedSettlement(order, paymentMethod, creationHelper.staffResolution().resolveCurrentUser());
+        return executeUnifiedSettlement(order, paymentMethod, creationHelper.resolveCurrentUser());
     }
 
     @Transactional
     public PosOrderResponse createQuickServiceTicket(QuickServiceTicketRequest request) {
         BranchEntity branch = creationHelper.findBranchOrThrow(request.getBranchId(), true);
-        UserEntity currentUser = creationHelper.staffResolution().resolveCurrentUser();
+        UserEntity currentUser = creationHelper.resolveCurrentUser();
         UserEntity assignedStylist = resolveQuickStylist(request.getStylistId(), currentUser, branch);
 
         OrderEntity order = creationHelper.buildDraftWalkInOrQuickOrder(
@@ -94,7 +94,7 @@ public class PosSettlementService {
     @Transactional
     public PosOrderResponse quickCompleteBooking(Long bookingId, QuickCompleteBookingRequest request) {
         BookingEntity booking = creationHelper.findBookingOrThrow(bookingId);
-        UserEntity currentUser = creationHelper.staffResolution().resolveCurrentUser();
+        UserEntity currentUser = creationHelper.resolveCurrentUser();
         UserEntity stylist = resolveBookingStylist(booking, currentUser);
 
         OrderEntity order = ensureAndLockOrderForBooking(booking, stylist);
@@ -143,13 +143,13 @@ public class PosSettlementService {
 
     private UserEntity resolveQuickStylist(Long requestedStylistId, UserEntity currentUser, BranchEntity branch) {
         if (requestedStylistId != null) {
-            return creationHelper.staffResolution().findActiveStaffByIdOrThrow(
+            return creationHelper.findActiveStaffByIdOrThrow(
                     requestedStylistId, "Không tìm thấy stylist với ID: " + requestedStylistId);
         }
         if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> "STYLIST".equals(r.getName()))) {
             return currentUser;
         }
-        return creationHelper.staffResolution().resolveDefaultStaff(branch);
+        return creationHelper.resolveDefaultStaff(branch);
     }
 
     private UserEntity resolveBookingStylist(BookingEntity booking, UserEntity currentUser) {
@@ -157,7 +157,7 @@ public class PosSettlementService {
         if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> "STYLIST".equals(r.getName()))) {
             return currentUser;
         }
-        return creationHelper.staffResolution().resolveDefaultStaff(booking.getBranch());
+        return creationHelper.resolveDefaultStaff(booking.getBranch());
     }
 
     private OrderEntity ensureAndLockOrderForBooking(BookingEntity booking, UserEntity stylist) {

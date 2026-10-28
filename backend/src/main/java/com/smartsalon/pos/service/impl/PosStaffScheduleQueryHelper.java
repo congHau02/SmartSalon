@@ -65,8 +65,8 @@ public class PosStaffScheduleQueryHelper {
             List<PersonalWeeklyScheduleDayDto> weeklySchedule
     ) {}
 
-    public PosStaffResolutionHelper staffResolution() {
-        return staffResolutionHelper;
+    public void checkBranchAccess(Long branchId) {
+        staffResolutionHelper.checkBranchAccess(branchId);
     }
 
     public List<StylistAvailabilityDto> buildStylistAvailabilityStrip(Long branchId, LocalDate targetDate) {

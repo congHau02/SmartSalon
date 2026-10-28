@@ -38,7 +38,7 @@ public class PosDispatchQueryService {
     public DispatchBoardResponse getDispatchBoard(Long branchId, LocalDate date) {
         BranchEntity branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
-        scheduleQueryHelper.staffResolution().checkBranchAccess(branchId);
+        scheduleQueryHelper.checkBranchAccess(branchId);
 
         LocalDate targetDate = date != null ? date : LocalDate.now();
         LocalDateTime dayStart = targetDate.atStartOfDay();
@@ -68,7 +68,7 @@ public class PosDispatchQueryService {
     public CommissionLedgerSummaryResponse getCommissionLedger(Long branchId, LocalDate date) {
         BranchEntity branch = branchRepository.findByIdAndIsDeletedFalse(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
-        scheduleQueryHelper.staffResolution().checkBranchAccess(branchId);
+        scheduleQueryHelper.checkBranchAccess(branchId);
 
         LocalDate queryDate = date != null ? date : LocalDate.now();
         Instant startDate = queryDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
@@ -83,7 +83,7 @@ public class PosDispatchQueryService {
             BigDecimal amt = ledger.safeAmount();
             totalCommission = totalCommission.add(amt);
             accumulateStaffCommissionSummary(staffSummaryMap, ledger.getStaff(), amt);
-            entryDtos.add(toCommissionEntryDto(ledger, amt));
+            entryDtos.add(orderMapper.toCommissionEntryDto(ledger, amt));
         }
 
         return CommissionLedgerSummaryResponse.builder()
@@ -127,7 +127,7 @@ public class PosDispatchQueryService {
         PosStaffScheduleQueryHelper.StylistShiftSnapshot shift =
                 scheduleQueryHelper.buildStylistShiftSnapshot(ctx.stylistId(), queryDate);
 
-        return buildWorklogResponse(ctx, queryDate, totalEarnedCommission, metrics, upcomingBookings, shift);
+        return orderMapper.toWorklogResponse(ctx, queryDate, totalEarnedCommission, metrics, upcomingBookings, shift);
     }
 
     private List<DispatchBoardBookingDto> collectUpcomingDispatchBookings(
@@ -195,25 +195,6 @@ public class PosDispatchQueryService {
         summary.setStepCount(summary.getStepCount() + 1);
     }
 
-    private CommissionLedgerEntryDto toCommissionEntryDto(CommissionLedgerEntity ledger, BigDecimal amt) {
-        UserEntity staff = ledger.getStaff();
-        return CommissionLedgerEntryDto.builder()
-                .id(ledger.getId())
-                .staffId(staff != null ? staff.getId() : null)
-                .staffName(staff != null ? staff.getFullName() : null)
-                .orderId(ledger.getOrder() != null ? ledger.getOrder().getId() : null)
-                .orderCode(ledger.getOrder() != null ? ledger.getOrder().getOrderCode() : null)
-                .serviceName(ledger.resolveServiceName())
-                .stepName(ledger.resolveStepName())
-                .commissionRate(ledger.resolveCommissionRate())
-                .amount(amt)
-                .status(ledger.getStatus())
-                .calculationNotes(ledger.getCalculationNotes())
-                .isOvertime(ledger.isOvertime())
-                .createdAt(ledger.getCreatedAt())
-                .build();
-    }
-
     private List<DispatchBoardBookingDto> collectWorklogUpcomingBookings(
             Long branchId, Long stylistId, LocalDate queryDate) {
         LocalDateTime dayStart = queryDate.atStartOfDay();
@@ -231,43 +212,5 @@ public class PosDispatchQueryService {
             }
         }
         return upcomingBookings;
-    }
-
-    private StylistDailyWorklogResponse buildWorklogResponse(
-            PosStaffScheduleQueryHelper.WorklogContext ctx,
-            LocalDate queryDate,
-            BigDecimal totalEarnedCommission,
-            PosWorklogMetricsAccumulator metrics,
-            List<DispatchBoardBookingDto> upcomingBookings,
-            PosStaffScheduleQueryHelper.StylistShiftSnapshot shift) {
-        return StylistDailyWorklogResponse.builder()
-                .shiftCode(shift.shiftCode())
-                .shiftName(shift.shiftName())
-                .shiftStartTime(shift.shiftStartTime())
-                .shiftEndTime(shift.shiftEndTime())
-                .isWorking(shift.isWorking())
-                .attendanceStatus(shift.attendanceStatus())
-                .clockInAt(shift.clockInAt())
-                .breakStartAt(shift.breakStartAt())
-                .breakEndAt(shift.breakEndAt())
-                .clockOutAt(shift.clockOutAt())
-                .overtimeMinutes(shift.overtimeMinutes())
-                .weeklySchedule(shift.weeklySchedule())
-                .stylistId(ctx.stylistId())
-                .stylistName(ctx.stylistName())
-                .branchId(ctx.branchId())
-                .branchName(ctx.branchName())
-                .date(queryDate)
-                .totalTicketCount(metrics.totalTicketCount)
-                .totalCompletedStepCount(metrics.totalCompletedStepCount)
-                .totalServiceRevenue(metrics.totalServiceRevenue)
-                .totalEarnedCommission(totalEarnedCommission)
-                .selfSettledOrderCount(metrics.selfSettledOrderCount)
-                .cashCollectedToHandover(metrics.cashCollectedToHandover)
-                .transferCollectedAmount(metrics.transferCollectedAmount)
-                .totalSelfCollectedAmount(metrics.cashCollectedToHandover.add(metrics.transferCollectedAmount))
-                .tickets(metrics.tickets)
-                .upcomingBookings(upcomingBookings)
-                .build();
     }
 }

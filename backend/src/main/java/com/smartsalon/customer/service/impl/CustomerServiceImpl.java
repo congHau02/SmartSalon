@@ -154,7 +154,10 @@ public class CustomerServiceImpl implements CustomerService {
         if (booking.getCustomer() == null || !booking.getCustomer().getId().equals(user.getId())) {
             throw new AppException(ErrorCode.FORBIDDEN);
         }
-        if (booking.getBookingTime().isBefore(now.plusHours(2))) {
+        if (!booking.canCancelOnline(now)) {
+            if (booking.getStatus() != BookingStatus.PENDING_PAYMENT && booking.getStatus() != BookingStatus.CONFIRMED) {
+                throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
+            }
             throw new AppException(ErrorCode.BOOKING_CANCELLATION_WINDOW_EXPIRED);
         }
     }
@@ -175,19 +178,19 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private UserEntity resolveStylistForReview(OrderEntity order, Long requestedStylistId) {
-        CustomerOrderResponse orderResp = customerPortalMapper.toOrderResponse(order);
+        List<CustomerStylistDto> participatingStylists = customerPortalMapper.resolveParticipatingStylists(order);
         if (requestedStylistId != null) {
             UserEntity picked = userRepository.findByIdAndIsDeletedFalse(requestedStylistId)
                     .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND));
-            boolean participated = orderResp.getParticipatingStylists().stream()
+            boolean participated = participatingStylists.stream()
                     .anyMatch(s -> s.getId().equals(picked.getId()));
             if (!picked.isActive() || !participated) {
                 throw new AppException(ErrorCode.STYLIST_NOT_FOUND);
             }
             return picked;
         }
-        if (orderResp.getPrimaryStylist() != null) {
-            return userRepository.findByIdAndIsDeletedFalse(orderResp.getPrimaryStylist().getId())
+        if (!participatingStylists.isEmpty()) {
+            return userRepository.findByIdAndIsDeletedFalse(participatingStylists.get(0).getId())
                     .orElseThrow(() -> new AppException(ErrorCode.STYLIST_NOT_FOUND, "Không xác định được kỹ thuật viên phục vụ đơn hàng"));
         }
         if (order.getBooking() != null && order.getBooking().getStaff() != null) {
