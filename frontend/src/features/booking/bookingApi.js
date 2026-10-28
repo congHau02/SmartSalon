@@ -1,9 +1,11 @@
 import { axiosClient } from "../../api/axiosClient";
 
 export const bookingApi = {
-  // Lấy danh sách kỹ thuật viên đang hoạt động theo chi nhánh
-  getStylists: async (branchId) => {
-    const params = branchId ? { branchId } : {};
+  // Lấy danh sách kỹ thuật viên đang hoạt động theo chi nhánh và ca trực theo ngày
+  getStylists: async (branchId, date) => {
+    const params = {};
+    if (branchId) params.branchId = branchId;
+    if (date) params.date = date;
     const response = await axiosClient.get("/bookings/stylists", { params });
     return response?.result ?? response ?? [];
   },

@@ -21,6 +21,8 @@ import com.smartsalon.user.repository.RoleRepository;
 import com.smartsalon.user.repository.UserRepository;
 import com.smartsalon.payment.entity.PaymentTransactionEntity;
 import com.smartsalon.payment.repository.PaymentTransactionRepository;
+import com.smartsalon.shift.repository.StaffAttendanceRepository;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,6 +70,12 @@ class BookingServiceTest {
 
     @Mock
     private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Mock
+    private StaffScheduleRepository staffScheduleRepository;
+
+    @Mock
+    private StaffAttendanceRepository staffAttendanceRepository;
 
     @Spy
     private BookingMapper bookingMapper = new BookingMapper();
@@ -128,7 +136,9 @@ class BookingServiceTest {
                 null,
                 customerIdentityService,
                 null,
-                branchScopeGuard
+                branchScopeGuard,
+                staffScheduleRepository,
+                staffAttendanceRepository
         );
     }
 

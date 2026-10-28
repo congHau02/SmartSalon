@@ -36,6 +36,9 @@ import com.smartsalon.inventory.service.InventoryService;
 import com.smartsalon.payment.entity.PaymentTransactionEntity;
 import com.smartsalon.payment.repository.PaymentTransactionRepository;
 import com.smartsalon.pos.repository.CommissionLedgerRepository;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
+import com.smartsalon.shift.entity.StaffScheduleStatus;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -44,10 +47,12 @@ import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -74,6 +79,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final OrderBomResolver orderBomResolver;
     private final EntityManager entityManager;
     private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
+    private final StaffScheduleRepository staffScheduleRepository;
 
     @Value("${app.payos.bank-id:MB}")
     private String bankId;
@@ -346,6 +352,11 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // 3. Stylist availability strip
         List<UserEntity> stylists = userRepository.findActiveStylistsByBranchId(branchId);
+        List<StaffScheduleEntity> branchSchedules = staffScheduleRepository.findByBranchIdAndScheduleDateAndIsDeletedFalse(branchId, targetDate);
+        boolean hasBranchRoster = !branchSchedules.isEmpty();
+        Map<Long, StaffScheduleEntity> scheduleMap = branchSchedules.stream()
+                .filter(s -> s.getUser() != null)
+                .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s, (s1, s2) -> s1));
         List<StylistAvailabilityDto> stylistDtos = new ArrayList<>();
 
         for (UserEntity stylist : stylists) {
@@ -367,6 +378,35 @@ public class PosOrderServiceImpl implements PosOrderService {
                 }
             }
 
+            StaffScheduleEntity schedule = scheduleMap.get(stylist.getId());
+            String shiftCode = null;
+            String shiftName = null;
+            LocalTime shiftStart = null;
+            LocalTime shiftEnd = null;
+            Boolean isWorking = true;
+
+            if (schedule != null && schedule.getStatus() == StaffScheduleStatus.WORKING && schedule.getShiftTemplate() != null) {
+                shiftCode = schedule.getShiftTemplate().getCode();
+                shiftName = schedule.getShiftTemplate().getName();
+                shiftStart = schedule.getShiftTemplate().getStartTime();
+                shiftEnd = schedule.getShiftTemplate().getEndTime();
+                isWorking = true;
+            } else if (schedule != null && schedule.getStatus() == StaffScheduleStatus.OFF) {
+                shiftCode = "OFF";
+                shiftName = "Nghỉ (OFF)";
+                isWorking = false;
+            } else if (hasBranchRoster) {
+                shiftCode = "OFF";
+                shiftName = "Không xếp ca";
+                isWorking = false;
+            } else {
+                shiftCode = "FULL_DAY";
+                shiftName = "Ca Cả ngày";
+                shiftStart = LocalTime.of(8, 30);
+                shiftEnd = LocalTime.of(20, 30);
+                isWorking = true;
+            }
+
             stylistDtos.add(StylistAvailabilityDto.builder()
                     .stylistId(stylist.getId())
                     .fullName(stylist.getFullName())
@@ -376,6 +416,11 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .currentOrderCode(currentOrderCode)
                     .currentCustomerName(currentCustomerName)
                     .currentStepName(currentStepName)
+                    .shiftCode(shiftCode)
+                    .shiftName(shiftName)
+                    .shiftStartTime(shiftStart)
+                    .shiftEndTime(shiftEnd)
+                    .isWorking(isWorking)
                     .build());
         }
 

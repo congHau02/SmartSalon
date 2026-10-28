@@ -65,7 +65,7 @@ export function WalkInCustomerSection({
           <option value="">Stylist bất kỳ / Tự động điều phối</option>
           {stylists.map((st) => (
             <option key={st.stylistId} value={st.stylistId}>
-              {st.fullName} {st.isBusy ? "(Đang bận)" : "(Đang rảnh)"}
+              {st.fullName} {st.shiftName ? `[${st.shiftName}] ` : ""}{st.isBusy ? "(Đang bận)" : "(Đang rảnh)"}
             </option>
           ))}
         </select>

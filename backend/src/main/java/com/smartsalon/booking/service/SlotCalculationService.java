@@ -7,8 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface SlotCalculationService {
-
-    AvailableSlotsResponse calculateAvailableSlots(Long branchId, LocalDate date, List<Long> serviceIds, Long stylistId);
-
     List<StylistDto> getActiveStylists(Long branchId);
+    List<StylistDto> getActiveStylists(Long branchId, LocalDate date);
+    AvailableSlotsResponse calculateAvailableSlots(Long branchId, LocalDate date, List<Long> serviceIds, Long stylistId);
 }

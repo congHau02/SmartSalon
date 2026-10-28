@@ -38,8 +38,10 @@ public class BookingController {
 
     @GetMapping("/stylists")
     @Operation(summary = "Lấy danh sách Stylist đang hoạt động theo chi nhánh")
-    public ResponseEntity<ApiResponse<List<StylistDto>>> getStylists(@RequestParam(required = false) Long branchId) {
-        List<StylistDto> stylists = slotCalculationService.getActiveStylists(branchId);
+    public ResponseEntity<ApiResponse<List<StylistDto>>> getStylists(
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        List<StylistDto> stylists = slotCalculationService.getActiveStylists(branchId, date);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách Stylist thành công", stylists));
     }
 

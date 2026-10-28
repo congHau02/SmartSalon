@@ -5,7 +5,7 @@ import { axiosClient } from "../../api/axiosClient";
 export const BOOKING_QUERY_KEYS = {
   branches: ["branches", "active"],
   services: ["services", "active"],
-  stylists: (branchId) => ["booking", "stylists", branchId],
+  stylists: (branchId, date) => ["booking", "stylists", branchId, date || ""],
   availableSlots: (branchId, date, serviceIds, stylistId) => [
     "booking",
     "slots",
@@ -47,10 +47,10 @@ export function useActiveServices() {
 }
 
 // Hook lấy danh sách Stylist theo chi nhánh
-export function useBookingStylists(branchId) {
+export function useBookingStylists(branchId, date) {
   return useQuery({
-    queryKey: BOOKING_QUERY_KEYS.stylists(branchId),
-    queryFn: () => bookingApi.getStylists(branchId),
+    queryKey: BOOKING_QUERY_KEYS.stylists(branchId, date),
+    queryFn: () => bookingApi.getStylists(branchId, date),
     enabled: Boolean(branchId),
     staleTime: 5 * 60 * 1000,
   });

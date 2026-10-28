@@ -21,6 +21,10 @@ import com.smartsalon.user.entity.RoleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.RoleRepository;
 import com.smartsalon.user.repository.UserRepository;
+import com.smartsalon.shift.entity.StaffAttendanceEntity;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
+import com.smartsalon.shift.repository.StaffAttendanceRepository;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -42,6 +46,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -62,6 +67,8 @@ public class BookingServiceImpl implements BookingService {
     private final com.smartsalon.user.service.CustomerIdentityService customerIdentityService;
     private final EntityManager entityManager;
     private final com.smartsalon.security.BranchScopeGuard branchScopeGuard;
+    private final StaffScheduleRepository staffScheduleRepository;
+    private final StaffAttendanceRepository staffAttendanceRepository;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -115,6 +122,22 @@ public class BookingServiceImpl implements BookingService {
             }
         } while (bookingRepository.findByBookingCodeAndIsDeletedFalse(bookingCode).isPresent());
 
+        LocalDate bookingDate = startTime.toLocalDate();
+        LocalTime slotStart = startTime.toLocalTime();
+        LocalTime slotEnd = endTime.toLocalTime();
+
+        List<StaffScheduleEntity> branchSchedules = staffScheduleRepository.findByBranchIdAndScheduleDateAndIsDeletedFalse(branch.getId(), bookingDate);
+        List<StaffAttendanceEntity> branchAttendances = staffAttendanceRepository.findByBranchIdAndAttendanceDateAndIsDeletedFalse(branch.getId(), bookingDate);
+        boolean hasBranchRoster = !branchSchedules.isEmpty();
+
+        Map<Long, StaffScheduleEntity> scheduleByStylist = branchSchedules.stream()
+                .filter(s -> s.getUser() != null)
+                .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s, (s1, s2) -> s1));
+
+        Map<Long, StaffAttendanceEntity> attendanceByStylist = branchAttendances.stream()
+                .filter(a -> a.getUser() != null)
+                .collect(Collectors.toMap(a -> a.getUser().getId(), a -> a, (a1, a2) -> a1));
+
         UserEntity assignedStylist;
 
         if (request.stylistId() != null) {
@@ -128,6 +151,12 @@ public class BookingServiceImpl implements BookingService {
             }
             if (stylist.getBranch() != null && !stylist.getBranch().getId().equals(branch.getId())) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR);
+            }
+
+            if (!ShiftSlotEligibilityHelper.isEligible(
+                    stylist.getId(), slotStart, slotEnd, bookingDate, hasBranchRoster,
+                    scheduleByStylist, attendanceByStylist, LocalDate.now(), LocalTime.now())) {
+                throw new AppException(ErrorCode.SLOT_NOT_AVAILABLE);
             }
 
             List<BookingEntity> overlaps = bookingRepository.findOverlappingBookingsForStylist(
@@ -148,7 +177,17 @@ public class BookingServiceImpl implements BookingService {
                 throw new AppException(ErrorCode.STYLIST_NOT_FOUND);
             }
 
-            List<UserEntity> freeStylists = activeStylists.stream()
+            List<UserEntity> eligibleStylists = activeStylists.stream()
+                    .filter(s -> ShiftSlotEligibilityHelper.isEligible(
+                            s.getId(), slotStart, slotEnd, bookingDate, hasBranchRoster,
+                            scheduleByStylist, attendanceByStylist, LocalDate.now(), LocalTime.now()))
+                    .toList();
+
+            if (eligibleStylists.isEmpty()) {
+                throw new AppException(ErrorCode.SLOT_NOT_AVAILABLE);
+            }
+
+            List<UserEntity> freeStylists = eligibleStylists.stream()
                     .filter(s -> bookingRepository.findOverlappingBookingsForStylist(s.getId(), startTime, endTime, now).isEmpty())
                     .filter(s -> !redisLockService.isAnySlotLocked(s.getId(), startTime, endTime))
                     .toList();

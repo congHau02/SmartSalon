@@ -94,6 +94,21 @@ export function StylistAvailabilityStrip({ stylists = [], isLoading = false }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
                     <p className="text-sm font-semibold text-slate-100 truncate">{stylist.fullName}</p>
+                    {stylist.shiftName && (
+                      <span
+                        className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                          stylist.isWorking === false
+                            ? "bg-slate-700/60 text-slate-400 border border-slate-600/60"
+                            : stylist.shiftCode === "MORNING"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            : stylist.shiftCode === "AFTERNOON"
+                            ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                            : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        }`}
+                      >
+                        {stylist.shiftName}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5 text-xs">
                     {isBusy ? (

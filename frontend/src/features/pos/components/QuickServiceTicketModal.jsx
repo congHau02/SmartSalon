@@ -52,7 +52,7 @@ export function QuickServiceTicketModal({ isOpen, onClose, stylists = [], servic
               >
                 {stylists.map((st) => (
                   <option key={st.id} value={st.id}>
-                    {st.fullName || st.username}
+                    {st.fullName || st.username}{st.shiftName ? ` [${st.shiftName}]` : ""}
                   </option>
                 ))}
               </select>

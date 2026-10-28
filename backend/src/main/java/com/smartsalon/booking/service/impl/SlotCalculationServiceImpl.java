@@ -15,6 +15,11 @@ import com.smartsalon.catalog.repository.ServiceRepository;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
 import com.smartsalon.review.repository.ServiceReviewRepository;
+import com.smartsalon.shift.entity.StaffAttendanceEntity;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
+import com.smartsalon.shift.entity.StaffScheduleStatus;
+import com.smartsalon.shift.repository.StaffAttendanceRepository;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +48,8 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
     private final BookingRepository bookingRepository;
     private final RedisLockService redisLockService;
     private final ServiceReviewRepository serviceReviewRepository;
+    private final StaffScheduleRepository staffScheduleRepository;
+    private final StaffAttendanceRepository staffAttendanceRepository;
 
     public static final LocalTime OPENING_TIME = LocalTime.of(8, 30);
     public static final LocalTime CLOSING_TIME = LocalTime.of(20, 30);
@@ -51,16 +58,31 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
 
     @Override
     public List<StylistDto> getActiveStylists(Long branchId) {
+        return getActiveStylists(branchId, LocalDate.now());
+    }
+
+    @Override
+    public List<StylistDto> getActiveStylists(Long branchId, LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now();
+
         List<UserEntity> users;
+        List<StaffScheduleEntity> branchSchedules;
         if (branchId != null) {
             users = userRepository.findActiveStylistsByBranchId(branchId);
+            branchSchedules = staffScheduleRepository.findByBranchIdAndScheduleDateAndIsDeletedFalse(branchId, targetDate);
         } else {
             users = userRepository.findAllActiveStylists();
+            branchSchedules = Collections.emptyList();
         }
 
         if (users.isEmpty()) {
             return Collections.emptyList();
         }
+
+        boolean hasBranchRoster = !branchSchedules.isEmpty();
+        Map<Long, StaffScheduleEntity> scheduleMap = branchSchedules.stream()
+                .filter(s -> s.getUser() != null)
+                .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s, (s1, s2) -> s1));
 
         List<Long> stylistIds = users.stream().map(UserEntity::getId).toList();
         Map<Long, ServiceReviewRepository.StylistReviewStats> statsMap = serviceReviewRepository
@@ -77,6 +99,46 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                     long reviewCount = (stats != null && stats.getReviewCount() != null)
                             ? stats.getReviewCount()
                             : 0L;
+
+                    StaffScheduleEntity schedule = scheduleMap.get(u.getId());
+                    String shiftCode = null;
+                    String shiftName = null;
+                    LocalTime shiftStart = null;
+                    LocalTime shiftEnd = null;
+                    Integer maxOvertime = 0;
+                    Boolean isWorking = true;
+
+                    if (schedule != null && schedule.getStatus() == StaffScheduleStatus.WORKING && schedule.getShiftTemplate() != null) {
+                        shiftCode = schedule.getShiftTemplate().getCode();
+                        shiftName = schedule.getShiftTemplate().getName();
+                        shiftStart = schedule.getShiftTemplate().getStartTime();
+                        shiftEnd = schedule.getShiftTemplate().getEndTime();
+                        maxOvertime = schedule.getShiftTemplate().getMaxOvertimeMinutes();
+                        isWorking = true;
+                    } else if (schedule != null && schedule.getStatus() == StaffScheduleStatus.OFF) {
+                        shiftCode = "OFF";
+                        shiftName = "Nghỉ (OFF)";
+                        shiftStart = null;
+                        shiftEnd = null;
+                        maxOvertime = 0;
+                        isWorking = false;
+                    } else if (hasBranchRoster) {
+                        shiftCode = "OFF";
+                        shiftName = "Không xếp ca";
+                        shiftStart = null;
+                        shiftEnd = null;
+                        maxOvertime = 0;
+                        isWorking = false;
+                    } else {
+                        // Far-future date fallback without published roster
+                        shiftCode = "FULL_DAY";
+                        shiftName = "Ca Cả ngày (Mặc định)";
+                        shiftStart = OPENING_TIME;
+                        shiftEnd = CLOSING_TIME;
+                        maxOvertime = 0;
+                        isWorking = true;
+                    }
+
                     return new StylistDto(
                             u.getId(),
                             u.getBranch() != null ? u.getBranch().getId() : null,
@@ -85,7 +147,13 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                             u.getPhone(),
                             u.getAvatarUrl(),
                             avgRating,
-                            reviewCount
+                            reviewCount,
+                            shiftCode,
+                            shiftName,
+                            shiftStart,
+                            shiftEnd,
+                            maxOvertime,
+                            isWorking
                     );
                 })
                 .toList();
@@ -159,7 +227,20 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                 .filter(b -> b.getStaff() != null && b.getStaff().getId() != null)
                 .collect(Collectors.groupingBy(b -> b.getStaff().getId()));
 
-        // 2. Single batch Redis multiGet query for all candidate slot lock keys across the entire day
+        // 2. Batch-load daily shift schedules and staff attendances for target branch and date
+        List<StaffScheduleEntity> branchSchedules = staffScheduleRepository.findByBranchIdAndScheduleDateAndIsDeletedFalse(branchId, date);
+        List<StaffAttendanceEntity> branchAttendances = staffAttendanceRepository.findByBranchIdAndAttendanceDateAndIsDeletedFalse(branchId, date);
+        boolean hasBranchRoster = !branchSchedules.isEmpty();
+
+        Map<Long, StaffScheduleEntity> scheduleByStylist = branchSchedules.stream()
+                .filter(s -> s.getUser() != null)
+                .collect(Collectors.toMap(s -> s.getUser().getId(), s -> s, (s1, s2) -> s1));
+
+        Map<Long, StaffAttendanceEntity> attendanceByStylist = branchAttendances.stream()
+                .filter(a -> a.getUser() != null)
+                .collect(Collectors.toMap(a -> a.getUser().getId(), a -> a, (a1, a2) -> a1));
+
+        // 3. Single batch Redis multiGet query for candidate slot lock keys across the entire day
         Set<String> candidateKeys = new LinkedHashSet<>();
         LocalTime t = OPENING_TIME;
         while (!t.plusMinutes(totalDurationMinutes).isAfter(CLOSING_TIME)) {
@@ -167,13 +248,17 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
             LocalDateTime startDt = LocalDateTime.of(date, t);
             LocalDateTime endDt = LocalDateTime.of(date, slotEnd);
             for (UserEntity stylist : candidates) {
-                candidateKeys.addAll(RedisLockServiceImpl.generateBucketKeys(stylist.getId(), startDt, endDt));
+                if (ShiftSlotEligibilityHelper.isEligible(
+                        stylist.getId(), t, slotEnd, date, hasBranchRoster,
+                        scheduleByStylist, attendanceByStylist, today, nowTime)) {
+                    candidateKeys.addAll(RedisLockServiceImpl.generateBucketKeys(stylist.getId(), startDt, endDt));
+                }
             }
             t = t.plusMinutes(SLOT_INTERVAL_MINUTES);
         }
         Set<String> lockedKeys = redisLockService.getLockedKeys(candidateKeys);
 
-        // 3. Compute slot availability purely in memory without SQL or Redis calls inside the loop
+        // 4. Compute slot availability purely in memory without SQL or Redis calls inside the loop
         while (!current.plusMinutes(totalDurationMinutes).isAfter(CLOSING_TIME)) {
             LocalTime slotEnd = current.plusMinutes(totalDurationMinutes);
             LocalDateTime slotStartDateTime = LocalDateTime.of(date, current);
@@ -193,6 +278,12 @@ public class SlotCalculationServiceImpl implements SlotCalculationService {
                 int bookedCount = 0;
 
                 for (UserEntity stylist : candidates) {
+                    if (!ShiftSlotEligibilityHelper.isEligible(
+                            stylist.getId(), current, slotEnd, date, hasBranchRoster,
+                            scheduleByStylist, attendanceByStylist, today, nowTime)) {
+                        continue;
+                    }
+
                     List<BookingEntity> stylistBookings = bookingsByStylist.getOrDefault(stylist.getId(), Collections.emptyList());
                     boolean hasOverlap = false;
                     for (BookingEntity b : stylistBookings) {

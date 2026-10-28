@@ -57,7 +57,7 @@ export function StylistAndSlotStep({
   );
 
   const { data: stylists = [], isLoading: isLoadingStylists } =
-    useBookingStylists(selectedBranchId);
+    useBookingStylists(selectedBranchId, selectedDate);
 
   const {
     data: slotData,

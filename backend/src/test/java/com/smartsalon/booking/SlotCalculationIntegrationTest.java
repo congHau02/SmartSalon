@@ -31,6 +31,20 @@ import java.time.LocalTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
+import com.smartsalon.booking.dto.CreateBookingRequest;
+import com.smartsalon.booking.service.BookingService;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
+import com.smartsalon.shift.entity.ShiftTemplateEntity;
+import com.smartsalon.shift.entity.StaffAttendanceEntity;
+import com.smartsalon.shift.entity.StaffAttendanceStatus;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
+import com.smartsalon.shift.entity.StaffScheduleStatus;
+import com.smartsalon.shift.repository.ShiftTemplateRepository;
+import com.smartsalon.shift.repository.StaffAttendanceRepository;
+import com.smartsalon.shift.repository.StaffScheduleRepository;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -56,6 +70,18 @@ class SlotCalculationIntegrationTest {
 
     @Autowired
     private RedisLockService redisLockService;
+
+    @Autowired
+    private ShiftTemplateRepository shiftTemplateRepository;
+
+    @Autowired
+    private StaffScheduleRepository staffScheduleRepository;
+
+    @Autowired
+    private StaffAttendanceRepository staffAttendanceRepository;
+
+    @Autowired
+    private BookingService bookingService;
 
     private MockMvc mockMvc;
     private BranchEntity testBranch;
@@ -221,5 +247,208 @@ class SlotCalculationIntegrationTest {
                 .andExpect(jsonPath("$.result.stylistId").doesNotExist())
                 .andExpect(jsonPath("$.result.stylistName").value("Bất kỳ Stylist nào còn trống"))
                 .andExpect(jsonPath("$.result.slots[0].availableStylistCount", greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    @DisplayName("Ca Sáng 08:30-15:00 (+60p OT): Dịch vụ 90p lúc 14:00 (kết thúc 15:30 <= 16:00) khả dụng, dịch vụ 150p lúc 14:00 (kết thúc 16:30 > 16:00) bị chặn")
+    void shouldEnforceOvertimeWindowForMorningShift() throws Exception {
+        LocalDate targetDate = LocalDate.now().plusDays(10);
+
+        ShiftTemplateEntity morningShift = shiftTemplateRepository.findByBranchIdAndCodeAndIsDeletedFalse(testBranch.getId(), "MORNING")
+                .orElseGet(() -> shiftTemplateRepository.save(ShiftTemplateEntity.builder()
+                        .branch(testBranch)
+                        .code("MORNING")
+                        .name("Ca Sáng")
+                        .startTime(LocalTime.of(8, 30))
+                        .endTime(LocalTime.of(15, 0))
+                        .maxOvertimeMinutes(60)
+                        .isActive(true)
+                        .build()));
+
+        StaffScheduleEntity schedule = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(testStylist.getId(), targetDate)
+                .orElseGet(() -> StaffScheduleEntity.builder()
+                        .branch(testBranch)
+                        .user(testStylist)
+                        .scheduleDate(targetDate)
+                        .build());
+        schedule.setStatus(StaffScheduleStatus.WORKING);
+        schedule.setShiftTemplate(morningShift);
+        staffScheduleRepository.save(schedule);
+
+        ServiceEntity service90m = serviceRepository.save(ServiceEntity.builder()
+                .name("Uốn Lạnh Phục Hồi 90m")
+                .category("Uốn")
+                .basePrice(new BigDecimal("400000.00"))
+                .durationMinutes(90)
+                .isActive(true)
+                .build());
+
+        ServiceEntity service150m = serviceRepository.save(ServiceEntity.builder()
+                .name("Tẩy Nhuộm Toàn Phần 150m")
+                .category("Nhuộm")
+                .basePrice(new BigDecimal("800000.00"))
+                .durationMinutes(150)
+                .isActive(true)
+                .build());
+
+        try {
+            // 90m service at 14:00 ends at 15:30 <= 16:00 -> AVAILABLE
+            mockMvc.perform(get("/api/v1/bookings/available-slots")
+                            .param("branchId", testBranch.getId().toString())
+                            .param("date", targetDate.toString())
+                            .param("serviceIds", service90m.getId().toString())
+                            .param("stylistId", testStylist.getId().toString())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.slots[?(@.time == '14:00')].status").value("AVAILABLE"))
+                    // Slot at 15:00 is >= shift.endTime -> BOOKED/unavailable
+                    .andExpect(jsonPath("$.result.slots[?(@.time == '15:00')].status").value("BOOKED"));
+
+            // 150m service at 14:00 ends at 16:30 > 16:00 -> BOOKED
+            mockMvc.perform(get("/api/v1/bookings/available-slots")
+                            .param("branchId", testBranch.getId().toString())
+                            .param("date", targetDate.toString())
+                            .param("serviceIds", service150m.getId().toString())
+                            .param("stylistId", testStylist.getId().toString())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.slots[?(@.time == '14:00')].status").value("BOOKED"));
+        } finally {
+            serviceRepository.delete(service90m);
+            serviceRepository.delete(service150m);
+        }
+    }
+
+    @Test
+    @DisplayName("Stylist xếp lịch Nghỉ (OFF) trên ngày đặt thì tất cả các slot đều BOOKED/không khả dụng")
+    void shouldBlockStylistScheduledOff() throws Exception {
+        LocalDate targetDate = LocalDate.now().plusDays(11);
+
+        StaffScheduleEntity schedule = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(testStylist.getId(), targetDate)
+                .orElseGet(() -> StaffScheduleEntity.builder()
+                        .branch(testBranch)
+                        .user(testStylist)
+                        .scheduleDate(targetDate)
+                        .build());
+        schedule.setStatus(StaffScheduleStatus.OFF);
+        schedule.setShiftTemplate(null);
+        staffScheduleRepository.save(schedule);
+
+        mockMvc.perform(get("/api/v1/bookings/available-slots")
+                        .param("branchId", testBranch.getId().toString())
+                        .param("date", targetDate.toString())
+                        .param("serviceIds", testService120m.getId().toString())
+                        .param("stylistId", testStylist.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.slots[*].status", everyItem(is("BOOKED"))))
+                .andExpect(jsonPath("$.result.slots[*].availableStylistCount", everyItem(is(0))));
+    }
+
+    @Test
+    @DisplayName("Đặt lịch tự động phân bổ (Least-Workload) loại trừ thợ lịch OFF")
+    void shouldExcludeOffStylistsFromLeastWorkloadAssignment() throws Exception {
+        LocalDate targetDate = LocalDate.now().plusDays(12);
+
+        // Mark testStylist as OFF
+        StaffScheduleEntity schedule = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(testStylist.getId(), targetDate)
+                .orElseGet(() -> StaffScheduleEntity.builder()
+                        .branch(testBranch)
+                        .user(testStylist)
+                        .scheduleDate(targetDate)
+                        .build());
+        schedule.setStatus(StaffScheduleStatus.OFF);
+        schedule.setShiftTemplate(null);
+        staffScheduleRepository.save(schedule);
+
+        // Direct booking attempt with testStylist should throw SLOT_NOT_AVAILABLE
+        CreateBookingRequest directOffRequest = new CreateBookingRequest(
+                testBranch.getId(),
+                testStylist.getId(),
+                List.of(testService120m.getId()),
+                LocalDateTime.of(targetDate, LocalTime.of(10, 0)),
+                "Khách Test OFF",
+                "0988776655",
+                "Ghi chu"
+        );
+
+        assertThatThrownBy(() -> bookingService.holdSlotAndCreate(directOffRequest))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.SLOT_NOT_AVAILABLE));
+    }
+
+    @Test
+    @DisplayName("API danh sách Stylist trả về thông tin ca trực (shiftCode, shiftName, isWorking) theo ngày")
+    void shouldReturnStylistShiftBadgeInfo() throws Exception {
+        LocalDate targetDate = LocalDate.now().plusDays(13);
+
+        ShiftTemplateEntity morningShift = shiftTemplateRepository.findByBranchIdAndCodeAndIsDeletedFalse(testBranch.getId(), "MORNING")
+                .orElseThrow();
+
+        StaffScheduleEntity schedule = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(testStylist.getId(), targetDate)
+                .orElseGet(() -> StaffScheduleEntity.builder()
+                        .branch(testBranch)
+                        .user(testStylist)
+                        .scheduleDate(targetDate)
+                        .build());
+        schedule.setStatus(StaffScheduleStatus.WORKING);
+        schedule.setShiftTemplate(morningShift);
+        staffScheduleRepository.save(schedule);
+
+        mockMvc.perform(get("/api/v1/bookings/stylists")
+                        .param("branchId", testBranch.getId().toString())
+                        .param("date", targetDate.toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.result[?(@.id == " + testStylist.getId() + ")].shiftCode").value("MORNING"))
+                .andExpect(jsonPath("$.result[?(@.id == " + testStylist.getId() + ")].shiftName").value(morningShift.getName()))
+                .andExpect(jsonPath("$.result[?(@.id == " + testStylist.getId() + ")].isWorking").value(true));
+    }
+
+    @Test
+    @DisplayName("Ngày tương lai xa chưa công bố lịch làm việc: fallback về giờ mở cửa chi nhánh (08:30-20:30)")
+    void shouldFallbackToOperatingHoursForFarFutureDate() throws Exception {
+        LocalDate farFutureDate = LocalDate.now().plusYears(1);
+
+        mockMvc.perform(get("/api/v1/bookings/available-slots")
+                        .param("branchId", testBranch.getId().toString())
+                        .param("date", farFutureDate.toString())
+                        .param("serviceIds", testService120m.getId().toString())
+                        .param("stylistId", testStylist.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.slots[?(@.time == '08:30')].status").value("AVAILABLE"))
+                .andExpect(jsonPath("$.result.slots[?(@.time == '18:30')].status").value("AVAILABLE"));
+    }
+
+    @Test
+    @DisplayName("Stylist hôm nay bị đánh dấu ABSENT (vắng mặt) thì tất cả slot bị chặn")
+    void shouldBlockSlotWhenStylistIsAbsentToday() throws Exception {
+        LocalDate today = LocalDate.now();
+
+        StaffAttendanceEntity attendance = staffAttendanceRepository.findByUserIdAndAttendanceDateAndIsDeletedFalse(testStylist.getId(), today)
+                .orElseGet(() -> StaffAttendanceEntity.builder()
+                        .branch(testBranch)
+                        .user(testStylist)
+                        .attendanceDate(today)
+                        .build());
+        StaffAttendanceStatus prevStatus = attendance.getStatus();
+        attendance.setStatus(StaffAttendanceStatus.ABSENT);
+        staffAttendanceRepository.save(attendance);
+
+        try {
+            mockMvc.perform(get("/api/v1/bookings/available-slots")
+                            .param("branchId", testBranch.getId().toString())
+                            .param("date", today.toString())
+                            .param("serviceIds", testService120m.getId().toString())
+                            .param("stylistId", testStylist.getId().toString())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.slots[*].status", everyItem(not("AVAILABLE"))));
+        } finally {
+            attendance.setStatus(prevStatus != null ? prevStatus : StaffAttendanceStatus.PRESENT);
+            staffAttendanceRepository.save(attendance);
+        }
     }
 }

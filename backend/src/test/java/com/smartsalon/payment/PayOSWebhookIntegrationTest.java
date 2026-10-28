@@ -179,12 +179,12 @@ class PayOSWebhookIntegrationTest {
     @Test
     @DisplayName("POST /api/v1/webhooks/payos: Nhận webhook từ PayOS chuyển CONFIRMED")
     void handleWebhook_Success() throws Exception {
-        LocalDate tomorrow = LocalDate.now().plusDays(4);
+        LocalDate tomorrow = LocalDate.now().plusDays(2);
         CreateBookingRequest req = new CreateBookingRequest(
                 branch.getId(),
                 stylist.getId(),
                 List.of(service1.getId()),
-                tomorrow.atTime(16, 0),
+                tomorrow.atTime(10, 0),
                 "Khách Webhook Test",
                 "0933445566",
                 "Webhook Test"
