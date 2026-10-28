@@ -407,6 +407,7 @@ class OvertimeCommissionAndProratedPayrollIntegrationTest {
                 .order(order)
                 .amount(new BigDecimal("240000.00"))
                 .status("EARNED")
+                .overtime(true)
                 .calculationNotes("Công đoạn Nhuộm [OT 1.2x]")
                 .build());
 

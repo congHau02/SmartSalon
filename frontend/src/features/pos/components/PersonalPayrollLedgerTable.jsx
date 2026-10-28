@@ -61,7 +61,7 @@ export function PersonalPayrollLedgerTable({ ledgers = [] }) {
             </thead>
             <tbody className="divide-y divide-slate-800/80">
               {filteredLedgers.map((l, idx) => {
-                const isOt = Boolean(l.isOvertime || (l.calculationNotes && l.calculationNotes.includes("[OT 1.2x]")));
+                const isOt = Boolean(l.isOvertime);
                 return (
                   <tr key={l.id || idx} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-2.5 px-3">

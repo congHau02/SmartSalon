@@ -47,6 +47,10 @@ public class CommissionLedgerEntity {
     @Column(name = "calculation_notes")
     private String calculationNotes;
 
+    @Column(name = "overtime", nullable = false)
+    @Builder.Default
+    private boolean overtime = false;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

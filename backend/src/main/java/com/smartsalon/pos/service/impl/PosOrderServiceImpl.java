@@ -1191,6 +1191,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                         .amount(commissionAmount)
                         .status("EARNED")
                         .calculationNotes(calculationNotes)
+                        .overtime(isOvertime)
                         .build();
                 commissionLedgerRepository.save(ledger);
             }
@@ -1334,7 +1335,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                     .amount(amt)
                     .status(ledger.getStatus())
                     .calculationNotes(ledger.getCalculationNotes())
-                    .isOvertime(ledger.getCalculationNotes() != null && ledger.getCalculationNotes().contains("[OT 1.2x]"))
+                    .isOvertime(ledger.isOvertime())
                     .createdAt(ledger.getCreatedAt())
                     .build());
         }

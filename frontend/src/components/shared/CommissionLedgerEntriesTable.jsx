@@ -60,10 +60,7 @@ export function CommissionLedgerEntriesTable({
         }
       >
         {entries.map((entry) => {
-          const isOt = Boolean(
-            entry.isOvertime ||
-              (entry.calculationNotes && entry.calculationNotes.includes("[OT 1.2x]"))
-          );
+          const isOt = Boolean(entry.isOvertime);
 
           return (
             <tr

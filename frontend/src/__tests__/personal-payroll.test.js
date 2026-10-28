@@ -152,15 +152,15 @@ describe("Phase 8 - Issue 02: Personal Payroll Statement & Staff Workspace Navig
       expect(effectiveBaseSalary).toBe(8000000);
     });
 
-    it("identifies overtime ledgers via isOvertime flag or [OT 1.2x] note in ledger list", () => {
+    it("identifies overtime ledgers via isOvertime flag in ledger list", () => {
       const ledgers = [
         { id: 1, orderCode: "ORD-001", isOvertime: true, calculationNotes: "Step pool 20% x 1.2 [OT 1.2x]", amount: 60000 },
         { id: 2, orderCode: "ORD-002", isOvertime: false, calculationNotes: "Step pool 20%", amount: 50000 },
-        { id: 3, orderCode: "ORD-003", isOvertime: null, calculationNotes: "Cover day [OT 1.2x]", amount: 72000 },
+        { id: 3, orderCode: "ORD-003", isOvertime: true, calculationNotes: "Cover day [OT 1.2x]", amount: 72000 },
       ];
 
       const otLedgers = ledgers.filter(
-        (l) => Boolean(l.isOvertime || (l.calculationNotes && l.calculationNotes.includes("[OT 1.2x]")))
+        (l) => Boolean(l.isOvertime)
       );
 
       expect(otLedgers.length).toBe(2);

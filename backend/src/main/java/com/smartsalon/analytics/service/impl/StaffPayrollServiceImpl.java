@@ -229,7 +229,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalOvertimeCommission = staffLedgers.stream()
-                .filter(l -> l.getCalculationNotes() != null && l.getCalculationNotes().contains("[OT 1.2x]"))
+                .filter(CommissionLedgerEntity::isOvertime)
                 .map(CommissionLedgerEntity::safeAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -244,7 +244,7 @@ public class StaffPayrollServiceImpl implements StaffPayrollService {
                         .amount(l.safeAmount())
                         .status(l.getStatus())
                         .calculationNotes(l.getCalculationNotes())
-                        .isOvertime(l.getCalculationNotes() != null && l.getCalculationNotes().contains("[OT 1.2x]"))
+                        .isOvertime(l.isOvertime())
                         .createdAt(l.getCreatedAt())
                         .build())
                 .toList();
