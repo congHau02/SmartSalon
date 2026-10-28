@@ -11,8 +11,10 @@ import com.smartsalon.inventory.entity.BranchInventoryEntity;
 import com.smartsalon.inventory.entity.ProductEntity;
 import com.smartsalon.payment.VietQrUrlBuilder;
 import com.smartsalon.pos.entity.*;
+import com.smartsalon.shift.entity.ShiftTemplateEntity;
 import com.smartsalon.shift.entity.StaffAttendanceEntity;
 import com.smartsalon.shift.entity.StaffAttendanceStatus;
+import com.smartsalon.shift.entity.StaffScheduleEntity;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.service.CustomerIdentityService;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -246,6 +249,18 @@ class OrderAndInventoryDomainDeepeningTest {
         assertThat(out.getStatus()).isEqualTo(StaffAttendanceStatus.COMPLETED);
         assertThat(out.getClockInAt()).isEqualTo(now);
         assertThat(out.getClockOutAt()).isEqualTo(now);
+        assertThat(out.getOvertimeMinutes()).isEqualTo(0);
+
+        ShiftTemplateEntity template = ShiftTemplateEntity.builder()
+                .startTime(LocalTime.of(8, 30))
+                .endTime(LocalTime.of(17, 0))
+                .build();
+        StaffScheduleEntity schedule = StaffScheduleEntity.builder()
+                .shiftTemplate(template)
+                .build();
+        StaffAttendanceEntity outWithOt = StaffAttendanceEntity.createForAction(
+                branch, user, schedule, today, "CLOCK_OUT", now.withHour(18).withMinute(0), "Hết ca có OT");
+        assertThat(outWithOt.getOvertimeMinutes()).isEqualTo(60);
 
         StaffAttendanceEntity absent = StaffAttendanceEntity.createForAction(branch, user, null, today, "MARK_ABSENT", now, "Nghỉ phép");
         assertThat(absent.getStatus()).isEqualTo(StaffAttendanceStatus.ABSENT);

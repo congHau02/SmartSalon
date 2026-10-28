@@ -19,37 +19,12 @@ public final class PosAttendanceMapper {
             StaffScheduleEntity schedule,
             StaffAttendanceEntity attendance,
             boolean hasBranchRoster) {
-        String roleName = staff.getRoles().stream()
-                .filter(r -> "STYLIST".equals(r.getName()) || "STAFF".equals(r.getName()) || "MANAGER".equals(r.getName()))
-                .map(r -> r.getName())
-                .findFirst()
-                .orElse("STAFF");
-
+        String roleName = resolveRoleName(staff);
         ShiftDayView sv = ShiftDayView.resolve(schedule, hasBranchRoster);
         Long shiftTemplateId = sv.working() && schedule != null && schedule.getShiftTemplate() != null
                 ? schedule.getShiftTemplate().getId() : null;
 
-        Long attendanceId = null;
-        StaffAttendanceStatus attendanceStatus = null;
-        LocalDateTime clockInAt = null;
-        LocalDateTime breakStartAt = null;
-        LocalDateTime breakEndAt = null;
-        LocalDateTime clockOutAt = null;
-        int overtimeMinutes = 0;
-        String notes = null;
-
-        if (attendance != null) {
-            attendanceId = attendance.getId();
-            attendanceStatus = attendance.getStatus();
-            clockInAt = attendance.getClockInAt();
-            breakStartAt = attendance.getBreakStartAt();
-            breakEndAt = attendance.getBreakEndAt();
-            clockOutAt = attendance.getClockOutAt();
-            overtimeMinutes = attendance.getOvertimeMinutes();
-            notes = attendance.getNotes();
-        }
-
-        return PosStaffAttendanceDto.builder()
+        PosStaffAttendanceDto.PosStaffAttendanceDtoBuilder builder = PosStaffAttendanceDto.builder()
                 .userId(staff.getId())
                 .fullName(staff.getFullName())
                 .phone(staff.getPhone())
@@ -61,15 +36,31 @@ public final class PosAttendanceMapper {
                 .shiftStartTime(sv.start())
                 .shiftEndTime(sv.end())
                 .maxOvertimeMinutes(sv.maxOvertimeMinutes())
-                .isWorking(sv.working())
-                .attendanceId(attendanceId)
-                .attendanceStatus(attendanceStatus)
-                .clockInAt(clockInAt)
-                .breakStartAt(breakStartAt)
-                .breakEndAt(breakEndAt)
-                .clockOutAt(clockOutAt)
-                .overtimeMinutes(overtimeMinutes)
-                .notes(notes)
-                .build();
+                .isWorking(sv.working());
+
+        populateAttendanceFields(builder, attendance);
+        return builder.build();
+    }
+
+    private static String resolveRoleName(UserEntity staff) {
+        return staff.getRoles().stream()
+                .filter(r -> "STYLIST".equals(r.getName()) || "STAFF".equals(r.getName()) || "MANAGER".equals(r.getName()))
+                .map(r -> r.getName())
+                .findFirst()
+                .orElse("STAFF");
+    }
+
+    private static void populateAttendanceFields(
+            PosStaffAttendanceDto.PosStaffAttendanceDtoBuilder builder,
+            StaffAttendanceEntity attendance) {
+        if (attendance == null) return;
+        builder.attendanceId(attendance.getId())
+                .attendanceStatus(attendance.getStatus())
+                .clockInAt(attendance.getClockInAt())
+                .breakStartAt(attendance.getBreakStartAt())
+                .breakEndAt(attendance.getBreakEndAt())
+                .clockOutAt(attendance.getClockOutAt())
+                .overtimeMinutes(attendance.getOvertimeMinutes())
+                .notes(attendance.getNotes());
     }
 }

@@ -90,17 +90,18 @@ public class PosAttendanceServiceImpl implements PosAttendanceService {
                 .orElse(null);
 
         String action = request.getAction() != null ? request.getAction().toUpperCase().trim() : "";
+        if ("MARK_ABSENT".equals(action) && !isPrivileged) {
+            throw new AppException(ErrorCode.FORBIDDEN, "Chỉ Quản lý hoặc Nhân viên lễ tân mới có quyền đánh dấu vắng mặt");
+        }
+
         if (attendance == null) {
-            if ("MARK_ABSENT".equals(action) && !isPrivileged) {
-                throw new AppException(ErrorCode.FORBIDDEN, "Chỉ Quản lý hoặc Nhân viên lễ tân mới có quyền đánh dấu vắng mặt");
-            }
             attendance = StaffAttendanceEntity.createForAction(
                     branch, targetUser, schedule, today, action, LocalDateTime.now(), request.getNotes());
             if (attendance.getStatus() == null) {
                 throw new AppException(ErrorCode.ATTENDANCE_ACTION_INVALID, "Thao tác chấm công không hợp lệ: " + action);
             }
         } else {
-            applyAttendanceAction(attendance, action, schedule, request.getNotes(), isPrivileged);
+            applyAttendanceAction(attendance, action, schedule, request.getNotes());
         }
 
         StaffAttendanceEntity saved = staffAttendanceRepository.save(attendance);
@@ -115,20 +116,14 @@ public class PosAttendanceServiceImpl implements PosAttendanceService {
             StaffAttendanceEntity attendance,
             String action,
             StaffScheduleEntity schedule,
-            String notes,
-            boolean isPrivileged) {
+            String notes) {
 
         LocalDateTime now = LocalDateTime.now();
         switch (action) {
             case "CLOCK_IN" -> attendance.clockIn(now, notes);
             case "TOGGLE_BREAK" -> attendance.toggleBreak(now, notes);
             case "CLOCK_OUT" -> attendance.clockOut(now, schedule, notes);
-            case "MARK_ABSENT" -> {
-                if (!isPrivileged) {
-                    throw new AppException(ErrorCode.FORBIDDEN, "Chỉ Quản lý hoặc Nhân viên lễ tân mới có quyền đánh dấu vắng mặt");
-                }
-                attendance.markAbsent(notes);
-            }
+            case "MARK_ABSENT" -> attendance.markAbsent(notes);
             default -> throw new AppException(ErrorCode.ATTENDANCE_ACTION_INVALID, "Thao tác chấm công không hợp lệ: " + action);
         }
     }

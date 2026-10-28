@@ -89,6 +89,12 @@ public class StaffAttendanceEntity extends BaseEntity {
                 entity.status = StaffAttendanceStatus.COMPLETED;
                 entity.clockInAt = now;
                 entity.clockOutAt = now;
+                if (schedule != null && schedule.getShiftTemplate() != null) {
+                    LocalDateTime scheduledShiftEnd = LocalDateTime.of(date, schedule.getShiftTemplate().getEndTime());
+                    entity.overtimeMinutes = now.isAfter(scheduledShiftEnd)
+                            ? (int) java.time.Duration.between(scheduledShiftEnd, now).toMinutes()
+                            : 0;
+                }
             }
             case "MARK_ABSENT" -> entity.status = StaffAttendanceStatus.ABSENT;
             default -> entity.status = null;
