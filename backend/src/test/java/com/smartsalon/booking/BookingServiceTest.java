@@ -80,7 +80,6 @@ class BookingServiceTest {
     @Spy
     private BookingMapper bookingMapper = new BookingMapper();
 
-    @InjectMocks
     private BookingServiceImpl bookingService;
 
     private BranchEntity branch;
@@ -125,20 +124,21 @@ class BookingServiceTest {
                         userRepository, roleRepository, passwordEncoder);
         com.smartsalon.security.BranchScopeGuard branchScopeGuard =
                 new com.smartsalon.security.BranchScopeGuard(userRepository);
+        com.smartsalon.booking.service.impl.StylistSlotAssignmentService stylistSlotAssignmentService =
+                new com.smartsalon.booking.service.impl.StylistSlotAssignmentService(
+                        userRepository, bookingRepository, staffScheduleRepository,
+                        staffAttendanceRepository, redisLockService);
+        com.smartsalon.booking.service.impl.BookingCreditSettlementHelper creditSettlementHelper =
+                new com.smartsalon.booking.service.impl.BookingCreditSettlementHelper(
+                        customerIdentityService, userRepository, paymentTransactionRepository,
+                        null, branchScopeGuard, null);
         bookingService = new BookingServiceImpl(
                 bookingRepository,
                 branchRepository,
                 serviceRepository,
-                userRepository,
-                redisLockService,
-                paymentTransactionRepository,
                 bookingMapper,
-                null,
-                customerIdentityService,
-                null,
-                branchScopeGuard,
-                staffScheduleRepository,
-                staffAttendanceRepository
+                stylistSlotAssignmentService,
+                creditSettlementHelper
         );
     }
 

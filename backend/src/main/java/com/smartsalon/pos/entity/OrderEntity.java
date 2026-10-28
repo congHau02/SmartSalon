@@ -114,6 +114,57 @@ public class OrderEntity extends BaseEntity {
         return safeSubtotal.subtract(safeDiscount).subtract(safeDeposit).max(BigDecimal.ZERO);
     }
 
+    public boolean isOwnedByCustomer(UserEntity user) {
+        if (user == null) {
+            return false;
+        }
+        return (this.customer != null && this.customer.getId() != null && this.customer.getId().equals(user.getId()))
+                || (this.customerPhone != null && user.getPhone() != null && this.customerPhone.equals(user.getPhone()));
+    }
+
+    public boolean hasServiceItems() {
+        return items != null && items.stream()
+                .anyMatch(i -> !i.isDeleted() && i.getItemType() == OrderItemType.SERVICE);
+    }
+
+    public void applyMembershipTierDiscountIfAutomatic() {
+        if (this.isDiscountManual) {
+            recalculateTotals();
+            return;
+        }
+        if (this.customer != null && !"walkin.guest".equalsIgnoreCase(this.customer.getUsername())) {
+            com.smartsalon.user.entity.MembershipTier tier = this.customer.getMembershipTier() != null
+                    ? this.customer.getMembershipTier()
+                    : com.smartsalon.user.entity.MembershipTier.STANDARD;
+            BigDecimal safeSubtotal = this.subtotal != null ? this.subtotal : BigDecimal.ZERO;
+            this.discountAmount = tier.calculateDiscount(safeSubtotal);
+        }
+        recalculateTotals();
+    }
+
+    public void applyManualDiscount(BigDecimal requested) {
+        recalculateTotals();
+        BigDecimal deposit = this.depositDeducted != null ? this.depositDeducted : BigDecimal.ZERO;
+        BigDecimal cap = this.subtotal.subtract(deposit).max(BigDecimal.ZERO);
+        BigDecimal clamped = requested.max(BigDecimal.ZERO).min(cap);
+
+        com.smartsalon.user.entity.MembershipTier tier = this.customer != null && this.customer.getMembershipTier() != null
+                ? this.customer.getMembershipTier()
+                : com.smartsalon.user.entity.MembershipTier.STANDARD;
+        BigDecimal auto = tier.calculateDiscount(this.subtotal).min(cap);
+        this.discountAmount = clamped;
+        this.isDiscountManual = clamped.compareTo(auto) != 0;
+    }
+
+    public BigDecimal payableAfterCredit(BigDecimal amount) {
+        if (amount == null || this.status == OrderStatus.PAID || this.customer == null
+                || "walkin.guest".equalsIgnoreCase(this.customer.getUsername())) {
+            return amount;
+        }
+        BigDecimal credit = this.customer.getCreditBalance() != null ? this.customer.getCreditBalance() : BigDecimal.ZERO;
+        return credit.signum() > 0 ? amount.subtract(credit).max(BigDecimal.ZERO) : amount;
+    }
+
     public RevenueBreakdown calculateRevenueBreakdown() {
         BigDecimal grossServiceRevenue = BigDecimal.ZERO;
         BigDecimal grossRetailRevenue = BigDecimal.ZERO;

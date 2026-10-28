@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 @Slf4j
@@ -31,10 +30,6 @@ public class InventoryService {
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final BranchRepository branchRepository;
 
-    // =========================================================================
-    // Master Products CRUD
-    // =========================================================================
-
     @Transactional(readOnly = true)
     public List<ProductResponse> getProducts(String keyword, Boolean activeOnly) {
         List<ProductEntity> products;
@@ -45,14 +40,13 @@ public class InventoryService {
         } else {
             products = productRepository.findAllByIsDeletedFalse();
         }
-        return products.stream().map(this::mapToProductResponse).toList();
+        return products.stream().map(InventoryMapper::toProductResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-        return mapToProductResponse(product);
+        ProductEntity product = findProductOrThrow(id);
+        return InventoryMapper.toProductResponse(product);
     }
 
     @Transactional
@@ -60,7 +54,6 @@ public class InventoryService {
         if (productRepository.existsBySku(request.getSku().trim())) {
             throw new AppException(ErrorCode.PRODUCT_ALREADY_EXISTS);
         }
-
         ProductEntity product = ProductEntity.builder()
                 .name(request.getName().trim())
                 .sku(request.getSku().trim())
@@ -73,63 +66,42 @@ public class InventoryService {
                 .retailPrice(request.getRetailPrice() != null ? request.getRetailPrice() : BigDecimal.ZERO)
                 .isActive(request.isActive())
                 .build();
-
-        product = productRepository.save(product);
-        return mapToProductResponse(product);
+        return InventoryMapper.toProductResponse(productRepository.save(product));
     }
 
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request) {
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-
+        ProductEntity product = findProductOrThrow(id);
         if (productRepository.existsBySkuAndIdNot(request.getSku().trim(), id)) {
             throw new AppException(ErrorCode.PRODUCT_ALREADY_EXISTS);
         }
-
         product.setName(request.getName().trim());
         product.setSku(request.getSku().trim());
         product.setBarcode(request.getBarcode());
         product.setUnit(request.getUnit().trim());
         product.setVolumeOrWeightPerUnit(request.getVolumeOrWeightPerUnit());
         product.setVolumeUnit(request.getVolumeUnit().trim());
-        if (request.getMinStockAlertUnits() != null) {
-            product.setMinStockAlertUnits(request.getMinStockAlertUnits());
-        }
-        if (request.getCostPrice() != null) {
-            product.setCostPrice(request.getCostPrice());
-        }
-        if (request.getRetailPrice() != null) {
-            product.setRetailPrice(request.getRetailPrice());
-        }
+        if (request.getMinStockAlertUnits() != null) product.setMinStockAlertUnits(request.getMinStockAlertUnits());
+        if (request.getCostPrice() != null) product.setCostPrice(request.getCostPrice());
+        if (request.getRetailPrice() != null) product.setRetailPrice(request.getRetailPrice());
         product.setActive(request.isActive());
-
-        product = productRepository.save(product);
-        return mapToProductResponse(product);
+        return InventoryMapper.toProductResponse(productRepository.save(product));
     }
 
     @Transactional
     public void deleteProduct(Long id) {
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+        ProductEntity product = findProductOrThrow(id);
         product.setDeleted(true);
         productRepository.save(product);
     }
 
-    // =========================================================================
-    // Branch Inventory Queries & Operations
-    // =========================================================================
-
     @Transactional(readOnly = true)
     public List<BranchInventoryResponse> getBranchInventory(Long branchId, Boolean lowStockOnly) {
         validateBranchExists(branchId);
-        List<BranchInventoryEntity> inventories;
-        if (Boolean.TRUE.equals(lowStockOnly)) {
-            inventories = branchInventoryRepository.findLowStockByBranchId(branchId);
-        } else {
-            inventories = branchInventoryRepository.findAllByBranchId(branchId);
-        }
-        return inventories.stream().map(this::mapToBranchInventoryResponse).toList();
+        List<BranchInventoryEntity> inventories = Boolean.TRUE.equals(lowStockOnly)
+                ? branchInventoryRepository.findLowStockByBranchId(branchId)
+                : branchInventoryRepository.findAllByBranchId(branchId);
+        return inventories.stream().map(InventoryMapper::toBranchInventoryResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -137,100 +109,49 @@ public class InventoryService {
         validateBranchExists(branchId);
         BranchInventoryEntity inventory = branchInventoryRepository.findByBranchIdAndProductId(branchId, productId)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-        return mapToBranchInventoryResponse(inventory);
+        return InventoryMapper.toBranchInventoryResponse(inventory);
     }
 
     @Transactional
     public BranchInventoryResponse stockIn(Long branchId, StockInRequest request) {
         BranchEntity branch = validateBranchExists(branchId);
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(request.getProductId())
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-
+        ProductEntity product = findProductOrThrow(request.getProductId());
         if (request.getUnitCost() != null && request.getUnitCost().compareTo(BigDecimal.ZERO) >= 0) {
             product.setCostPrice(request.getUnitCost());
             productRepository.save(product);
         }
-
-        BranchInventoryEntity inventory = branchInventoryRepository.findByBranchIdAndProductIdForUpdate(branchId, request.getProductId())
-                .orElseGet(() -> BranchInventoryEntity.builder()
-                        .branch(branch)
-                        .product(product)
-                        .stockUnits(0)
-                        .currentVolume(BigDecimal.ZERO)
-                        .minStockAlertUnits(product.getMinStockAlertUnits())
-                        .build());
-
+        BranchInventoryEntity inventory = findOrInitInventoryForUpdate(branch, product);
         int incomingUnits = request.getQuantityUnits();
         inventory.setStockUnits(inventory.getStockUnits() + incomingUnits);
         inventory = branchInventoryRepository.save(inventory);
 
         BigDecimal incomingVolume = BigDecimal.valueOf(incomingUnits).multiply(product.getVolumeOrWeightPerUnit());
-        BigDecimal totalAvailableVolume = inventory.calculateTotalAvailableVolume();
-
-        recordTransaction(
-                product,
-                branch,
-                InventoryTransactionType.STOCK_IN,
-                incomingUnits,
-                incomingVolume,
-                product.getVolumeUnit(),
-                totalAvailableVolume,
-                null,
-                request.getNotes() != null && !request.getNotes().isBlank()
-                        ? request.getNotes()
-                        : "Nhập kho " + incomingUnits + " " + product.getUnit()
-        );
-
-        return mapToBranchInventoryResponse(inventory);
+        String notes = (request.getNotes() != null && !request.getNotes().isBlank())
+                ? request.getNotes()
+                : "Nhập kho " + incomingUnits + " " + product.getUnit();
+        recordTransaction(product, branch, InventoryTransactionType.STOCK_IN,
+                incomingUnits, incomingVolume, product.getVolumeUnit(), inventory.calculateTotalAvailableVolume(), null, notes);
+        return InventoryMapper.toBranchInventoryResponse(inventory);
     }
 
     @Transactional
     public BranchInventoryResponse stockAdjustment(Long branchId, StockAdjustmentRequest request) {
         BranchEntity branch = validateBranchExists(branchId);
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(request.getProductId())
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+        ProductEntity product = findProductOrThrow(request.getProductId());
+        BranchInventoryEntity inventory = findOrInitInventoryForUpdate(branch, product);
 
-        BranchInventoryEntity inventory = branchInventoryRepository.findByBranchIdAndProductIdForUpdate(branchId, request.getProductId())
-                .orElseGet(() -> BranchInventoryEntity.builder()
-                        .branch(branch)
-                        .product(product)
-                        .stockUnits(0)
-                        .currentVolume(BigDecimal.ZERO)
-                        .minStockAlertUnits(product.getMinStockAlertUnits())
-                        .build());
-
-        int deltaUnits = request.getActualStockUnits() != null
-                ? request.getActualStockUnits() - inventory.getStockUnits()
-                : 0;
-
+        int deltaUnits = request.getActualStockUnits() != null ? request.getActualStockUnits() - inventory.getStockUnits() : 0;
         BigDecimal deltaVolume = request.getActualVolume() != null
                 ? request.getActualVolume().subtract(inventory.getCurrentVolume())
                 : BigDecimal.ZERO;
 
-        if (request.getActualStockUnits() != null) {
-            inventory.setStockUnits(request.getActualStockUnits());
-        }
-        if (request.getActualVolume() != null) {
-            inventory.setCurrentVolume(request.getActualVolume());
-        }
-
+        if (request.getActualStockUnits() != null) inventory.setStockUnits(request.getActualStockUnits());
+        if (request.getActualVolume() != null) inventory.setCurrentVolume(request.getActualVolume());
         inventory = branchInventoryRepository.save(inventory);
 
-        BigDecimal totalAvailableVolume = inventory.calculateTotalAvailableVolume();
-
-        recordTransaction(
-                product,
-                branch,
-                InventoryTransactionType.STOCK_ADJUSTMENT,
-                deltaUnits,
-                deltaVolume,
-                product.getVolumeUnit(),
-                totalAvailableVolume,
-                null,
-                request.getReason()
-        );
-
-        return mapToBranchInventoryResponse(inventory);
+        recordTransaction(product, branch, InventoryTransactionType.STOCK_ADJUSTMENT,
+                deltaUnits, deltaVolume, product.getVolumeUnit(), inventory.calculateTotalAvailableVolume(), null, request.getReason());
+        return InventoryMapper.toBranchInventoryResponse(inventory);
     }
 
     @Transactional
@@ -238,91 +159,25 @@ public class InventoryService {
         if (volumeAmount == null || volumeAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
-
         BranchEntity branch = validateBranchExists(branchId);
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-
+        ProductEntity product = findProductOrThrow(productId);
         BranchInventoryEntity inventory = branchInventoryRepository.findByBranchIdAndProductIdForUpdate(branchId, productId)
                 .orElseThrow(() -> new AppException(ErrorCode.INSUFFICIENT_STOCK));
 
-        BigDecimal openedVolume = inventory.getCurrentVolume();
-        BigDecimal unitVolume = product.getVolumeOrWeightPerUnit();
+        BranchInventoryEntity.ConsumableDeductionResult result = inventory.deductConsumableVolume(volumeAmount);
+        inventory = branchInventoryRepository.save(inventory);
 
-        if (openedVolume.compareTo(volumeAmount) >= 0) {
-            // Trường hợp 1: Thể tích dở dang đã đủ dùng
-            BigDecimal remainingVolume = openedVolume.subtract(volumeAmount);
-            inventory.setCurrentVolume(remainingVolume);
-            inventory = branchInventoryRepository.save(inventory);
-
-            BigDecimal totalAvailable = inventory.calculateTotalAvailableVolume();
-
-            recordTransaction(
-                    product,
-                    branch,
-                    InventoryTransactionType.SERVICE_CONSUMPTION,
-                    0,
-                    volumeAmount.negate(),
-                    product.getVolumeUnit(),
-                    totalAvailable,
-                    referenceOrderId,
-                    "Tiêu hao định lượng kỹ thuật dịch vụ"
-            );
-        } else {
-            // Trường hợp 2: Thể tích dở dang không đủ, kích hoạt Auto-Unseal
-            if (!product.hasMeasurableVolume()) {
-                throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
-            }
-
-            BigDecimal deficit = volumeAmount.subtract(openedVolume);
-            BigDecimal[] divAndRem = deficit.divideAndRemainder(unitVolume);
-            int unitsToUnseal = divAndRem[0].intValue();
-            if (divAndRem[1].compareTo(BigDecimal.ZERO) > 0) {
-                unitsToUnseal += 1;
-            }
-
-            if (inventory.getStockUnits() < unitsToUnseal) {
-                throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
-            }
-
-            // Thực hiện khui nắp nguyên seal
-            inventory.setStockUnits(inventory.getStockUnits() - unitsToUnseal);
-            BigDecimal unsealedAddedVolume = BigDecimal.valueOf(unitsToUnseal).multiply(unitVolume);
-            BigDecimal totalAvailableBeforeConsume = openedVolume.add(unsealedAddedVolume);
-            BigDecimal remainingVolume = totalAvailableBeforeConsume.subtract(volumeAmount);
-            inventory.setCurrentVolume(remainingVolume);
-            inventory = branchInventoryRepository.save(inventory);
-
-            BigDecimal totalAvailableAfterConsume = inventory.calculateTotalAvailableVolume();
-
-            // Audit transaction: Auto-Unseal
-            recordTransaction(
-                    product,
-                    branch,
-                    InventoryTransactionType.AUTO_UNSEAL,
-                    -unitsToUnseal,
-                    unsealedAddedVolume,
-                    product.getVolumeUnit(),
-                    totalAvailableBeforeConsume.add(BigDecimal.valueOf(inventory.getStockUnits()).multiply(unitVolume)),
-                    referenceOrderId,
-                    "Tự động khui " + unitsToUnseal + " " + product.getUnit() + " chuyển đổi định lượng sang " + product.getVolumeUnit()
-            );
-
-            // Audit transaction: Service Consumption
-            recordTransaction(
-                    product,
-                    branch,
-                    InventoryTransactionType.SERVICE_CONSUMPTION,
-                    0,
-                    volumeAmount.negate(),
-                    product.getVolumeUnit(),
-                    totalAvailableAfterConsume,
-                    referenceOrderId,
-                    "Tiêu hao định lượng kỹ thuật dịch vụ"
-            );
+        if (result.unitsUnsealed() > 0) {
+            recordTransaction(product, branch, InventoryTransactionType.AUTO_UNSEAL,
+                    -result.unitsUnsealed(), result.unsealedAddedVolume(), product.getVolumeUnit(),
+                    result.balanceAfterUnseal(), referenceOrderId,
+                    "Tự động khui " + result.unitsUnsealed() + " " + product.getUnit() + " chuyển đổi định lượng sang " + product.getVolumeUnit());
         }
+        recordTransaction(product, branch, InventoryTransactionType.SERVICE_CONSUMPTION,
+                0, volumeAmount.negate(), product.getVolumeUnit(),
+                result.balanceAfterConsume(), referenceOrderId, "Tiêu hao định lượng kỹ thuật dịch vụ");
 
-        return mapToBranchInventoryResponse(inventory);
+        return InventoryMapper.toBranchInventoryResponse(inventory);
     }
 
     @Transactional
@@ -330,57 +185,51 @@ public class InventoryService {
         if (quantityUnits <= 0) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
-
         BranchEntity branch = validateBranchExists(branchId);
-        ProductEntity product = productRepository.findByIdAndIsDeletedFalse(productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-
+        ProductEntity product = findProductOrThrow(productId);
         BranchInventoryEntity inventory = branchInventoryRepository.findByBranchIdAndProductIdForUpdate(branchId, productId)
                 .orElseThrow(() -> new AppException(ErrorCode.INSUFFICIENT_STOCK));
 
         if (inventory.getStockUnits() < quantityUnits) {
             throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
         }
-
         inventory.setStockUnits(inventory.getStockUnits() - quantityUnits);
         inventory = branchInventoryRepository.save(inventory);
 
-        BigDecimal totalAvailable = inventory.calculateTotalAvailableVolume();
-
-        recordTransaction(
-                product,
-                branch,
-                InventoryTransactionType.RETAIL_SALE,
-                -quantityUnits,
-                BigDecimal.ZERO,
-                product.getUnit(),
-                totalAvailable,
-                referenceOrderId,
-                "Xuất kho bán lẻ sản phẩm tại POS (Đơn hàng #" + referenceOrderId + ")"
-        );
-
-        return mapToBranchInventoryResponse(inventory);
+        recordTransaction(product, branch, InventoryTransactionType.RETAIL_SALE,
+                -quantityUnits, BigDecimal.ZERO, product.getUnit(), inventory.calculateTotalAvailableVolume(),
+                referenceOrderId, "Xuất kho bán lẻ sản phẩm tại POS (Đơn hàng #" + referenceOrderId + ")");
+        return InventoryMapper.toBranchInventoryResponse(inventory);
     }
 
     @Transactional(readOnly = true)
     public List<InventoryTransactionResponse> getInventoryTransactions(Long branchId, Long productId) {
         validateBranchExists(branchId);
-        List<InventoryTransactionEntity> transactions;
-        if (productId != null) {
-            transactions = inventoryTransactionRepository.findAllByBranchIdAndProductIdOrderByCreatedAtDesc(branchId, productId);
-        } else {
-            transactions = inventoryTransactionRepository.findAllByBranchIdOrderByCreatedAtDesc(branchId);
-        }
-        return transactions.stream().map(this::mapToTransactionResponse).toList();
+        List<InventoryTransactionEntity> transactions = (productId != null)
+                ? inventoryTransactionRepository.findAllByBranchIdAndProductIdOrderByCreatedAtDesc(branchId, productId)
+                : inventoryTransactionRepository.findAllByBranchIdOrderByCreatedAtDesc(branchId);
+        return transactions.stream().map(InventoryMapper::toTransactionResponse).toList();
     }
 
-    // =========================================================================
-    // Helper Methods
-    // =========================================================================
+    private ProductEntity findProductOrThrow(Long productId) {
+        return productRepository.findByIdAndIsDeletedFalse(productId)
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+    }
 
     private BranchEntity validateBranchExists(Long branchId) {
         return branchRepository.findByIdAndIsDeletedFalse(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+    }
+
+    private BranchInventoryEntity findOrInitInventoryForUpdate(BranchEntity branch, ProductEntity product) {
+        return branchInventoryRepository.findByBranchIdAndProductIdForUpdate(branch.getId(), product.getId())
+                .orElseGet(() -> BranchInventoryEntity.builder()
+                        .branch(branch)
+                        .product(product)
+                        .stockUnits(0)
+                        .currentVolume(BigDecimal.ZERO)
+                        .minStockAlertUnits(product.getMinStockAlertUnits())
+                        .build());
     }
 
     private void recordTransaction(
@@ -394,33 +243,8 @@ public class InventoryService {
             Long referenceOrderId,
             String notes
     ) {
-        BigDecimal unitCostSnapshot = BigDecimal.ZERO;
-        BigDecimal totalCostAmount = BigDecimal.ZERO;
         BigDecimal safeVolAmount = volumeAmount != null ? volumeAmount : BigDecimal.ZERO;
-
-        if (type == InventoryTransactionType.SERVICE_CONSUMPTION || type == InventoryTransactionType.AUTO_UNSEAL) {
-            unitCostSnapshot = product.calculateVolumeUnitCostSnapshot();
-            totalCostAmount = product.calculateVolumeCostAmount(safeVolAmount);
-        } else if (type == InventoryTransactionType.RETAIL_SALE || type == InventoryTransactionType.STOCK_IN) {
-            unitCostSnapshot = product.calculateRetailUnitCostSnapshot();
-            totalCostAmount = product.calculateRetailCostAmount(quantityUnits);
-        } else if (type == InventoryTransactionType.STOCK_ADJUSTMENT) {
-            if (quantityUnits != 0 && safeVolAmount.compareTo(BigDecimal.ZERO) == 0) {
-                unitCostSnapshot = product.calculateRetailUnitCostSnapshot();
-                totalCostAmount = product.calculateRetailCostAmount(quantityUnits);
-            } else if (safeVolAmount.compareTo(BigDecimal.ZERO) != 0 && quantityUnits == 0) {
-                unitCostSnapshot = product.calculateVolumeUnitCostSnapshot();
-                totalCostAmount = product.calculateVolumeCostAmount(safeVolAmount);
-            } else {
-                unitCostSnapshot = product.hasMeasurableVolume()
-                        ? product.calculateVolumeUnitCostSnapshot()
-                        : product.calculateRetailUnitCostSnapshot();
-                BigDecimal unitCost = product.calculateRetailCostAmount(quantityUnits);
-                BigDecimal volCost = product.calculateVolumeCostAmount(safeVolAmount);
-                totalCostAmount = unitCost.add(volCost).setScale(2, RoundingMode.HALF_UP);
-            }
-        }
-
+        InventoryTransactionType.CostValuation cost = type.evaluateCost(product, quantityUnits, safeVolAmount);
         InventoryTransactionEntity tx = InventoryTransactionEntity.builder()
                 .product(product)
                 .branch(branch)
@@ -431,74 +255,9 @@ public class InventoryService {
                 .balanceAfterVolume(balanceAfterVolume)
                 .referenceOrderId(referenceOrderId)
                 .notes(notes)
-                .unitCostSnapshot(unitCostSnapshot)
-                .totalCostAmount(totalCostAmount)
+                .unitCostSnapshot(cost.unitCostSnapshot())
+                .totalCostAmount(cost.totalCostAmount())
                 .build();
         inventoryTransactionRepository.save(tx);
-    }
-
-    private ProductResponse mapToProductResponse(ProductEntity product) {
-        return ProductResponse.builder()
-                .id(product.getId())
-                .name(product.getName())
-                .sku(product.getSku())
-                .barcode(product.getBarcode())
-                .unit(product.getUnit())
-                .volumeOrWeightPerUnit(product.getVolumeOrWeightPerUnit())
-                .volumeUnit(product.getVolumeUnit())
-                .minStockAlertUnits(product.getMinStockAlertUnits())
-                .costPrice(product.getCostPrice())
-                .retailPrice(product.getRetailPrice())
-                .isActive(product.isActive())
-                .createdAt(product.getCreatedAt())
-                .updatedAt(product.getUpdatedAt())
-                .build();
-    }
-
-    private BranchInventoryResponse mapToBranchInventoryResponse(BranchInventoryEntity bi) {
-        ProductEntity p = bi.getProduct();
-        BigDecimal totalVolume = bi.calculateTotalAvailableVolume();
-
-        return BranchInventoryResponse.builder()
-                .id(bi.getId())
-                .branchId(bi.getBranch().getId())
-                .branchName(bi.getBranch().getName())
-                .productId(p.getId())
-                .productName(p.getName())
-                .productSku(p.getSku())
-                .barcode(p.getBarcode())
-                .packagingUnit(p.getUnit())
-                .volumeOrWeightPerUnit(p.getVolumeOrWeightPerUnit())
-                .volumeUnit(p.getVolumeUnit())
-                .stockUnits(bi.getStockUnits())
-                .currentVolume(bi.getCurrentVolume())
-                .totalAvailableVolume(totalVolume)
-                .minStockAlertUnits(bi.getMinStockAlertUnits())
-                .isLowStock(bi.isLowStock())
-                .createdAt(bi.getCreatedAt())
-                .updatedAt(bi.getUpdatedAt())
-                .build();
-    }
-
-    private InventoryTransactionResponse mapToTransactionResponse(InventoryTransactionEntity tx) {
-        return InventoryTransactionResponse.builder()
-                .id(tx.getId())
-                .productId(tx.getProduct().getId())
-                .productName(tx.getProduct().getName())
-                .productSku(tx.getProduct().getSku())
-                .branchId(tx.getBranch().getId())
-                .branchName(tx.getBranch().getName())
-                .transactionType(tx.getTransactionType().name())
-                .quantityUnits(tx.getQuantityUnits())
-                .volumeAmount(tx.getVolumeAmount())
-                .unit(tx.getUnit())
-                .balanceAfterVolume(tx.getBalanceAfterVolume())
-                .referenceOrderId(tx.getReferenceOrderId())
-                .unitCostSnapshot(tx.getUnitCostSnapshot())
-                .totalCostAmount(tx.getTotalCostAmount())
-                .notes(tx.getNotes())
-                .createdAt(tx.getCreatedAt())
-                .createdBy(tx.getCreatedBy())
-                .build();
     }
 }

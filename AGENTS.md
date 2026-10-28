@@ -13,6 +13,16 @@
 - **shadcn/ui & Tailwind:** Keep `components/ui/` primitives clean; compose complex wrappers separately. Use `cn()` for classes and extract multi-line variant logic (`cva`) outside JSX.
 - **Types & Constants:** Extract table columns, static options, and types >25 LOC into `*.constants.ts` and `*.types.ts`.
 
+## Code Size & Service Layer Rules (Spring Boot)
+- **File & Method Limits:** 
+  - Ideal file length: **< 300 lines**. Hard limit: **500 lines**.
+  - Ideal method length: **< 30 lines**. Hard limit: **50 lines**.
+  - Max constructor dependencies per `@Service`: **5–6 beans**.
+- **No God Classes in `*ServiceImpl`:** Never dump unrelated business logic into a single `*ServiceImpl`. If a class exceeds 400 lines or handles multiple distinct workflows, proactively split it into focused sub-services (e.g., `OrderCreationService`, `OrderPricingService`) or coordinate them via a thin `*Facade`.
+- **Extract Mapping & Validation:** Never write inline DTO-to-Entity mapping or complex multi-line validation inside service methods. Delegate to dedicated `*Mapper` (or MapStruct) and `*Validator` components.
+- **Rich Domain Entities:** Push state-transition and domain-invariant logic directly into Entity methods (e.g., `order.cancel()`, `booking.assignTechnician()`) instead of writing procedural state checks in the Service layer.
+- **Decouple Side Effects:** Use Spring `ApplicationEventPublisher` and `@EventListener` for non-core side effects (notifications, emails, audit logs, external webhooks) instead of bloating the primary transaction flow.
+- **No Long `if-else` / `switch` Chains:** When handling multiple provider types or statuses, refactor into a **Strategy Pattern** by injecting a `List<Strategy>` or `Map<String, Strategy>`.
 ## Agent skills
 
 ### Issue tracker

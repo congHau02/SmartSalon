@@ -105,4 +105,41 @@ public class BranchInventoryEntity {
         }
         return com.smartsalon.analytics.dto.StockAlertLevel.HEALTHY;
     }
+
+    public ConsumableDeductionResult deductConsumableVolume(BigDecimal volumeAmount) {
+        BigDecimal openedVolume = this.currentVolume != null ? this.currentVolume : BigDecimal.ZERO;
+        BigDecimal unitVolume = product.getVolumeOrWeightPerUnit();
+
+        if (openedVolume.compareTo(volumeAmount) >= 0) {
+            this.currentVolume = openedVolume.subtract(volumeAmount);
+            return new ConsumableDeductionResult(0, BigDecimal.ZERO, BigDecimal.ZERO, calculateTotalAvailableVolume());
+        }
+
+        if (!product.hasMeasurableVolume()) {
+            throw new com.smartsalon.exception.AppException(com.smartsalon.exception.ErrorCode.INSUFFICIENT_STOCK);
+        }
+
+        BigDecimal deficit = volumeAmount.subtract(openedVolume);
+        BigDecimal[] divAndRem = deficit.divideAndRemainder(unitVolume);
+        int unitsToUnseal = divAndRem[0].intValue() + (divAndRem[1].compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
+
+        if (this.stockUnits < unitsToUnseal) {
+            throw new com.smartsalon.exception.AppException(com.smartsalon.exception.ErrorCode.INSUFFICIENT_STOCK);
+        }
+
+        this.stockUnits -= unitsToUnseal;
+        BigDecimal unsealedAddedVolume = BigDecimal.valueOf(unitsToUnseal).multiply(unitVolume);
+        BigDecimal totalAvailableBeforeConsume = openedVolume.add(unsealedAddedVolume);
+        this.currentVolume = totalAvailableBeforeConsume.subtract(volumeAmount);
+        BigDecimal balanceAfterUnseal = totalAvailableBeforeConsume.add(BigDecimal.valueOf(this.stockUnits).multiply(unitVolume));
+
+        return new ConsumableDeductionResult(unitsToUnseal, unsealedAddedVolume, balanceAfterUnseal, calculateTotalAvailableVolume());
+    }
+
+    public record ConsumableDeductionResult(
+            int unitsUnsealed,
+            BigDecimal unsealedAddedVolume,
+            BigDecimal balanceAfterUnseal,
+            BigDecimal balanceAfterConsume
+    ) {}
 }

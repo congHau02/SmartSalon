@@ -58,4 +58,61 @@ public class StaffAttendanceEntity extends BaseEntity {
 
     @Column(name = "notes", length = 255)
     private String notes;
+
+    public void clockIn(LocalDateTime now, String notes) {
+        if (this.clockInAt == null) {
+            this.clockInAt = now;
+        }
+        this.status = StaffAttendanceStatus.PRESENT;
+        if (notes != null) {
+            this.notes = notes;
+        }
+    }
+
+    public void toggleBreak(LocalDateTime now, String notes) {
+        if (this.clockInAt == null && this.status == null) {
+            this.clockInAt = now;
+        }
+        if (this.status == StaffAttendanceStatus.ON_BREAK) {
+            this.status = StaffAttendanceStatus.PRESENT;
+            this.breakEndAt = now;
+        } else {
+            if (this.clockInAt == null) {
+                this.clockInAt = now;
+            }
+            this.status = StaffAttendanceStatus.ON_BREAK;
+            this.breakStartAt = now;
+        }
+        if (notes != null) {
+            this.notes = notes;
+        }
+    }
+
+    public void clockOut(LocalDateTime now, StaffScheduleEntity effectiveSchedule, String notes) {
+        if (this.clockInAt == null) {
+            this.clockInAt = now;
+        }
+        this.clockOutAt = now;
+        this.status = StaffAttendanceStatus.COMPLETED;
+        if (this.breakStartAt != null && this.breakEndAt == null) {
+            this.breakEndAt = now;
+        }
+        if (notes != null) {
+            this.notes = notes;
+        }
+        if (effectiveSchedule != null && effectiveSchedule.getShiftTemplate() != null) {
+            LocalDateTime scheduledShiftEnd = LocalDateTime.of(
+                    this.attendanceDate, effectiveSchedule.getShiftTemplate().getEndTime());
+            this.overtimeMinutes = now.isAfter(scheduledShiftEnd)
+                    ? (int) java.time.Duration.between(scheduledShiftEnd, now).toMinutes()
+                    : 0;
+        }
+    }
+
+    public void markAbsent(String notes) {
+        this.status = StaffAttendanceStatus.ABSENT;
+        if (notes != null) {
+            this.notes = notes;
+        }
+    }
 }

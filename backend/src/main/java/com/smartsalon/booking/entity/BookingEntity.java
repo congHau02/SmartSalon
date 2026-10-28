@@ -140,4 +140,42 @@ public class BookingEntity extends BaseEntity {
         }
         return customer != null && customer.getPhone() != null ? customer.getPhone() : "";
     }
+
+    public boolean canCancelOnline(LocalDateTime now) {
+        return computeCanCancelOnline(this.status, this.bookingTime, now);
+    }
+
+    public String resolveCancelPolicyNotice(LocalDateTime now) {
+        return resolveCancelPolicyNotice(this.status, this.bookingTime, now);
+    }
+
+    public static boolean computeCanCancelOnline(BookingStatus status, LocalDateTime bookingTime, LocalDateTime now) {
+        if (status != BookingStatus.PENDING_PAYMENT && status != BookingStatus.CONFIRMED) {
+            return false;
+        }
+        if (bookingTime == null) {
+            return false;
+        }
+        LocalDateTime refNow = now != null ? now : LocalDateTime.now();
+        return !bookingTime.isBefore(refNow.plusHours(2));
+    }
+
+    public static String resolveCancelPolicyNotice(BookingStatus status, LocalDateTime bookingTime, LocalDateTime now) {
+        if (status == BookingStatus.CANCELLED) {
+            return "Lịch hẹn đã được hủy.";
+        }
+        if (status == BookingStatus.COMPLETED) {
+            return "Lịch hẹn đã hoàn thành.";
+        }
+        if (status == BookingStatus.EXPIRED) {
+            return "Lịch hẹn đã hết hạn giữ chỗ.";
+        }
+        if (status != BookingStatus.PENDING_PAYMENT && status != BookingStatus.CONFIRMED) {
+            return "Trạng thái này không thể hủy trực tuyến.";
+        }
+        if (computeCanCancelOnline(status, bookingTime, now)) {
+            return "Có thể hủy trực tuyến trước giờ hẹn ít nhất 2 tiếng.";
+        }
+        return "Không thể hủy trực tuyến do thời gian bắt đầu còn dưới 2 tiếng. Vui lòng liên hệ hotline chi nhánh để được hỗ trợ.";
+    }
 }
