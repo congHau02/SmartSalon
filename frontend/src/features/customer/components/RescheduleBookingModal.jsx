@@ -1,10 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React from "react";
 import { Calendar, Clock, ArrowRight, X, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
-import { useRescheduleCustomerBooking } from "../useCustomer";
-import { useBookingStylists, useAvailableSlots } from "../../booking/useBooking";
+import { useRescheduleBooking } from "../useRescheduleBooking";
 import { SlotPicker } from "../../booking/components/SlotPicker";
 import { StylistSelectorSection } from "../../booking/components/StylistSelectorSection";
-import { getRescheduleErrorMessage } from "../rescheduleErrorMessages";
 import { formatCurrency, formatDate } from "../../../lib/utils";
 
 export function RescheduleBookingModal({ booking, isOpen, onClose, onSuccess, onReschedule }) {
@@ -23,88 +21,22 @@ export function RescheduleBookingModal({ booking, isOpen, onClose, onSuccess, on
 }
 
 function RescheduleBookingModalContent({ booking, onClose, onSuccess, onReschedule }) {
-  const tomorrow = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  }, []);
-
-  const [selectedDate, setSelectedDate] = useState(tomorrow);
-  const [selectedStylistId, setSelectedStylistId] = useState(booking.stylistId || null);
-  const [selectedSlotTime, setSelectedSlotTime] = useState(null);
-  const [errorMessage, setErrorMessage] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const rescheduleMutation = useRescheduleCustomerBooking();
-  const isPending = isSubmitting || rescheduleMutation.isPending;
-
-  const serviceIds = useMemo(() => {
-    return (booking.items || []).map((it) => it.serviceId || it.id).filter(Boolean);
-  }, [booking.items]);
-
-  const { data: stylists = [], isLoading: isLoadingStylists } = useBookingStylists(
-    booking.branchId,
-    selectedDate
-  );
-
-  const { data: slotData, isLoading: isLoadingSlots } = useAvailableSlots(
-    {
-      branchId: booking.branchId,
-      date: selectedDate,
-      serviceIds,
-      stylistId: selectedStylistId,
-    },
-    { enabled: Boolean(booking.branchId && selectedDate && serviceIds.length) }
-  );
-
-  const availableSlots = useMemo(() => {
-    if (!slotData) return [];
-    if (Array.isArray(slotData)) return slotData;
-    return slotData.slots || [];
-  }, [slotData]);
-
-  const handleDateChange = (e) => {
-    setSelectedDate(e.target.value);
-    setSelectedSlotTime(null);
-    setErrorMessage(null);
-  };
-
-  const handleSelectStylist = (stylistId) => {
-    setSelectedStylistId(stylistId);
-    setSelectedSlotTime(null);
-    setErrorMessage(null);
-  };
-
-  const handleConfirmReschedule = async () => {
-    if (!selectedDate || !selectedSlotTime) {
-      setErrorMessage("Vui lòng chọn ngày và khung giờ mới trước khi xác nhận.");
-      return;
-    }
-    setErrorMessage(null);
-
-    const newBookingTime = `${selectedDate}T${selectedSlotTime}:00`;
-    const payload = {
-      newBookingTime,
-      stylistId: selectedStylistId,
-    };
-
-    try {
-      setIsSubmitting(true);
-      if (onReschedule) {
-        await onReschedule(payload);
-      } else {
-        await rescheduleMutation.mutateAsync({ bookingId: booking.id, payload });
-      }
-      if (onSuccess) onSuccess();
-      onClose();
-    } catch (err) {
-      setErrorMessage(getRescheduleErrorMessage(err));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const minDate = new Date().toISOString().split("T")[0];
+  const {
+    selectedDate,
+    selectedStylistId,
+    selectedSlotTime,
+    setSelectedSlotTime,
+    errorMessage,
+    isPending,
+    minDate,
+    stylists,
+    isLoadingStylists,
+    availableSlots,
+    isLoadingSlots,
+    handleDateChange,
+    handleSelectStylist,
+    handleConfirmReschedule,
+  } = useRescheduleBooking({ booking, onClose, onSuccess, onReschedule });
 
   return (
     <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-pink-100 space-y-5 relative my-8 max-h-[90vh] overflow-y-auto">

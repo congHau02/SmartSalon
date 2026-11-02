@@ -107,6 +107,8 @@ public class BookingConfirmationEmailListener {
                 return;
             }
 
+            realtimeNotificationService.notifyBookingRescheduled(booking);
+
             String recipient = booking.resolvedCustomerEmail();
             if (recipient == null || recipient.isBlank()) {
                 log.info("Booking {} has no recipient email; skipping reschedule email", booking.getBookingCode());

@@ -39,24 +39,7 @@ public class VoucherAdminService {
         }
 
         Set<BranchEntity> branches = resolveBranches(request.getBranchIds());
-
-        VoucherEntity voucher = VoucherEntity.builder()
-                .code(normalizedCode)
-                .name(request.getName())
-                .description(request.getDescription())
-                .type(request.getType())
-                .value(request.getValue())
-                .maxDiscount(request.getMaxDiscount())
-                .minOrderAmount(request.getMinOrderAmount() != null ? request.getMinOrderAmount() : BigDecimal.ZERO)
-                .startsAt(request.getStartsAt())
-                .endsAt(request.getEndsAt())
-                .usageLimit(request.getUsageLimit())
-                .perCustomerLimit(request.getPerCustomerLimit() != null ? request.getPerCustomerLimit() : 1)
-                .usedCount(0)
-                .active(true)
-                .branches(branches)
-                .build();
-
+        VoucherEntity voucher = voucherMapper.toEntity(request, normalizedCode, branches);
         VoucherEntity saved = voucherRepository.save(voucher);
         return voucherMapper.toResponse(saved);
     }
@@ -68,21 +51,7 @@ public class VoucherAdminService {
                 .orElseThrow(() -> new AppException(ErrorCode.VOUCHER_NOT_FOUND));
 
         Set<BranchEntity> branches = resolveBranches(request.getBranchIds());
-
-        voucher.setName(request.getName());
-        voucher.setDescription(request.getDescription());
-        voucher.setType(request.getType());
-        voucher.setValue(request.getValue());
-        voucher.setMaxDiscount(request.getMaxDiscount());
-        voucher.setMinOrderAmount(request.getMinOrderAmount() != null ? request.getMinOrderAmount() : BigDecimal.ZERO);
-        voucher.setStartsAt(request.getStartsAt());
-        voucher.setEndsAt(request.getEndsAt());
-        voucher.setUsageLimit(request.getUsageLimit());
-        if (request.getPerCustomerLimit() != null) {
-            voucher.setPerCustomerLimit(request.getPerCustomerLimit());
-        }
-        voucher.setBranches(branches);
-
+        voucherMapper.updateEntity(voucher, request, branches);
         VoucherEntity saved = voucherRepository.save(voucher);
         return voucherMapper.toResponse(saved);
     }

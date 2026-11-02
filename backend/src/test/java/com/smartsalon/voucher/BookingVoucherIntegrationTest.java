@@ -52,12 +52,14 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import org.springframework.transaction.annotation.Transactional;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @Import(TestAuthConfig.class)
+@Transactional
 class BookingVoucherIntegrationTest {
 
     @Autowired
@@ -333,7 +335,7 @@ class BookingVoucherIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code", is(1000)))
                 .andExpect(jsonPath("$.result.voucherCode", is(code.toUpperCase())))
-                .andExpect(jsonPath("$.result.discountAmount", is(30000.00)))
+                .andExpect(jsonPath("$.result.discountAmount").value(30000))
                 .andReturn();
 
         // No redemption row created yet (still CHECKED_IN, not PAID)

@@ -3,6 +3,8 @@ package com.smartsalon.pos.entity;
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.common.BaseEntity;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
 import com.smartsalon.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -90,6 +92,12 @@ public class OrderEntity extends BaseEntity {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItemEntity> items = new ArrayList<>();
+
+    public void assertEditable() {
+        if (this.status == OrderStatus.PAID || this.status == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+    }
 
     public void addItem(OrderItemEntity item) {
         items.add(item);

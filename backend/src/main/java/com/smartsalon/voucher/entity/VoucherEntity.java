@@ -101,4 +101,8 @@ public class VoucherEntity extends BaseEntity {
         }
         return branches.stream().anyMatch(b -> branchId.equals(b.getId()));
     }
+
+    public void redeem() {
+        this.usedCount = (this.usedCount == null ? 0 : this.usedCount) + 1;
+    }
 }

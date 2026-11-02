@@ -39,6 +39,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -378,12 +379,16 @@ class CustomerBookingRescheduleIntegrationTest {
         LocalDateTime newTime = LocalDateTime.of(targetDate, LocalTime.of(14, 0));
         CustomerRescheduleRequest request = new CustomerRescheduleRequest(newTime, stylistLan.getId());
 
-        mockMvc.perform(post("/api/v1/customer/me/bookings/{bookingId}/reschedule", booking.getId())
-                        .with(user("cust.ha").roles("CUSTOMER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(ErrorCode.STYLIST_OFF_SHIFT.getCode()));
+        try {
+            mockMvc.perform(post("/api/v1/customer/me/bookings/{bookingId}/reschedule", booking.getId())
+                            .with(user("cust.ha").roles("CUSTOMER"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ErrorCode.STYLIST_OFF_SHIFT.getCode()));
+        } finally {
+            staffScheduleRepository.delete(offSchedule);
+        }
     }
 
     @Test

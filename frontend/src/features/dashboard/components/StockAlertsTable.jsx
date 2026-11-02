@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { ArrowDownToLine } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import { Button } from "../../../components/ui/Button";
 import { StockTierBadge, StockDaysRemainingBadge } from "./StockAlertBadges";
 import { StockAlertsFilterHeader } from "./StockAlertsFilterHeader";
 

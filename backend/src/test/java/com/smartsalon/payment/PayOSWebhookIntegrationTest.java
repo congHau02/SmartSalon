@@ -37,10 +37,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import org.springframework.transaction.annotation.Transactional;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @Import(TestAuthConfig.class)
+@Transactional
 class PayOSWebhookIntegrationTest {
 
     @Autowired
@@ -127,7 +129,7 @@ class PayOSWebhookIntegrationTest {
                 List.of(service1.getId()),
                 tomorrow.atTime(14, 0),
                 "Khách Thanh Toán Test",
-                "0987654321",
+                "0987998877",
                 "Ghi chú thanh toán"
         );
         var booking = bookingService.holdSlotAndCreate(req);

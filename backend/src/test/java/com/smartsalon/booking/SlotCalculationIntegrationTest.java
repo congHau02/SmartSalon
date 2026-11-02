@@ -47,10 +47,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import org.springframework.transaction.annotation.Transactional;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @Import(TestAuthConfig.class)
+@Transactional
 class SlotCalculationIntegrationTest {
 
     @Autowired
@@ -185,7 +187,7 @@ class SlotCalculationIntegrationTest {
                 .depositAmount(new BigDecimal("100000.00"))
                 .depositStatus(DepositStatus.PAID)
                 .customerName("Khách Hàng Đã Đặt")
-                .customerPhone("0987654321")
+                .customerPhone("0987654320")
                 .build());
 
         try {
@@ -383,7 +385,15 @@ class SlotCalculationIntegrationTest {
         LocalDate targetDate = LocalDate.now().plusDays(13);
 
         ShiftTemplateEntity morningShift = shiftTemplateRepository.findByBranchIdAndCodeAndIsDeletedFalse(testBranch.getId(), "MORNING")
-                .orElseThrow();
+                .orElseGet(() -> shiftTemplateRepository.save(ShiftTemplateEntity.builder()
+                        .branch(testBranch)
+                        .code("MORNING")
+                        .name("Ca Sáng")
+                        .startTime(LocalTime.of(8, 30))
+                        .endTime(LocalTime.of(15, 0))
+                        .maxOvertimeMinutes(60)
+                        .isActive(true)
+                        .build()));
 
         StaffScheduleEntity schedule = staffScheduleRepository.findByUserIdAndScheduleDateAndIsDeletedFalse(testStylist.getId(), targetDate)
                 .orElseGet(() -> StaffScheduleEntity.builder()

@@ -7,7 +7,6 @@ import com.smartsalon.booking.service.BookingRescheduleService;
 import com.smartsalon.booking.service.RedisLockService;
 import com.smartsalon.exception.AppException;
 import com.smartsalon.exception.ErrorCode;
-import com.smartsalon.realtime.service.RealtimeNotificationService;
 import com.smartsalon.shift.entity.StaffAttendanceEntity;
 import com.smartsalon.shift.entity.StaffScheduleEntity;
 import com.smartsalon.shift.repository.StaffAttendanceRepository;
@@ -41,7 +40,6 @@ public class BookingRescheduleServiceImpl implements BookingRescheduleService {
     private final StaffScheduleRepository staffScheduleRepository;
     private final StaffAttendanceRepository staffAttendanceRepository;
     private final RedisLockService redisLockService;
-    private final RealtimeNotificationService realtimeNotificationService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -192,8 +190,8 @@ public class BookingRescheduleServiceImpl implements BookingRescheduleService {
                 hasBranchRoster,
                 scheduleMap,
                 attendanceMap,
-                LocalDate.now(),
-                LocalTime.now()
+                now.toLocalDate(),
+                now.toLocalTime()
         );
         if (!eligibleForShift) {
             throw new AppException(ErrorCode.STYLIST_OFF_SHIFT);
@@ -232,8 +230,8 @@ public class BookingRescheduleServiceImpl implements BookingRescheduleService {
                         hasBranchRoster,
                         scheduleMap,
                         attendanceMap,
-                        LocalDate.now(),
-                        LocalTime.now()
+                        now.toLocalDate(),
+                        now.toLocalTime()
                 ))
                 .filter(s -> bookingRepository.findOverlappingBookingsForStylistExcluding(
                         s.getId(), startTime, endTime, now, booking.getId()).isEmpty())
@@ -264,13 +262,8 @@ public class BookingRescheduleServiceImpl implements BookingRescheduleService {
     }
 
     private void registerPostCommitActions(
-            BookingEntity savedBooking,
-            Long oldStaffId,
-            LocalDateTime oldStartTime,
-            LocalDateTime oldEndTime,
-            Long newStaffId,
-            LocalDateTime newStartTime,
-            LocalDateTime newEndTime) {
+            BookingEntity savedBooking, Long oldStaffId, LocalDateTime oldStartTime, LocalDateTime oldEndTime,
+            Long newStaffId, LocalDateTime newStartTime, LocalDateTime newEndTime) {
 
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -291,16 +284,12 @@ public class BookingRescheduleServiceImpl implements BookingRescheduleService {
         }
     }
 
-    private void executePostCommit(
-            BookingEntity savedBooking,
-            Long oldStaffId,
-            LocalDateTime oldStartTime,
-            LocalDateTime oldEndTime) {
+    private void executePostCommit(BookingEntity savedBooking, Long oldStaffId,
+            LocalDateTime oldStartTime, LocalDateTime oldEndTime) {
 
         if (oldStaffId != null && oldStartTime != null && oldEndTime != null) {
             redisLockService.unlockSlots(oldStaffId, oldStartTime, oldEndTime);
         }
-        realtimeNotificationService.notifyBookingRescheduled(savedBooking);
         eventPublisher.publishEvent(new BookingRescheduledEvent(savedBooking.getId()));
     }
 }

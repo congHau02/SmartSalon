@@ -41,10 +41,7 @@ public class VoucherPosService {
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
         branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
-
-        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
-            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
-        }
+        order.assertEditable();
 
         String normalizedCode = code.trim().toUpperCase();
         VoucherEntity voucher = voucherRepository.findByCodeIgnoreCaseAndIsDeletedFalse(normalizedCode)
@@ -69,10 +66,7 @@ public class VoucherPosService {
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
         branchScopeGuard.checkBranchAccess(order.getBranch() != null ? order.getBranch().getId() : null);
-
-        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
-            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
-        }
+        order.assertEditable();
 
         order.removeVoucher();
         OrderEntity savedOrder = orderRepository.save(order);

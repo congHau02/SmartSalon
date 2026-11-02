@@ -84,7 +84,7 @@ class VoucherAdminIntegrationTest {
                         .username("mgr.voucher.b1")
                         .passwordHash("password")
                         .fullName("Manager Branch 1")
-                        .phone("0987654321")
+                        .phone("0987112233")
                         .branch(branch1)
                         .roles(Set.of(managerRole))
                         .isActive(true)

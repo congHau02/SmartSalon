@@ -43,7 +43,7 @@ public class VoucherSettlementService {
             throw new AppException(ErrorCode.VOUCHER_NO_LONGER_VALID, "Mã giảm giá không còn hiệu lực tại thời điểm thanh toán: " + ex.getMessage());
         }
 
-        lockedVoucher.setUsedCount(lockedVoucher.getUsedCount() + 1);
+        lockedVoucher.redeem();
         voucherRepository.save(lockedVoucher);
 
         UserEntity customer = order.getCustomer();
