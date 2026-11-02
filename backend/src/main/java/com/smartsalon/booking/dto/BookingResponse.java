@@ -16,6 +16,7 @@ public record BookingResponse(
         Long customerId,
         String customerName,
         String customerPhone,
+        String customerEmail,
         Long stylistId,
         String stylistName,
         boolean isStylistRequested,
@@ -30,4 +31,33 @@ public record BookingResponse(
         String notes,
         List<BookingServiceItemDto> items,
         Instant createdAt
-) {}
+) {
+    public BookingResponse(
+            Long id,
+            String bookingCode,
+            Long branchId,
+            String branchName,
+            Long customerId,
+            String customerName,
+            String customerPhone,
+            Long stylistId,
+            String stylistName,
+            boolean isStylistRequested,
+            LocalDateTime bookingTime,
+            LocalDateTime endTime,
+            int totalDurationMinutes,
+            BigDecimal totalPrice,
+            BigDecimal depositAmount,
+            DepositStatus depositStatus,
+            BookingStatus status,
+            LocalDateTime slotLockExpiresAt,
+            String notes,
+            List<BookingServiceItemDto> items,
+            Instant createdAt
+    ) {
+        this(id, bookingCode, branchId, branchName, customerId, customerName, customerPhone, null,
+                stylistId, stylistName, isStylistRequested, bookingTime, endTime,
+                totalDurationMinutes, totalPrice, depositAmount, depositStatus, status,
+                slotLockExpiresAt, notes, items, createdAt);
+    }
+}

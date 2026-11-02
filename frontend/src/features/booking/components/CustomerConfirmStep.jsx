@@ -45,6 +45,7 @@ export function CustomerConfirmStep({
     defaultValues: {
       customerName: user?.fullName || "",
       customerPhone: user?.phone || "",
+      customerEmail: user?.email || "",
       notes: "",
     },
   });
@@ -53,6 +54,7 @@ export function CustomerConfirmStep({
     if (user) {
       if (user.fullName) setValue("customerName", user.fullName);
       if (user.phone) setValue("customerPhone", user.phone);
+      if (user.email) setValue("customerEmail", user.email);
     }
   }, [user, setValue]);
 
@@ -68,6 +70,7 @@ export function CustomerConfirmStep({
     onSubmitBooking({
       customerName: data.customerName,
       customerPhone: data.customerPhone,
+      customerEmail: data.customerEmail ? data.customerEmail.trim() : undefined,
       notes: data.notes || undefined,
     });
   };
@@ -78,6 +81,7 @@ export function CustomerConfirmStep({
       onSubmitBooking({
         customerName: user.fullName || "Khách hàng",
         customerPhone: user.phone || "0900000000",
+        customerEmail: user.email || getValues("customerEmail") || undefined,
         notes: getValues("notes") || undefined,
       });
       return;

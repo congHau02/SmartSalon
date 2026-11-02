@@ -76,6 +76,9 @@ public class BookingEntity extends BaseEntity {
     @Column(name = "customer_phone", length = 20)
     private String customerPhone;
 
+    @Column(name = "customer_email", length = 255)
+    private String customerEmail;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
@@ -139,6 +142,16 @@ public class BookingEntity extends BaseEntity {
             return customerPhone;
         }
         return customer != null && customer.getPhone() != null ? customer.getPhone() : "";
+    }
+
+    public String resolvedCustomerEmail() {
+        if (customer != null && customer.getEmail() != null && !customer.getEmail().isBlank()) {
+            return customer.getEmail().trim();
+        }
+        if (customerEmail != null && !customerEmail.isBlank()) {
+            return customerEmail.trim();
+        }
+        return null;
     }
 
     public boolean canCancelOnline(LocalDateTime now) {

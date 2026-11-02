@@ -33,6 +33,7 @@ public class BookingMapper {
                 entity.getCustomer() != null ? entity.getCustomer().getId() : null,
                 entity.getCustomerName() != null ? entity.getCustomerName() : (entity.getCustomer() != null ? entity.getCustomer().getFullName() : ""),
                 entity.getCustomerPhone() != null ? entity.getCustomerPhone() : (entity.getCustomer() != null ? entity.getCustomer().getPhone() : ""),
+                entity.resolvedCustomerEmail(),
                 entity.getStaff() != null ? entity.getStaff().getId() : null,
                 entity.getStaff() != null ? entity.getStaff().getFullName() : null,
                 entity.isStylistRequested(),

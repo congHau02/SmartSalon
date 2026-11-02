@@ -6,6 +6,7 @@ import com.smartsalon.booking.dto.BookingResponse;
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.entity.DepositStatus;
+import com.smartsalon.booking.event.BookingConfirmedEvent;
 import com.smartsalon.booking.repository.BookingRepository;
 import com.smartsalon.booking.service.RedisLockService;
 import com.smartsalon.exception.AppException;
@@ -46,6 +47,7 @@ public class PayOSServiceImpl implements PayOSService {
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Value("${app.payos.client-id:}")
     private String clientId;
@@ -80,7 +82,17 @@ public class PayOSServiceImpl implements PayOSService {
             RedisLockService redisLockService,
             BookingMapper bookingMapper
     ) {
-        this(bookingRepository, paymentTransactionRepository, redisLockService, bookingMapper, null);
+        this(bookingRepository, paymentTransactionRepository, redisLockService, bookingMapper, null, null);
+    }
+
+    public PayOSServiceImpl(
+            BookingRepository bookingRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            RedisLockService redisLockService,
+            BookingMapper bookingMapper,
+            com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService
+    ) {
+        this(bookingRepository, paymentTransactionRepository, redisLockService, bookingMapper, realtimeNotificationService, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -89,13 +101,15 @@ public class PayOSServiceImpl implements PayOSService {
             PaymentTransactionRepository paymentTransactionRepository,
             RedisLockService redisLockService,
             BookingMapper bookingMapper,
-            com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService
+            com.smartsalon.realtime.service.RealtimeNotificationService realtimeNotificationService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher
     ) {
         this.bookingRepository = bookingRepository;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.redisLockService = redisLockService;
         this.bookingMapper = bookingMapper;
         this.realtimeNotificationService = realtimeNotificationService;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
         this.restClient = RestClient.builder()
                 .baseUrl("https://api-merchant.payos.vn")
@@ -359,6 +373,9 @@ public class PayOSServiceImpl implements PayOSService {
 
         if (confirmed.getStaff() != null) {
             redisLockService.unlockSlots(confirmed.getStaff().getId(), confirmed.getBookingTime(), confirmed.getEndTime());
+        }
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new BookingConfirmedEvent(confirmed.getId()));
         }
         return confirmed;
     }

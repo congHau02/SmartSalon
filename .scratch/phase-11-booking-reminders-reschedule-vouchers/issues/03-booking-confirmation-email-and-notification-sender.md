@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] New Flyway migration (next free version) adds nullable `customer_email` to `bookings`; `FlywayMigrationTest` passes.
-- [ ] Booking create request accepts an optional, validated email; the booking wizard confirm step has an optional email field (Zod schema updated in the existing booking schema file).
-- [ ] `spring-boot-starter-mail` added; SMTP settings and the public frontend base URL come from configuration; Mailpit service (SMTP + web UI) added to `docker-compose`.
-- [ ] A `NotificationSender` seam with one email implementation; code carries `shortcut: email is the only channel, add SMS/Zalo behind the same seam when a paid provider is chosen`.
-- [ ] Recipient resolution lives in one place: registered user email → `booking.customer_email` → none (skip email).
-- [ ] `BookingConfirmedEvent` is published on both confirmation paths; a `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` listener sends the email.
-- [ ] Integration tests with a recording fake `NotificationSender`: email sent on webhook confirmation and on credit-covered confirmation; recipient resolution order; a throwing sender does not fail booking creation/confirmation.
-- [ ] ADR-0015 records the after-commit async notification decision; `GLOSSARY.md` gains **Booking Confirmation** / notification terms as needed.
+- [x] New Flyway migration (next free version) adds nullable `customer_email` to `bookings`; `FlywayMigrationTest` passes.
+- [x] Booking create request accepts an optional, validated email; the booking wizard confirm step has an optional email field (Zod schema updated in the existing booking schema file).
+- [x] `spring-boot-starter-mail` added; SMTP settings and the public frontend base URL come from configuration; Mailpit service (SMTP + web UI) added to `docker-compose`.
+- [x] A `NotificationSender` seam with one email implementation; code carries `shortcut: email is the only channel, add SMS/Zalo behind the same seam when a paid provider is chosen`.
+- [x] Recipient resolution lives in one place: registered user email → `booking.customer_email` → none (skip email).
+- [x] `BookingConfirmedEvent` is published on both confirmation paths; a `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` listener sends the email.
+- [x] Integration tests with a recording fake `NotificationSender`: email sent on webhook confirmation and on credit-covered confirmation; recipient resolution order; a throwing sender does not fail booking creation/confirmation.
+- [x] ADR-0015 records the after-commit async notification decision; `GLOSSARY.md` gains **Booking Confirmation** / notification terms as needed.

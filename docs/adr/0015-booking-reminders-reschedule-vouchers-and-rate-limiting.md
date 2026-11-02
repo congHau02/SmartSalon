@@ -22,6 +22,8 @@ Prior to Phase 11, four customer-facing revenue and security gaps existed:
 
 2. **Booking Confirmation & 24h Reminders via Decoupled Events (Phase 11 Seam)**:
    - Decouple email notifications using Spring `ApplicationEventPublisher` and `@TransactionalEventListener(AFTER_COMMIT)` with `@Async`. Booking database transactions never fail or roll back due to mail server outages.
+   - A generic `NotificationSender` seam isolates email transport (`JavaMailSender`), leaving a clean seam for future SMS/Zalo ZNS providers without altering the booking flow (`shortcut: email is the only channel, add SMS/Zalo behind the same seam when a paid provider is chosen`).
+   - Unified recipient resolution: registered customer `UserEntity.email` -> `booking.customer_email` -> none (skip email, preserve booking & in-app alerts).
    - Run a 5-minute scheduler scanning `CONFIRMED` bookings with appointment times between 23h and 24h ahead, sending a single reminder email and dispatching an in-app receptionist STOMP alert.
 
 3. **Self-Service Reschedule with Lock-New-Then-Release-Old Semantics**:

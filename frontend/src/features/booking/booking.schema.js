@@ -13,5 +13,11 @@ export const guestBookingSchema = z.object({
       /^(0[35789])[0-9]{8}$/,
       "Số điện thoại không hợp lệ (10 chữ số, đầu 03, 05, 07, 08, 09)"
     ),
+  customerEmail: z
+    .string()
+    .trim()
+    .email("Email không đúng định dạng")
+    .optional()
+    .or(z.literal("")),
   notes: z.string().max(500, "Ghi chú không vượt quá 500 ký tự").optional(),
 });

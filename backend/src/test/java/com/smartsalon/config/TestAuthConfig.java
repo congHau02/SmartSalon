@@ -1,6 +1,7 @@
 package com.smartsalon.config;
 
 import com.smartsalon.auth.service.RefreshTokenStore;
+import com.smartsalon.notification.RecordingNotificationSender;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -90,6 +91,12 @@ public class TestAuthConfig {
                 return count <= limit;
             }
         };
+    }
+
+    @Bean
+    @Primary
+    public RecordingNotificationSender testNotificationSender() {
+        return new RecordingNotificationSender();
     }
 
     @Bean

@@ -171,3 +171,7 @@ _Avoid_: Late bonus, after-hours tip, surge rate
 **Shift-Prorated Base Salary**:
 The effective monthly base compensation earned by a staff member after scaling their contractual Base Salary by the ratio of completed valid shifts to total scheduled shifts in the period, plus credit for extra covered shifts.
 _Avoid_: Hourly wage, attendance deduction, net retainer
+
+**Booking Confirmation**:
+The formal acknowledgment sent to a customer after a Booking transitions to `CONFIRMED` (via deposit settlement or credit balance offset). Includes booking code, appointment window, stylist, branch location, deposit receipt, and a self-service lookup link, dispatched asynchronously after transaction commit.
+_Avoid_: Booking email, appointment alert, check-in notice

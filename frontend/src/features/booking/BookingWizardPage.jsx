@@ -125,7 +125,7 @@ export function BookingWizardPage() {
   // Create booking mutation
   const createBookingMutation = useCreateBooking();
 
-  const handleConfirmBooking = async ({ customerName, customerPhone, notes }) => {
+  const handleConfirmBooking = async ({ customerName, customerPhone, customerEmail, notes }) => {
     setErrorMessage(null);
 
     if (!selectedBranchId || !selectedSlotTime || selectedServices.length === 0) {
@@ -140,6 +140,7 @@ export function BookingWizardPage() {
       bookingTime: `${selectedDate}T${selectedSlotTime}:00`,
       customerName,
       customerPhone,
+      customerEmail: customerEmail || undefined,
       notes,
     };
 

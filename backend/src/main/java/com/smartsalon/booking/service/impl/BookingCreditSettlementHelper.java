@@ -25,7 +25,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class BookingCreditSettlementHelper {
+public class BookingCreditSettlementHelper implements org.springframework.context.ApplicationEventPublisherAware {
 
     private final CustomerIdentityService customerIdentityService;
     private final UserRepository userRepository;
@@ -33,6 +33,13 @@ public class BookingCreditSettlementHelper {
     private final RealtimeNotificationService realtimeNotificationService;
     private final BranchScopeGuard branchScopeGuard;
     private final EntityManager entityManager;
+
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
+    @Override
+    public void setApplicationEventPublisher(org.springframework.context.ApplicationEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
+    }
 
     public record CreditResolution(
             UserEntity customer,
@@ -92,6 +99,10 @@ public class BookingCreditSettlementHelper {
                 .status(status)
                 .build();
         paymentTransactionRepository.save(transaction);
+
+        if (creditResolution.coveredByCredit() && eventPublisher != null) {
+            eventPublisher.publishEvent(new com.smartsalon.booking.event.BookingConfirmedEvent(booking.getId()));
+        }
 
         if (realtimeNotificationService != null) {
             realtimeNotificationService.notifyBookingCreated(booking);
@@ -163,6 +174,7 @@ public class BookingCreditSettlementHelper {
                 .slotLockExpiresAt(covered ? null : now.plusMinutes(BookingEntity.HOLD_TTL_MINUTES))
                 .customerName(request.customerName().trim())
                 .customerPhone(request.customerPhone().trim())
+                .customerEmail(request.customerEmail() != null && !request.customerEmail().isBlank() ? request.customerEmail().trim() : null)
                 .notes(request.notes())
                 .items(new ArrayList<>())
                 .build();

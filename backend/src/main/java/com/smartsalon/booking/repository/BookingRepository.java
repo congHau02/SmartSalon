@@ -14,6 +14,15 @@ import java.util.Optional;
 @Repository
 public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
 
+    @Query("SELECT DISTINCT b FROM BookingEntity b " +
+           "LEFT JOIN FETCH b.items i " +
+           "LEFT JOIN FETCH i.service " +
+           "LEFT JOIN FETCH b.branch " +
+           "LEFT JOIN FETCH b.staff " +
+           "LEFT JOIN FETCH b.customer " +
+           "WHERE b.id = :id AND b.isDeleted = false")
+    Optional<BookingEntity> findByIdWithDetails(@Param("id") Long id);
+
     Optional<BookingEntity> findByBookingCodeAndIsDeletedFalse(String bookingCode);
 
     Optional<BookingEntity> findByCustomerPhoneAndBookingCodeAndIsDeletedFalse(String customerPhone, String bookingCode);

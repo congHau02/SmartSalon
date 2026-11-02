@@ -244,5 +244,9 @@ class FlywayMigrationTest {
         Integer attendanceCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM staff_attendances", Integer.class);
         assertTrue(attendanceCount != null && attendanceCount >= 100, "Expected at least 100 attendance records");
+
+        // 13. Verify V10 Schema: customer_email on bookings
+        assertTrue(result.migrationsExecuted >= 10, "Expected at least 10 migrations (including V10)");
+        jdbcTemplate.execute("SELECT customer_email FROM bookings WHERE 1=0");
     }
 }
