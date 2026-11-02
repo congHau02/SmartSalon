@@ -3,7 +3,11 @@
 ## General Workflow & Skill Usage
 
 - **Always consult available skills**: Before executing a task, designing a feature, or solving a problem, always check and reference relevant skills if available. Follow their defined workflows and rules strictly.
-- **Frontend & UI/UX Development**: Whenever building frontend components, designing UI/UX, or coding user interfaces, you MUST use and follow the `ui-ux-pro-max` skill (`.agents/skills/ui-ux-pro-max/SKILL.md`).
+- **Frontend & UI/UX Development**:
+  - **Foundation & Standards:** Whenever building frontend components, designing UI/UX, or coding user interfaces, follow the `ui-ux-pro-max` skill (`.agents/skills/ui-ux-pro-max/SKILL.md`) for component anatomy, tokens, and responsive patterns.
+  - **Art Direction & Anti-Slop (Taste Skills):** Apply `design-taste-frontend` (`.agents/skills/design-taste-frontend/SKILL.md`) to avoid cookie-cutter AI slop. Specifically apply:
+    - `high-end-visual-design` (`.agents/skills/high-end-visual-design/SKILL.md`): For customer-facing experiences (Salon booking portal, luxury beauty showcase, client profile).
+    - `minimalist-ui` (`.agents/skills/minimalist-ui/SKILL.md`): For administrative & operational screens (POS dispatch, Stylist shift roster, inventory catalog, P&L analytics).
 
 ## Frontend Architecture Rules (React Vite + Tailwind + shadcn + RHF/Zod + Query + Zustand)
 - **Max Lines:** Target <150 LOC per component (Hard limit: 250 LOC). Extract sub-components when JSX nesting >3 levels or `.map()` >15 LOC. Avoid micro-components requiring >5 props.

@@ -37,6 +37,12 @@
       "skillPath": "skills/create-spring-boot-java-project/SKILL.md",
       "computedHash": "f295d4ddc256642e850e7d7a40526ed10aad2801e0c202e0b4c78506c52f4461"
     },
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "53590ee9325bee34d7888bf0d81bd3941a108b1e7850df46802d93104e3f2b90"
+    },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -85,6 +91,12 @@
       "skillPath": "skills/productivity/handoff/SKILL.md",
       "computedHash": "00e2d31992d62490083ed2fa2fc2a4418362f765875a59e7a3dc52836f826ab2"
     },
+    "high-end-visual-design": {
+      "source": "Leonxlnx/taste-skill-classics",
+      "sourceType": "github",
+      "skillPath": "skills/soft-skill/SKILL.md",
+      "computedHash": "6d03b1fc1798e13d0b5368b4a6135319503d6b9f39062ecfa0ddf8f6bc333508"
+    },
     "implement": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -120,6 +132,12 @@
       "sourceType": "github",
       "skillPath": "skills/misc/migrate-to-shoehorn/SKILL.md",
       "computedHash": "7d31e494a384d1a5b88d1dec6e1f50e673ef1a60f7b0b6e92babfbb242f79b62"
+    },
+    "minimalist-ui": {
+      "source": "Leonxlnx/taste-skill-classics",
+      "sourceType": "github",
+      "skillPath": "skills/minimalist-skill/SKILL.md",
+      "computedHash": "230a0028435595fdc5cdbbf046adc57babc31e94da9af39d6553f1d68a34f6f9"
     },
     "ponytail": {
       "source": "DietrichGebert/ponytail",

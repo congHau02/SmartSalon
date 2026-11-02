@@ -145,12 +145,12 @@ class PayOSWebhookIntegrationTest {
     @Test
     @DisplayName("POST /api/v1/webhooks/payos/simulate/{code}: One-click sandbox simulation thành công chuyển CONFIRMED")
     void simulatePayment_Success() throws Exception {
-        LocalDate tomorrow = LocalDate.now().plusDays(3);
+        LocalDate bookingDate = LocalDate.now().plusDays(2);
         CreateBookingRequest req = new CreateBookingRequest(
                 branch.getId(),
                 stylist.getId(),
                 List.of(service1.getId()),
-                tomorrow.atTime(15, 0),
+                bookingDate.atTime(11, 30),
                 "Khách Sandbox Test",
                 "0911223344",
                 "Sandbox Test"
@@ -179,12 +179,12 @@ class PayOSWebhookIntegrationTest {
     @Test
     @DisplayName("POST /api/v1/webhooks/payos: Nhận webhook từ PayOS chuyển CONFIRMED")
     void handleWebhook_Success() throws Exception {
-        LocalDate tomorrow = LocalDate.now().plusDays(2);
+        LocalDate bookingDate = LocalDate.now().plusDays(2);
         CreateBookingRequest req = new CreateBookingRequest(
                 branch.getId(),
                 stylist.getId(),
                 List.of(service1.getId()),
-                tomorrow.atTime(10, 0),
+                bookingDate.atTime(8, 30),
                 "Khách Webhook Test",
                 "0933445566",
                 "Webhook Test"

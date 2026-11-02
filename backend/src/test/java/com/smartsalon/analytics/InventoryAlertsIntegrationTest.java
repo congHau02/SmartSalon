@@ -79,6 +79,9 @@ class InventoryAlertsIntegrationTest {
     @Autowired
     private com.smartsalon.user.repository.RoleRepository roleRepository;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     private MockMvc mockMvc;
     private BranchEntity branch;
     private com.smartsalon.user.entity.UserEntity customer;
@@ -269,11 +272,11 @@ class InventoryAlertsIntegrationTest {
                 .totalPrice(new BigDecimal("1800000.00"))
                 .build();
         order.addItem(item);
-        orderRepository.save(order);
+        OrderEntity savedOrder = orderRepository.save(order);
 
         // Inventory Transactions:
         // 1. Service consumption: Wella 135ml (negative volume)
-        inventoryTransactionRepository.save(InventoryTransactionEntity.builder()
+        InventoryTransactionEntity tx1 = inventoryTransactionRepository.save(InventoryTransactionEntity.builder()
                 .branch(branch)
                 .product(productWella)
                 .transactionType(InventoryTransactionType.SERVICE_CONSUMPTION)
@@ -287,7 +290,7 @@ class InventoryAlertsIntegrationTest {
                 .build());
 
         // 2. Negative Stock adjustment: Wella 25ml shrinkage
-        inventoryTransactionRepository.save(InventoryTransactionEntity.builder()
+        InventoryTransactionEntity tx2 = inventoryTransactionRepository.save(InventoryTransactionEntity.builder()
                 .branch(branch)
                 .product(productWella)
                 .transactionType(InventoryTransactionType.STOCK_ADJUSTMENT)
@@ -299,6 +302,18 @@ class InventoryAlertsIntegrationTest {
                 .totalCostAmount(new BigDecimal("23750.00"))
                 .notes("Hao hụt rò rỉ tuýp pha")
                 .build());
+
+        // Bypass JPA @CreatedDate auditing to preserve historical mock transaction timestamp
+        entityManager.createNativeQuery("UPDATE orders SET created_at = :createdAt, settled_at = :createdAt WHERE id = :id")
+                .setParameter("createdAt", txTime)
+                .setParameter("id", savedOrder.getId())
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE inventory_transactions SET created_at = :createdAt WHERE id IN (:id1, :id2)")
+                .setParameter("createdAt", txTime)
+                .setParameter("id1", tx1.getId())
+                .setParameter("id2", tx2.getId())
+                .executeUpdate();
     }
 
     @Test

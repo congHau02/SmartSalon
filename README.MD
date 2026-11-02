@@ -1,5 +1,7 @@
 # SmartSalon - Salon & Spa Booking, POS, Inventory & Financial Analytics Platform
 
+[![CI](https://github.com/congHau02/SmartSalon/actions/workflows/ci.yml/badge.svg)](https://github.com/congHau02/SmartSalon/actions/workflows/ci.yml)
+
 > **AI AGENT INSTRUCTION:** Tài liệu này là nguồn tham chiếu chuẩn (Single Source of Truth) về kiến trúc, quy chuẩn mã nguồn và nghiệp vụ hiện hành của dự án (đã hoàn thiện từ **Phase 1 đến Phase 5**). Trước khi khởi tạo file, viết API hoặc tạo UI component, AI Agent **BẮT BUỘC** phải tuân thủ nghiêm ngặt các phiên bản công nghệ (Modern Stack), Cấu trúc thư mục, Chuẩn dữ liệu (API Contract), Từ điển miền ([`GLOSSARY.md`](GLOSSARY.md)) và các Quyết định Kiến trúc ([`docs/adr/`](docs/adr/)) được định nghĩa dưới đây.
 
 ---
