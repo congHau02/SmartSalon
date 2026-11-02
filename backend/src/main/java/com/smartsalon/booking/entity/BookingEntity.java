@@ -2,6 +2,8 @@ package com.smartsalon.booking.entity;
 
 import com.smartsalon.branch.entity.BranchEntity;
 import com.smartsalon.common.BaseEntity;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
 import com.smartsalon.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -81,6 +83,10 @@ public class BookingEntity extends BaseEntity {
 
     @Column(name = "reminder_sent_at")
     private LocalDateTime reminderSentAt;
+
+    @Column(name = "reschedule_count", nullable = false)
+    @Builder.Default
+    private int rescheduleCount = 0;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -193,5 +199,76 @@ public class BookingEntity extends BaseEntity {
             return "Có thể hủy trực tuyến trước giờ hẹn ít nhất 2 tiếng.";
         }
         return "Không thể hủy trực tuyến do thời gian bắt đầu còn dưới 2 tiếng. Vui lòng liên hệ hotline chi nhánh để được hỗ trợ.";
+    }
+
+    public void reschedule(LocalDateTime newTime, LocalDateTime newEndTime, UserEntity newStaff, boolean isStylistRequested, LocalDateTime now) {
+        validateRescheduleEligibility(now);
+        this.bookingTime = newTime;
+        this.endTime = newEndTime;
+        this.staff = newStaff;
+        this.isStylistRequested = isStylistRequested;
+        this.rescheduleCount += 1;
+        this.reminderSentAt = null;
+    }
+
+    public void reschedule(LocalDateTime newTime, LocalDateTime newEndTime, UserEntity newStaff, LocalDateTime now) {
+        reschedule(newTime, newEndTime, newStaff, newStaff != null, now);
+    }
+
+    public void validateRescheduleEligibility(LocalDateTime now) {
+        if (this.status != BookingStatus.CONFIRMED) {
+            throw new AppException(ErrorCode.BOOKING_NOT_CONFIRMED);
+        }
+        LocalDateTime refNow = now != null ? now : LocalDateTime.now();
+        if (this.bookingTime == null || this.bookingTime.isBefore(refNow.plusHours(2))) {
+            throw new AppException(ErrorCode.RESCHEDULE_WINDOW_EXPIRED);
+        }
+        if (this.rescheduleCount > 0) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_RESCHEDULED);
+        }
+    }
+
+    public boolean canRescheduleOnline(LocalDateTime now) {
+        return computeCanRescheduleOnline(this.status, this.bookingTime, this.rescheduleCount, now);
+    }
+
+    public String resolveReschedulePolicyNotice(LocalDateTime now) {
+        return resolveReschedulePolicyNotice(this.status, this.bookingTime, this.rescheduleCount, now);
+    }
+
+    public static boolean computeCanRescheduleOnline(BookingStatus status, LocalDateTime bookingTime, int rescheduleCount, LocalDateTime now) {
+        if (status != BookingStatus.CONFIRMED) {
+            return false;
+        }
+        if (bookingTime == null) {
+            return false;
+        }
+        if (rescheduleCount > 0) {
+            return false;
+        }
+        LocalDateTime refNow = now != null ? now : LocalDateTime.now();
+        return !bookingTime.isBefore(refNow.plusHours(2));
+    }
+
+    public static String resolveReschedulePolicyNotice(BookingStatus status, LocalDateTime bookingTime, int rescheduleCount, LocalDateTime now) {
+        if (status == BookingStatus.CANCELLED) {
+            return "Lịch hẹn đã được hủy.";
+        }
+        if (status == BookingStatus.COMPLETED) {
+            return "Lịch hẹn đã hoàn thành.";
+        }
+        if (status == BookingStatus.EXPIRED) {
+            return "Lịch hẹn đã hết hạn.";
+        }
+        if (status != BookingStatus.CONFIRMED) {
+            return "Chỉ có thể dời lịch hẹn ở trạng thái đã xác nhận.";
+        }
+        if (rescheduleCount > 0) {
+            return "Lịch hẹn này đã được dời lịch 1 lần trước đó. Mỗi lịch hẹn chỉ được dời tối đa 1 lần.";
+        }
+        if (computeCanRescheduleOnline(status, bookingTime, rescheduleCount, now)) {
+            return "Có thể dời lịch trực tuyến trước giờ hẹn ít nhất 2 tiếng.";
+        }
+        return "Không thể dời lịch trực tuyến do thời gian bắt đầu còn dưới 2 tiếng. Vui lòng liên hệ hotline chi nhánh để được hỗ trợ.";
     }
 }

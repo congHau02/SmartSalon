@@ -28,7 +28,16 @@ Prior to Phase 11, four customer-facing revenue and security gaps existed:
 
 3. **Self-Service Reschedule with Lock-New-Then-Release-Old Semantics**:
    - Reschedule requires $\ge 2\text{h}$ advance notice and at most 1 reschedule per booking (`reschedule_count == 0`).
-   - Acquire new multi-bucket slot locks first (`MSETNX`); only after the booking update commits are old slot locks released, ensuring the customer never loses their original slot if the new time is unavailable.
+   - Rich domain method `BookingEntity.reschedule(newTime, newEndTime, newStaff, isStylistRequested, now)` enforces domain rules with distinct error codes: `2014` (`RESCHEDULE_WINDOW_EXPIRED`), `2015` (`BOOKING_ALREADY_RESCHEDULED`), `2016` (`BOOKING_NOT_CONFIRMED`), `2017` (`STYLIST_OFF_SHIFT`), and `2007` (`SLOT_NOT_AVAILABLE`).
+   - Increments `reschedule_count` and resets `reminder_sent_at = null` so the 24h reminder scheduler re-evaluates the appointment for the new window.
+   - Orchestration via `BookingRescheduleService`:
+     1. Validate entity rules without mutation.
+     2. Resolve stylist: check shift & overtime window eligibility (Phase 10) for explicit stylist or Least-Workload among candidate stylists; exclude current booking from DB overlap check to allow time adjustments with the same stylist.
+     3. Acquire new multi-bucket slot lock with Redis (`tryLockSlots`). If collision occurs, throw `SLOT_NOT_AVAILABLE` without mutating database or touching old locks.
+     4. Persist updated booking.
+     5. After commit (`TransactionSynchronization.afterCommit`): release old Redis slot keys, broadcast `BOOKING_RESCHEDULED` to branch reception via WebSocket STOMP, and publish `BookingRescheduledEvent` to dispatch confirmation email.
+     6. If transaction fails or rolls back, newly acquired slot locks are released.
+   - Paid deposit, total price, service items, and branch carry over 100% without requiring payment gateway interactions.
 
 4. **Non-Stacking Vouchers Settled at POS Payment**:
    - Support fixed-amount and percentage discounts.

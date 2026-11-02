@@ -177,6 +177,46 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
     }
 
     @Override
+    public void notifyBookingRescheduled(BookingEntity booking) {
+        if (booking == null || booking.getBranch() == null) {
+            return;
+        }
+        Long branchId = booking.getBranch().getId();
+        String customerName = resolveCustomerName(booking);
+        String customerPhone = resolveCustomerPhone(booking);
+        String stylistName = booking.getStaff() != null && booking.getStaff().getFullName() != null
+                ? booking.getStaff().getFullName()
+                : "Stylist bất kỳ";
+        String timeStr = booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FMT) : "";
+        String dateStr = booking.getBookingTime() != null ? booking.getBookingTime().toLocalDate().toString() : "";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("bookingId", booking.getId());
+        data.put("bookingCode", booking.getBookingCode());
+        data.put("customerName", customerName);
+        data.put("customerPhone", customerPhone);
+        data.put("bookingTime", booking.getBookingTime() != null ? booking.getBookingTime().toString() : null);
+        data.put("endTime", booking.getEndTime() != null ? booking.getEndTime().toString() : null);
+        data.put("stylistName", stylistName);
+        data.put("stylistId", booking.getStaff() != null ? booking.getStaff().getId() : null);
+        data.put("rescheduleCount", booking.getRescheduleCount());
+        data.put("branchId", branchId);
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("BOOKING_RESCHEDULED")
+                .branchId(branchId)
+                .referenceId(booking.getId())
+                .code(booking.getBookingCode())
+                .title("Dời lịch hẹn: " + booking.getBookingCode())
+                .message(String.format("Khách %s đã dời lịch hẹn sang %s ngày %s (Stylist: %s)", customerName, timeStr, dateStr, stylistName))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendBookingEvent(branchId, event);
+    }
+
+    @Override
     public void notifyBookingReminderDue(BookingEntity booking) {
         if (booking == null || booking.getBranch() == null) {
             return;

@@ -4,13 +4,13 @@
 
 **Blocked by:** 03 (Booking Confirmation Email via Notification Sender), 04 (24h Booking Reminder — owns `reminder_sent_at`)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] New Flyway migration (next free version) adds `reschedule_count INT NOT NULL DEFAULT 0` to `bookings`.
-- [ ] `Booking.reschedule(newTime, newEndTime, newStaff, now)` enforces the three rules with distinct error codes, increments `reschedule_count`, clears `reminder_sent_at`, and updates `is_stylist_requested` accordingly; domain unit tests cover each rule.
-- [ ] `POST /api/v1/customer/me/bookings/{bookingId}/reschedule` with ownership checked like cancel; orchestration: validate → resolve stylist (requested or Least-Workload, shift-eligible) → acquire new lock (fail → `SLOT_UNAVAILABLE`, nothing changed) → persist → after commit release old keys, broadcast, publish `BookingRescheduledEvent`; new keys released if the transaction fails.
-- [ ] Reschedule email sent via the ticket-03 sender.
-- [ ] Customer portal "Dời lịch" dialog with error-code → Vietnamese message mapping (too late, already rescheduled, not confirmed, slot taken, stylist off-shift).
-- [ ] MockMvc integration tests: happy path (deposit unchanged, old keys freed, new keys held, email recorded, broadcast sent); < 2h; second reschedule; non-`CONFIRMED`; slot taken → original booking + locks unchanged; off-shift stylist; another customer's booking → forbidden.
-- [ ] Frontend vitest for the error mapping.
-- [ ] ADR-0015 records lock-new-then-release-old; `GLOSSARY.md` gains **Reschedule**.
+- [x] New Flyway migration (next free version) adds `reschedule_count INT NOT NULL DEFAULT 0` to `bookings`.
+- [x] `Booking.reschedule(newTime, newEndTime, newStaff, now)` enforces the three rules with distinct error codes, increments `reschedule_count`, clears `reminder_sent_at`, and updates `is_stylist_requested` accordingly; domain unit tests cover each rule.
+- [x] `POST /api/v1/customer/me/bookings/{bookingId}/reschedule` with ownership checked like cancel; orchestration: validate → resolve stylist (requested or Least-Workload, shift-eligible) → acquire new lock (fail → `SLOT_UNAVAILABLE`, nothing changed) → persist → after commit release old keys, broadcast, publish `BookingRescheduledEvent`; new keys released if the transaction fails.
+- [x] Reschedule email sent via the ticket-03 sender.
+- [x] Customer portal "Dời lịch" dialog with error-code → Vietnamese message mapping (too late, already rescheduled, not confirmed, slot taken, stylist off-shift).
+- [x] MockMvc integration tests: happy path (deposit unchanged, old keys freed, new keys held, email recorded, broadcast sent); < 2h; second reschedule; non-`CONFIRMED`; slot taken → original booking + locks unchanged; off-shift stylist; another customer's booking → forbidden.
+- [x] Frontend vitest for the error mapping.
+- [x] ADR-0015 records lock-new-then-release-old; `GLOSSARY.md` gains **Reschedule**.

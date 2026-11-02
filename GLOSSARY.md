@@ -179,3 +179,7 @@ _Avoid_: Booking email, appointment alert, check-in notice
 **Booking Reminder**:
 An automated notification delivered approximately 24 hours prior to scheduled appointment time (within a 23h–24h advance window) for confirmed bookings. Dispatches a reminder email to customers with resolvable email addresses and broadcasts a real-time upcoming customer notice to branch reception over STOMP WebSocket topics.
 _Avoid_: Reminder email, 24h ping, alert notification
+
+**Reschedule**:
+The self-service operation allowing a customer to move an upcoming confirmed Booking to a new time slot at the same branch with the same services at least 2 hours prior to the original appointment time. Enforces a maximum of one reschedule per booking, preserving the paid Deposit, acquiring new multi-bucket Slot Locks before releasing old ones, and resetting the reminder timestamp.
+_Avoid_: Rebook, postpone, booking edit, time change

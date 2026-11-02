@@ -13,6 +13,8 @@ public interface CustomerService {
 
     CustomerBookingResponse cancelCustomerBooking(String username, Long bookingId);
 
+    CustomerBookingResponse rescheduleCustomerBooking(String username, Long bookingId, CustomerRescheduleRequest request);
+
     List<CustomerOrderResponse> getCustomerOrders(String username);
 
     CustomerReviewDto submitServiceReview(String username, Long orderId, CreateServiceReviewRequest request);

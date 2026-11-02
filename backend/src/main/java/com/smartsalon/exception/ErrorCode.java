@@ -42,7 +42,11 @@ public enum ErrorCode {
     ORDER_ITEM_NOT_FOUND(4005, "Không tìm thấy mục hàng trong đơn", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_TYPE(4006, "Định dạng tệp không hợp lệ, chỉ chấp nhận ảnh JPEG, PNG, WEBP, GIF", HttpStatus.BAD_REQUEST),
     EMPTY_FILE(4007, "Tệp tải lên không được để trống", HttpStatus.BAD_REQUEST),
-    TOO_MANY_REQUESTS(2013, "Quá nhiều yêu cầu, vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS);
+    TOO_MANY_REQUESTS(2013, "Quá nhiều yêu cầu, vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS),
+    RESCHEDULE_WINDOW_EXPIRED(2014, "Chỉ được dời lịch hẹn trước giờ hẹn ít nhất 2 tiếng", HttpStatus.BAD_REQUEST),
+    BOOKING_ALREADY_RESCHEDULED(2015, "Mỗi lịch hẹn chỉ được dời lịch tối đa 1 lần", HttpStatus.BAD_REQUEST),
+    BOOKING_NOT_CONFIRMED(2016, "Chỉ có thể dời lịch hẹn ở trạng thái đã xác nhận", HttpStatus.BAD_REQUEST),
+    STYLIST_OFF_SHIFT(2017, "Kỹ thuật viên không có ca làm việc vào khung giờ này", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

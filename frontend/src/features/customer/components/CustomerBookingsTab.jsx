@@ -3,14 +3,20 @@ import { Calendar, Clock, MapPin, Scissors, AlertCircle, XCircle, CheckCircle2, 
 import { useCustomerBookings } from "../useCustomer";
 import { formatCurrency, formatDate } from "../../../lib/utils";
 import { CancelBookingModal } from "./CancelBookingModal";
+import { RescheduleBookingModal } from "./RescheduleBookingModal";
 
 export function CustomerBookingsTab() {
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState(null);
+  const [selectedBookingForReschedule, setSelectedBookingForReschedule] = useState(null);
 
   const { data: bookings = [], isLoading, error } = useCustomerBookings();
 
   const handleCancelSuccess = () => {
     // Queries are automatically invalidated by useCancelCustomerBooking
+  };
+
+  const handleRescheduleSuccess = () => {
+    // Queries are automatically invalidated by useRescheduleCustomerBooking
   };
 
   if (isLoading) {
@@ -62,6 +68,7 @@ export function CustomerBookingsTab() {
             key={b.id}
             booking={b}
             onCancelRequest={() => setSelectedBookingForCancel(b)}
+            onRescheduleRequest={() => setSelectedBookingForReschedule(b)}
           />
         ))}
       </div>
@@ -72,11 +79,18 @@ export function CustomerBookingsTab() {
         onClose={() => setSelectedBookingForCancel(null)}
         onSuccess={handleCancelSuccess}
       />
+
+      <RescheduleBookingModal
+        booking={selectedBookingForReschedule}
+        isOpen={Boolean(selectedBookingForReschedule)}
+        onClose={() => setSelectedBookingForReschedule(null)}
+        onSuccess={handleRescheduleSuccess}
+      />
     </div>
   );
 }
 
-function BookingItemCard({ booking, onCancelRequest }) {
+function BookingItemCard({ booking, onCancelRequest, onRescheduleRequest }) {
   const isUpcoming = booking.status === "PENDING_PAYMENT" || booking.status === "CONFIRMED";
 
   const getStatusBadge = (status) => {
@@ -167,7 +181,24 @@ function BookingItemCard({ booking, onCancelRequest }) {
         </div>
 
         {isUpcoming && (
-          <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {booking.status === "CONFIRMED" && (
+              booking.canRescheduleOnline ? (
+                <button
+                  type="button"
+                  onClick={onRescheduleRequest}
+                  className="px-3.5 py-1.5 rounded-xl border border-pink-200 text-pink-700 bg-pink-50/50 hover:bg-pink-100/70 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Dời lịch</span>
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-400 italic">
+                  {booking.reschedulePolicyNotice || (booking.rescheduleCount > 0 ? "Đã dời lịch 1 lần" : "Không thể dời lịch (< 2h)")}
+                </span>
+              )
+            )}
+
             {booking.canCancelOnline ? (
               <button
                 type="button"

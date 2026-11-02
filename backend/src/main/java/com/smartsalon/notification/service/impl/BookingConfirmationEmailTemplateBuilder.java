@@ -35,6 +35,14 @@ public class BookingConfirmationEmailTemplateBuilder {
         return buildMessage(booking, recipientEmail, subject, headerSubtitle, introMessage);
     }
 
+    public NotificationMessage buildRescheduledMessage(BookingEntity booking, String recipientEmail) {
+        String bookingCode = booking.getBookingCode();
+        String subject = String.format("[SmartSalon] Cập nhật lịch hẹn thành công (Dời lịch) - %s", bookingCode);
+        String headerSubtitle = "Xác Nhận Dời Lịch Hẹn Thành Công";
+        String introMessage = "Lịch hẹn làm đẹp của bạn tại SmartSalon đã được chuyển sang thời gian mới thành công. Thông tin chi tiết cập nhật dưới đây:";
+        return buildMessage(booking, recipientEmail, subject, headerSubtitle, introMessage);
+    }
+
     private NotificationMessage buildMessage(BookingEntity booking, String recipientEmail, String subject,
                                             String headerSubtitle, String introMessage) {
         String bookingCode = booking.getBookingCode();

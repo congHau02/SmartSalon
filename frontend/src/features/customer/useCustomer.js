@@ -38,6 +38,19 @@ export function useCancelCustomerBooking() {
   });
 }
 
+export function useRescheduleCustomerBooking() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ bookingId, payload }) => customerApi.rescheduleMyBooking(bookingId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.bookings });
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.summary });
+      queryClient.invalidateQueries({ queryKey: ["slots"] });
+    },
+  });
+}
+
 export function useCustomerOrders(enabled = true) {
   return useQuery({
     queryKey: CUSTOMER_QUERY_KEYS.orders,

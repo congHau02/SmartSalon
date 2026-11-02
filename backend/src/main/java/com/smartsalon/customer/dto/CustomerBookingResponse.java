@@ -30,6 +30,9 @@ public record CustomerBookingResponse(
         String notes,
         boolean canCancelOnline,
         String cancelPolicyNotice,
+        boolean canRescheduleOnline,
+        String reschedulePolicyNotice,
+        int rescheduleCount,
         List<BookingServiceItemDto> items,
         Instant createdAt
 ) {}

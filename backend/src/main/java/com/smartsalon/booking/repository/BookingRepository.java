@@ -46,6 +46,18 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
             @Param("now") LocalDateTime now);
 
     @Query("SELECT b FROM BookingEntity b WHERE b.staff.id = :staffId AND b.isDeleted = false " +
+           "AND (:excludeBookingId IS NULL OR b.id != :excludeBookingId) " +
+           "AND b.bookingTime < :windowEnd AND b.endTime > :windowStart " +
+           "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +
+           "     OR (b.status = 'PENDING_PAYMENT' AND b.slotLockExpiresAt > :now))")
+    List<BookingEntity> findOverlappingBookingsForStylistExcluding(
+            @Param("staffId") Long staffId,
+            @Param("windowStart") LocalDateTime windowStart,
+            @Param("windowEnd") LocalDateTime windowEnd,
+            @Param("now") LocalDateTime now,
+            @Param("excludeBookingId") Long excludeBookingId);
+
+    @Query("SELECT b FROM BookingEntity b WHERE b.staff.id = :staffId AND b.isDeleted = false " +
            "AND b.bookingTime >= :startOfDay AND b.bookingTime < :endOfDay " +
            "AND (b.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS') " +
            "     OR (b.status = 'PENDING_PAYMENT' AND (b.slotLockExpiresAt IS NULL OR b.slotLockExpiresAt > :now))) " +

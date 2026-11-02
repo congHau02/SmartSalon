@@ -3,6 +3,7 @@ package com.smartsalon.notification.listener;
 import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.event.BookingConfirmedEvent;
 import com.smartsalon.booking.event.BookingReminderDueEvent;
+import com.smartsalon.booking.event.BookingRescheduledEvent;
 import com.smartsalon.booking.repository.BookingRepository;
 import com.smartsalon.notification.dto.NotificationMessage;
 import com.smartsalon.notification.service.NotificationSender;
@@ -28,7 +29,7 @@ public class BookingConfirmationEmailListener {
     private final RealtimeNotificationService realtimeNotificationService;
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void onBookingConfirmed(BookingConfirmedEvent event) {
         if (event == null || event.bookingId() == null) {
@@ -58,7 +59,7 @@ public class BookingConfirmationEmailListener {
     }
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void onBookingReminderDue(BookingReminderDueEvent event) {
         if (event == null || event.bookingId() == null) {
@@ -87,6 +88,36 @@ public class BookingConfirmationEmailListener {
             log.info("Dispatched 24h booking reminder email to {} for booking {}", recipient, booking.getBookingCode());
         } catch (Exception ex) {
             log.error("Error processing booking reminder for bookingId {}: {}", event.bookingId(), ex.getMessage(), ex);
+            // Non-blocking: side effects must never propagate errors to the core transaction
+        }
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public void onBookingRescheduled(BookingRescheduledEvent event) {
+        if (event == null || event.bookingId() == null) {
+            return;
+        }
+
+        try {
+            BookingEntity booking = bookingRepository.findByIdWithDetails(event.bookingId()).orElse(null);
+            if (booking == null) {
+                log.warn("Booking with ID {} not found for reschedule email dispatch", event.bookingId());
+                return;
+            }
+
+            String recipient = booking.resolvedCustomerEmail();
+            if (recipient == null || recipient.isBlank()) {
+                log.info("Booking {} has no recipient email; skipping reschedule email", booking.getBookingCode());
+                return;
+            }
+
+            NotificationMessage message = templateBuilder.buildRescheduledMessage(booking, recipient);
+            notificationSender.send(message);
+            log.info("Dispatched booking rescheduled email to {} for booking {}", recipient, booking.getBookingCode());
+        } catch (Exception ex) {
+            log.error("Error processing booking rescheduled email for bookingId {}: {}", event.bookingId(), ex.getMessage(), ex);
             // Non-blocking: side effects must never propagate errors to the core transaction
         }
     }

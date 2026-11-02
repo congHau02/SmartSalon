@@ -24,6 +24,11 @@ export const customerApi = {
     return response?.result || response?.data || response;
   },
 
+  rescheduleMyBooking: async (bookingId, payload) => {
+    const response = await axiosClient.post(`/customer/me/bookings/${bookingId}/reschedule`, payload);
+    return response?.result || response?.data || response;
+  },
+
   getMyOrders: async () => {
     const response = await axiosClient.get("/customer/me/orders");
     return response?.result || response?.data || response || [];

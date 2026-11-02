@@ -115,6 +115,9 @@ public class CustomerPortalMapper {
                 b.getNotes(),
                 b.canCancelOnline(now),
                 b.resolveCancelPolicyNotice(now),
+                b.canRescheduleOnline(now),
+                b.resolveReschedulePolicyNotice(now),
+                b.getRescheduleCount(),
                 items,
                 b.getCreatedAt()
         );

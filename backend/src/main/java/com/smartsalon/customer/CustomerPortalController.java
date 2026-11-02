@@ -48,6 +48,19 @@ public class CustomerPortalController {
         return ResponseEntity.ok(ApiResponse.success("Hủy lịch hẹn thành công", response));
     }
 
+    @PostMapping({
+            "/api/v1/customer/me/bookings/{bookingId}/reschedule",
+            "/api/v1/customer/bookings/{bookingId}/reschedule"
+    })
+    @Operation(summary = "Dời lịch hẹn trực tuyến trước 2 tiếng sang thời gian mới")
+    public ResponseEntity<ApiResponse<CustomerBookingResponse>> rescheduleMyBooking(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody CustomerRescheduleRequest request) {
+        String username = getAuthenticatedUsername();
+        CustomerBookingResponse response = customerService.rescheduleCustomerBooking(username, bookingId, request);
+        return ResponseEntity.ok(ApiResponse.success("Dời lịch hẹn thành công", response));
+    }
+
     @GetMapping("/api/v1/customer/me/orders")
     @Operation(summary = "Lấy danh sách đơn hàng đã hoàn thành kèm hồ sơ Visual Log và đánh giá dịch vụ")
     public ResponseEntity<ApiResponse<List<CustomerOrderResponse>>> getMyOrders() {

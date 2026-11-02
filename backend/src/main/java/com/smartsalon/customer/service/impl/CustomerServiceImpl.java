@@ -4,6 +4,7 @@ import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.repository.BookingRepository;
 import com.smartsalon.booking.service.BookingService;
+import com.smartsalon.booking.service.BookingRescheduleService;
 import com.smartsalon.customer.dto.*;
 import com.smartsalon.customer.service.CustomerService;
 import com.smartsalon.exception.AppException;
@@ -34,6 +35,7 @@ public class CustomerServiceImpl implements CustomerService {
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
     private final BookingService bookingService;
+    private final BookingRescheduleService bookingRescheduleService;
     private final OrderRepository orderRepository;
     private final ServiceReviewRepository serviceReviewRepository;
     private final CustomerPortalMapper customerPortalMapper;
@@ -89,6 +91,25 @@ public class CustomerServiceImpl implements CustomerService {
 
         BookingEntity cancelledBooking = bookingService.cancelBooking(booking);
         return customerPortalMapper.toBookingResponse(cancelledBooking, now);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CustomerBookingResponse rescheduleCustomerBooking(String username, Long bookingId, CustomerRescheduleRequest request) {
+        if (request == null || request.newBookingTime() == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+        UserEntity user = resolveUserByUsername(username);
+        BookingEntity booking = bookingRepository.findByIdWithDetails(bookingId)
+                .filter(b -> !b.isDeleted())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        validateCustomerRescheduleAccess(user, booking);
+
+        LocalDateTime now = LocalDateTime.now();
+        BookingEntity rescheduled = bookingRescheduleService.rescheduleBooking(
+                booking, request.newBookingTime(), request.stylistId(), now);
+        return customerPortalMapper.toBookingResponse(rescheduled, now);
     }
 
     @Override
@@ -159,6 +180,16 @@ public class CustomerServiceImpl implements CustomerService {
                 throw new AppException(ErrorCode.INVALID_BOOKING_STATUS);
             }
             throw new AppException(ErrorCode.BOOKING_CANCELLATION_WINDOW_EXPIRED);
+        }
+    }
+
+    private void validateCustomerRescheduleAccess(UserEntity user, BookingEntity booking) {
+        boolean isStaffOrAdmin = user.getRoles().stream().anyMatch(r ->
+                "ADMIN".equals(r.getName()) || "MANAGER".equals(r.getName()) || "STAFF".equals(r.getName()));
+        if (isStaffOrAdmin) return;
+
+        if (booking.getCustomer() == null || !booking.getCustomer().getId().equals(user.getId())) {
+            throw new AppException(ErrorCode.FORBIDDEN);
         }
     }
 

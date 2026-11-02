@@ -242,8 +242,8 @@ class FlywayMigrationTest {
                 "SELECT COUNT(*) FROM staff_attendances", Integer.class);
         assertTrue(attendanceCount != null && attendanceCount >= 100, "Expected at least 100 attendance records");
 
-        // 13. Verify V10 & V11 Schema: customer_email and reminder_sent_at on bookings
-        assertTrue(result.migrationsExecuted >= 11, "Expected at least 11 migrations (including V11)");
-        jdbcTemplate.execute("SELECT customer_email, reminder_sent_at FROM bookings WHERE 1=0");
+        // 13. Verify V10, V11 & V12 Schema: customer_email, reminder_sent_at, reschedule_count on bookings
+        assertTrue(result.migrationsExecuted >= 12, "Expected at least 12 migrations (including V12)");
+        jdbcTemplate.execute("SELECT customer_email, reminder_sent_at, reschedule_count FROM bookings WHERE 1=0");
     }
 }
