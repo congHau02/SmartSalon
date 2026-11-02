@@ -100,4 +100,13 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
             @Param("branchId") Long branchId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT b FROM BookingEntity b " +
+           "WHERE b.isDeleted = false " +
+           "AND b.status = com.smartsalon.booking.entity.BookingStatus.CONFIRMED " +
+           "AND b.reminderSentAt IS NULL " +
+           "AND b.bookingTime >= :startWindow AND b.bookingTime <= :endWindow")
+    List<BookingEntity> findBookingsDueForReminder(
+            @Param("startWindow") LocalDateTime startWindow,
+            @Param("endWindow") LocalDateTime endWindow);
 }

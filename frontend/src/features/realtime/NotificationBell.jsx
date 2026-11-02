@@ -6,10 +6,46 @@ import {
   CalendarPlus,
   RefreshCw,
   Scissors,
+  Clock,
 } from "lucide-react";
 import { useRealtime } from "./RealtimeContext";
 import { NotificationDropdownHeader } from "./NotificationDropdownHeader";
 import { NotificationItem } from "./NotificationItem";
+
+export function getEventBadge(eventType) {
+  switch (eventType) {
+    case "BOOKING_CREATED":
+      return {
+        icon: CalendarPlus,
+        bg: "bg-blue-50 text-blue-700 border-blue-200",
+        tag: "Lịch hẹn mới",
+      };
+    case "BOOKING_CONFIRMED":
+      return {
+        icon: CheckCircle2,
+        bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        tag: "Đã cọc 20%",
+      };
+    case "BOOKING_STATUS_CHANGED":
+      return {
+        icon: RefreshCw,
+        bg: "bg-amber-50 text-amber-700 border-amber-200",
+        tag: "Đổi trạng thái",
+      };
+    case "BOOKING_REMINDER_DUE":
+      return {
+        icon: Clock,
+        bg: "bg-rose-50 text-rose-700 border-rose-200",
+        tag: "Nhắc hẹn 24h",
+      };
+    default:
+      return {
+        icon: Scissors,
+        bg: "bg-purple-50 text-purple-700 border-purple-200",
+        tag: "Điều phối",
+      };
+  }
+}
 
 export function NotificationBell() {
   const {
@@ -54,35 +90,6 @@ export function NotificationBell() {
       navigate(`/pos`);
     } else {
       navigate(`/admin/bookings`);
-    }
-  };
-
-  const getEventBadge = (eventType) => {
-    switch (eventType) {
-      case "BOOKING_CREATED":
-        return {
-          icon: CalendarPlus,
-          bg: "bg-blue-50 text-blue-700 border-blue-200",
-          tag: "Lịch hẹn mới",
-        };
-      case "BOOKING_CONFIRMED":
-        return {
-          icon: CheckCircle2,
-          bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
-          tag: "Đã cọc 20%",
-        };
-      case "BOOKING_STATUS_CHANGED":
-        return {
-          icon: RefreshCw,
-          bg: "bg-amber-50 text-amber-700 border-amber-200",
-          tag: "Đổi trạng thái",
-        };
-      default:
-        return {
-          icon: Scissors,
-          bg: "bg-purple-50 text-purple-700 border-purple-200",
-          tag: "Điều phối",
-        };
     }
   };
 

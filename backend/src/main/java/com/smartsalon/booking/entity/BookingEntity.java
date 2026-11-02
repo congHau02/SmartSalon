@@ -79,6 +79,9 @@ public class BookingEntity extends BaseEntity {
     @Column(name = "customer_email", length = 255)
     private String customerEmail;
 
+    @Column(name = "reminder_sent_at")
+    private LocalDateTime reminderSentAt;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

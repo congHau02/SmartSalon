@@ -163,7 +163,7 @@ class ShiftControllerIntegrationTest {
                 userRepository.save(UserEntity.builder()
                         .username("cust.test")
                         .fullName("Nguyễn Khách Test")
-                        .phone("0988111222")
+                        .phone("0988111999")
                         .passwordHash("hashed")
                         .branch(branch1)
                         .isActive(true)

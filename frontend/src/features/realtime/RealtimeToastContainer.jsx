@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { X, CalendarPlus, CheckCircle2, RefreshCw, Scissors, ArrowRight } from "lucide-react";
+import { X, CalendarPlus, CheckCircle2, RefreshCw, Scissors, ArrowRight, Clock } from "lucide-react";
 import { useRealtime } from "./RealtimeContext";
 
 export function RealtimeToastContainer() {
@@ -29,6 +29,8 @@ export function RealtimeToastContainer() {
         return <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
       case "BOOKING_STATUS_CHANGED":
         return <RefreshCw className="w-5 h-5 text-amber-600" />;
+      case "BOOKING_REMINDER_DUE":
+        return <Clock className="w-5 h-5 text-rose-600" />;
       default:
         return <Scissors className="w-5 h-5 text-pink-600" />;
     }

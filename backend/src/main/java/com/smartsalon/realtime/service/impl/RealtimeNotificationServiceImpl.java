@@ -177,6 +177,44 @@ public class RealtimeNotificationServiceImpl implements RealtimeNotificationServ
     }
 
     @Override
+    public void notifyBookingReminderDue(BookingEntity booking) {
+        if (booking == null || booking.getBranch() == null) {
+            return;
+        }
+        Long branchId = booking.getBranch().getId();
+        String customerName = resolveCustomerName(booking);
+        String customerPhone = resolveCustomerPhone(booking);
+        String stylistName = booking.getStaff() != null && booking.getStaff().getFullName() != null
+                ? booking.getStaff().getFullName()
+                : "Stylist bất kỳ";
+        String timeStr = booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FMT) : "";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("bookingId", booking.getId());
+        data.put("bookingCode", booking.getBookingCode());
+        data.put("customerName", customerName);
+        data.put("customerPhone", customerPhone);
+        data.put("bookingTime", booking.getBookingTime() != null ? booking.getBookingTime().toString() : null);
+        data.put("stylistName", stylistName);
+        data.put("status", booking.getStatus() != null ? booking.getStatus().name() : null);
+        data.put("branchId", branchId);
+        data.put("branchName", booking.getBranch().getName());
+
+        RealtimeEventDto event = RealtimeEventDto.builder()
+                .eventType("BOOKING_REMINDER_DUE")
+                .branchId(branchId)
+                .referenceId(booking.getId())
+                .code(booking.getBookingCode())
+                .title("Khách sắp đến: " + booking.getBookingCode())
+                .message(String.format("Nhắc hẹn 24h: Khách %s có lịch hẹn lúc %s (Stylist: %s)", customerName, timeStr, stylistName))
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+
+        sendBookingEvent(branchId, event);
+    }
+
+    @Override
     public void notifyOrderCheckedIn(com.smartsalon.pos.entity.OrderEntity order) {
         if (order == null || order.getBranch() == null) {
             return;

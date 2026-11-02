@@ -17,6 +17,8 @@ public interface RealtimeNotificationService {
 
     void notifyBookingStatusChanged(BookingEntity booking, BookingStatus oldStatus, BookingStatus newStatus);
 
+    void notifyBookingReminderDue(BookingEntity booking);
+
     void notifyOrderCheckedIn(OrderEntity order);
 
     void notifyWalkInCreated(OrderEntity order);

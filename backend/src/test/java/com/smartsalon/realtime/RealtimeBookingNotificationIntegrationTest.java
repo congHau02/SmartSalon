@@ -131,7 +131,7 @@ class RealtimeBookingNotificationIntegrationTest {
                 List.of(service.getId()),
                 bookingTime,
                 "Khách Test Realtime",
-                "0911223344",
+                "0911223366",
                 "Ghi chú test"
         );
 
@@ -152,7 +152,7 @@ class RealtimeBookingNotificationIntegrationTest {
         assertThat(event.getEventType()).isEqualTo("BOOKING_CREATED");
         assertThat(event.getBranchId()).isEqualTo(branch.getId());
         assertThat(event.getData()).containsEntry("customerName", "Khách Test Realtime");
-        assertThat(event.getData()).containsEntry("customerPhone", "0911223344");
+        assertThat(event.getData()).containsEntry("customerPhone", "0911223366");
     }
 
     @Test

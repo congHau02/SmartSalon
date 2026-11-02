@@ -175,3 +175,7 @@ _Avoid_: Hourly wage, attendance deduction, net retainer
 **Booking Confirmation**:
 The formal acknowledgment sent to a customer after a Booking transitions to `CONFIRMED` (via deposit settlement or credit balance offset). Includes booking code, appointment window, stylist, branch location, deposit receipt, and a self-service lookup link, dispatched asynchronously after transaction commit.
 _Avoid_: Booking email, appointment alert, check-in notice
+
+**Booking Reminder**:
+An automated notification delivered approximately 24 hours prior to scheduled appointment time (within a 23h–24h advance window) for confirmed bookings. Dispatches a reminder email to customers with resolvable email addresses and broadcasts a real-time upcoming customer notice to branch reception over STOMP WebSocket topics.
+_Avoid_: Reminder email, 24h ping, alert notification

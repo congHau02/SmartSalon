@@ -21,6 +21,23 @@ public class BookingConfirmationEmailTemplateBuilder {
 
     public NotificationMessage buildConfirmationMessage(BookingEntity booking, String recipientEmail) {
         String bookingCode = booking.getBookingCode();
+        String subject = String.format("[SmartSalon] Xác nhận đặt lịch hẹn thành công - %s", bookingCode);
+        String headerSubtitle = "Xác Nhận Đặt Lịch Hẹn Thành Công";
+        String introMessage = "Cảm ơn bạn đã lựa chọn dịch vụ của SmartSalon. Lịch hẹn của bạn đã được xác nhận với thông tin chi tiết dưới đây:";
+        return buildMessage(booking, recipientEmail, subject, headerSubtitle, introMessage);
+    }
+
+    public NotificationMessage buildReminderMessage(BookingEntity booking, String recipientEmail) {
+        String bookingCode = booking.getBookingCode();
+        String subject = String.format("[SmartSalon] Nhắc lịch hẹn ngày mai - %s", bookingCode);
+        String headerSubtitle = "Nhắc Nhở Lịch Hẹn Ngày Mai (24h)";
+        String introMessage = "SmartSalon xin nhắc bạn về lịch hẹn làm đẹp vào ngày mai. Quý khách vui lòng lưu ý thông tin chi tiết lịch hẹn dưới đây:";
+        return buildMessage(booking, recipientEmail, subject, headerSubtitle, introMessage);
+    }
+
+    private NotificationMessage buildMessage(BookingEntity booking, String recipientEmail, String subject,
+                                            String headerSubtitle, String introMessage) {
+        String bookingCode = booking.getBookingCode();
         String customerName = booking.resolvedCustomerName();
         String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "SmartSalon";
         String branchAddress = booking.getBranch() != null && booking.getBranch().getAddress() != null
@@ -41,12 +58,12 @@ public class BookingConfirmationEmailTemplateBuilder {
         String totalPriceFormatted = formatCurrency(booking.getTotalPrice());
         String depositFormatted = formatCurrency(booking.getDepositAmount());
         String lookupUrl = String.format("%s/customer/booking?code=%s&step=4", frontendUrl, bookingCode);
-        String subject = String.format("[SmartSalon] Xác nhận đặt lịch hẹn thành công - %s", bookingCode);
 
         String html = HTML_TEMPLATE.formatted(
-                escapeHtml(customerName), escapeHtml(bookingCode), escapeHtml(branchName),
-                escapeHtml(branchAddress), escapeHtml(branchPhone), timeRange, dateFormatted,
-                escapeHtml(stylistName), servicesRows, totalPriceFormatted, depositFormatted, lookupUrl
+                escapeHtml(headerSubtitle), escapeHtml(customerName), escapeHtml(introMessage),
+                escapeHtml(bookingCode), escapeHtml(branchName), escapeHtml(branchAddress),
+                escapeHtml(branchPhone), timeRange, dateFormatted, escapeHtml(stylistName),
+                servicesRows, totalPriceFormatted, depositFormatted, lookupUrl
         );
 
         return new NotificationMessage(recipientEmail, subject, html);
@@ -94,12 +111,12 @@ public class BookingConfirmationEmailTemplateBuilder {
                 <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
                     <div style="background: linear-gradient(135deg, #be185d 0%%, #9d174d 100%%); padding: 28px 24px; text-align: center; color: #ffffff;">
                         <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">SmartSalon</h1>
-                        <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">Xác Nhận Đặt Lịch Hẹn Thành Công</p>
+                        <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">%s</p>
                     </div>
                     <div style="padding: 24px;">
                         <p style="margin: 0 0 16px; font-size: 15px; color: #334155;">Xin chào <strong>%s</strong>,</p>
                         <p style="margin: 0 0 20px; font-size: 14px; color: #64748b; line-height: 1.5;">
-                            Cảm ơn bạn đã lựa chọn dịch vụ của SmartSalon. Lịch hẹn của bạn đã được xác nhận với thông tin chi tiết dưới đây:
+                            %s
                         </p>
                         
                         <div style="background-color: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: center;">

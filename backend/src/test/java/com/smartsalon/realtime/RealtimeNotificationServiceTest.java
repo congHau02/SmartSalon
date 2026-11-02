@@ -167,4 +167,36 @@ class RealtimeNotificationServiceTest {
         assertThat(sent.getData()).containsEntry("oldStatus", "CONFIRMED");
         assertThat(sent.getData()).containsEntry("newStatus", "CHECKED_IN");
     }
+
+    @Test
+    @DisplayName("notifyBookingReminderDue broadcasts BOOKING_REMINDER_DUE event to branch topic")
+    void notifyBookingReminderDue_shouldBroadcastReminderDueEvent() {
+        BranchEntity branch = BranchEntity.builder().name("Chi nhánh 1").build();
+        branch.setId(1L);
+        UserEntity stylist = UserEntity.builder().fullName("Trần Thợ Cắt").build();
+        BookingEntity booking = BookingEntity.builder()
+                .branch(branch)
+                .staff(stylist)
+                .bookingCode("BK-20261102-1234")
+                .customerName("Nguyễn Khách Nhắc Hẹn")
+                .customerPhone("0988776655")
+                .bookingTime(LocalDateTime.of(2026, 11, 3, 10, 0))
+                .status(BookingStatus.CONFIRMED)
+                .build();
+        booking.setId(1234L);
+
+        notificationService.notifyBookingReminderDue(booking);
+
+        ArgumentCaptor<RealtimeEventDto> captor = ArgumentCaptor.forClass(RealtimeEventDto.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/branch/1/bookings"), captor.capture());
+
+        RealtimeEventDto sent = captor.getValue();
+        assertThat(sent.getEventType()).isEqualTo("BOOKING_REMINDER_DUE");
+        assertThat(sent.getBranchId()).isEqualTo(1L);
+        assertThat(sent.getReferenceId()).isEqualTo(1234L);
+        assertThat(sent.getCode()).isEqualTo("BK-20261102-1234");
+        assertThat(sent.getTitle()).contains("Khách sắp đến");
+        assertThat(sent.getMessage()).contains("Nhắc hẹn 24h").contains("Nguyễn Khách Nhắc Hẹn");
+        assertThat(sent.getData()).containsEntry("bookingCode", "BK-20261102-1234");
+    }
 }

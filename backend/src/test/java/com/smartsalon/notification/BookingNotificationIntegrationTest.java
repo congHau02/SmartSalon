@@ -122,7 +122,7 @@ class BookingNotificationIntegrationTest {
     @Test
     @DisplayName("Email is sent on PayOS webhook confirmation with Vietnamese HTML details and multiple items")
     void shouldSendConfirmationEmailOnPayOSWebhookConfirmation() throws Exception {
-        LocalDateTime bookingTime = LocalDateTime.now().plusDays(2).withHour(14).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime bookingTime = LocalDateTime.now().plusDays(25).withHour(14).withMinute(0).withSecond(0).withNano(0);
         CreateBookingRequest req = new CreateBookingRequest(
                 branch.getId(),
                 stylist.getId(),
@@ -178,14 +178,14 @@ class BookingNotificationIntegrationTest {
                 .username("cust.credit.notify")
                 .passwordHash("hashed")
                 .fullName("Lê Khách Tín Dụng")
-                .phone("0944556677")
+                .phone("0944556699")
                 .email("cust.credit@smartsalon.vn")
                 .creditBalance(new BigDecimal("500000.00"))
                 .branch(branch)
                 .isActive(true)
                 .build());
 
-        LocalDateTime bookingTime = LocalDateTime.now().plusDays(2).withHour(17).withMinute(30).withSecond(0).withNano(0);
+        LocalDateTime bookingTime = LocalDateTime.now().plusDays(24).withHour(14).withMinute(0).withSecond(0).withNano(0);
         CreateBookingRequest req = new CreateBookingRequest(
                 branch.getId(),
                 stylist.getId(),
@@ -216,7 +216,8 @@ class BookingNotificationIntegrationTest {
     @Test
     @DisplayName("Recipient resolution order: registered user email -> booking.customer_email -> skip")
     void shouldFollowRecipientResolutionOrder() throws Exception {
-        LocalDateTime baseTime = LocalDateTime.now().plusDays(3);
+        recordingSender.clear();
+        LocalDateTime baseTime = LocalDateTime.now().plusDays(26);
 
         // Case A: Registered user email takes precedence over booking.customer_email
         UserEntity registeredUser = userRepository.save(UserEntity.builder()
@@ -316,7 +317,7 @@ class BookingNotificationIntegrationTest {
                 .isActive(true)
                 .build());
 
-        LocalDateTime bookingTime = LocalDateTime.now().plusDays(4).withHour(15).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime bookingTime = LocalDateTime.now().plusDays(27).withHour(15).withMinute(0).withSecond(0).withNano(0);
         CreateBookingRequest req = new CreateBookingRequest(
                 branch.getId(),
                 stylist.getId(),
@@ -343,5 +344,8 @@ class BookingNotificationIntegrationTest {
         var saved = bookingRepository.findByBookingCodeAndIsDeletedFalse(code);
         assertThat(saved).isPresent();
         assertThat(saved.get().getStatus()).isEqualTo(BookingStatus.CONFIRMED);
+
+        Thread.sleep(300);
+        recordingSender.clear();
     }
 }

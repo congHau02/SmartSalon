@@ -3,22 +3,19 @@ package com.smartsalon;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import javax.sql.DataSource;
-
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
 class FlywayMigrationTest {
 
-    @Autowired
-    private DataSource dataSource;
+    private final DataSource dataSource = new DriverManagerDataSource(
+            "jdbc:h2:mem:flywaytestdb;DB_CLOSE_DELAY=-1;MODE=MySQL", "sa", "");
 
     @Test
     @DisplayName("Should validate Flyway migration V1, V2, and V3 scripts against database")
@@ -245,8 +242,8 @@ class FlywayMigrationTest {
                 "SELECT COUNT(*) FROM staff_attendances", Integer.class);
         assertTrue(attendanceCount != null && attendanceCount >= 100, "Expected at least 100 attendance records");
 
-        // 13. Verify V10 Schema: customer_email on bookings
-        assertTrue(result.migrationsExecuted >= 10, "Expected at least 10 migrations (including V10)");
-        jdbcTemplate.execute("SELECT customer_email FROM bookings WHERE 1=0");
+        // 13. Verify V10 & V11 Schema: customer_email and reminder_sent_at on bookings
+        assertTrue(result.migrationsExecuted >= 11, "Expected at least 11 migrations (including V11)");
+        jdbcTemplate.execute("SELECT customer_email, reminder_sent_at FROM bookings WHERE 1=0");
     }
 }
