@@ -3,9 +3,12 @@ package com.smartsalon.booking;
 import com.smartsalon.booking.dto.AvailableSlotsResponse;
 import com.smartsalon.booking.dto.BookingResponse;
 import com.smartsalon.booking.dto.CreateBookingRequest;
+import com.smartsalon.booking.dto.GuestRescheduleRequest;
 import com.smartsalon.booking.dto.StylistDto;
 import com.smartsalon.booking.dto.UpdateBookingStatusRequest;
+import com.smartsalon.booking.entity.BookingEntity;
 import com.smartsalon.booking.entity.BookingStatus;
+import com.smartsalon.booking.service.BookingRescheduleService;
 import com.smartsalon.booking.service.BookingService;
 import com.smartsalon.booking.service.SlotCalculationService;
 import com.smartsalon.common.ApiResponse;
@@ -41,6 +44,8 @@ public class BookingController {
     private final PayOSService payOSService;
     private final BranchScopeGuard branchScopeGuard;
     private final RateLimiter rateLimiter;
+    private final BookingRescheduleService bookingRescheduleService;
+    private final BookingMapper bookingMapper;
 
     @GetMapping("/stylists")
     @Operation(summary = "Lấy danh sách Stylist đang hoạt động theo chi nhánh")
@@ -89,14 +94,34 @@ public class BookingController {
             @RequestParam String phone,
             @RequestParam(required = false) String bookingCode,
             HttpServletRequest httpRequest) {
+        checkRateLimit(httpRequest, "lookup", phone);
+        List<BookingResponse> response = bookingService.lookupBookingsByPhone(phone, bookingCode);
+        return ResponseEntity.ok(ApiResponse.success("Tra cứu lịch hẹn thành công", response));
+    }
+
+    @PostMapping("/reschedule")
+    @Operation(summary = "Khách vãng lai dời lịch hẹn công khai bằng số điện thoại và mã đặt hẹn")
+    public ResponseEntity<ApiResponse<BookingResponse>> rescheduleGuestBooking(
+            @Valid @RequestBody GuestRescheduleRequest request,
+            HttpServletRequest httpRequest) {
+        checkRateLimit(httpRequest, "reschedule", request.phone());
+
+        BookingEntity rescheduled = bookingRescheduleService.rescheduleGuestBooking(
+                request,
+                java.time.LocalDateTime.now()
+        );
+        BookingResponse response = bookingMapper.toResponse(rescheduled);
+        return ResponseEntity.ok(ApiResponse.success("Dời lịch hẹn thành công", response));
+    }
+
+    private void checkRateLimit(HttpServletRequest httpRequest, String endpoint, String phone) {
         String clientIp = httpRequest != null && httpRequest.getRemoteAddr() != null ? httpRequest.getRemoteAddr() : "127.0.0.1";
         String cleanPhone = phone != null ? phone.trim() : "";
-        String rateLimitKey = "rl:lookup:" + clientIp + ":" + cleanPhone;
+        String rateLimitKey = "rl:" + endpoint + ":" + clientIp + ":" + cleanPhone;
+        // shortcut: fixed window allows a 2x burst at window edges, upgrade to sliding window/Bucket4j if abuse is observed
         if (!rateLimiter.tryAcquire(rateLimitKey, 5, Duration.ofMinutes(10))) {
             throw new AppException(ErrorCode.TOO_MANY_REQUESTS);
         }
-        List<BookingResponse> response = bookingService.lookupBookingsByPhone(phone, bookingCode);
-        return ResponseEntity.ok(ApiResponse.success("Tra cứu lịch hẹn thành công", response));
     }
 
     @GetMapping

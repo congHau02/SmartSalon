@@ -50,6 +50,14 @@ describe("Reschedule Error Code Mapping", () => {
     expect(getRescheduleErrorMessage(errCode2013)).toContain("quá nhiều lần");
   });
 
+  it("should map booking not found or mismatch error (2005 / BOOKING_NOT_FOUND)", () => {
+    const err2005 = { response: { data: { code: 2005 } } };
+    expect(getRescheduleErrorMessage(err2005)).toContain("Không tìm thấy thông tin lịch hẹn");
+
+    const errByName = { code: "BOOKING_NOT_FOUND" };
+    expect(getRescheduleErrorMessage(errByName)).toContain("Không tìm thấy thông tin lịch hẹn");
+  });
+
   it("should return fallback message for unmapped errors", () => {
     const emptyErr = {};
     expect(getRescheduleErrorMessage(emptyErr)).toContain("Không thể dời lịch hẹn");

@@ -56,6 +56,17 @@ export const bookingApi = {
     return response?.result ?? response ?? [];
   },
 
+  // Dời lịch hẹn cho khách vãng lai (Guest Reschedule)
+  rescheduleBooking: async ({ phone, bookingCode, newBookingTime, stylistId }) => {
+    const response = await axiosClient.post("/bookings/reschedule", {
+      phone,
+      bookingCode,
+      newBookingTime,
+      stylistId,
+    });
+    return response?.result ?? response;
+  },
+
   // Mô phỏng thanh toán Sandbox một chạm (One-click Testing)
   simulateDepositWebhook: async (bookingCode) => {
     if (!bookingCode) return null;

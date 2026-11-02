@@ -5,6 +5,7 @@ import com.smartsalon.booking.dto.BookingServiceItemDto;
 import com.smartsalon.booking.entity.BookingEntity;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -24,6 +25,10 @@ public class BookingMapper {
                         item.getDurationMinutes()
                 ))
                 .toList();
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean canReschedule = entity.canRescheduleOnline(now);
+        String rescheduleNotice = entity.resolveReschedulePolicyNotice(now);
 
         return new BookingResponse(
                 entity.getId(),
@@ -46,6 +51,9 @@ public class BookingMapper {
                 entity.getStatus(),
                 entity.getSlotLockExpiresAt(),
                 entity.getNotes(),
+                canReschedule,
+                rescheduleNotice,
+                entity.getRescheduleCount(),
                 items,
                 entity.getCreatedAt()
         );

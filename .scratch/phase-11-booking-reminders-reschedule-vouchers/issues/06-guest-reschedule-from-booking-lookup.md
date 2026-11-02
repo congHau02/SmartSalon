@@ -4,9 +4,9 @@
 
 **Blocked by:** 02 (Redis Fixed-Window Rate Limit), 05 (Logged-In Customer Self-Service Reschedule)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] `POST /api/v1/bookings/reschedule` (public) with body `{ phone, bookingCode, newBookingTime, stylistId? }` delegates to the ticket-05 reschedule service; a phone/code mismatch returns the same not-found error as lookup (no information leak about which part was wrong).
-- [ ] Endpoint is rate limited via the ticket-02 component.
-- [ ] Booking lookup page shows "Dời lịch" on eligible bookings and reuses the ticket-05 dialog and error mapping, including `429`.
-- [ ] MockMvc integration tests: guest happy path; wrong phone or code → rejected; 6th attempt → `429`; all ticket-05 rules still enforced through this entry point (at least one rule case).
+- [x] `POST /api/v1/bookings/reschedule` (public) with body `{ phone, bookingCode, newBookingTime, stylistId? }` delegates to the ticket-05 reschedule service; a phone/code mismatch returns the same not-found error as lookup (no information leak about which part was wrong).
+- [x] Endpoint is rate limited via the ticket-02 component.
+- [x] Booking lookup page shows "Dời lịch" on eligible bookings and reuses the ticket-05 dialog and error mapping, including `429`.
+- [x] MockMvc integration tests: guest happy path; wrong phone or code → rejected; 6th attempt → `429`; all ticket-05 rules still enforced through this entry point (at least one rule case).

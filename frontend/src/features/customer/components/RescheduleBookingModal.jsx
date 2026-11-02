@@ -7,7 +7,7 @@ import { StylistSelectorSection } from "../../booking/components/StylistSelector
 import { getRescheduleErrorMessage } from "../rescheduleErrorMessages";
 import { formatCurrency, formatDate } from "../../../lib/utils";
 
-export function RescheduleBookingModal({ booking, isOpen, onClose, onSuccess }) {
+export function RescheduleBookingModal({ booking, isOpen, onClose, onSuccess, onReschedule }) {
   if (!isOpen || !booking) return null;
 
   return (
@@ -16,12 +16,13 @@ export function RescheduleBookingModal({ booking, isOpen, onClose, onSuccess }) 
         booking={booking}
         onClose={onClose}
         onSuccess={onSuccess}
+        onReschedule={onReschedule}
       />
     </div>
   );
 }
 
-function RescheduleBookingModalContent({ booking, onClose, onSuccess }) {
+function RescheduleBookingModalContent({ booking, onClose, onSuccess, onReschedule }) {
   const tomorrow = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -32,8 +33,10 @@ function RescheduleBookingModalContent({ booking, onClose, onSuccess }) {
   const [selectedStylistId, setSelectedStylistId] = useState(booking.stylistId || null);
   const [selectedSlotTime, setSelectedSlotTime] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const rescheduleMutation = useRescheduleCustomerBooking();
+  const isPending = isSubmitting || rescheduleMutation.isPending;
 
   const serviceIds = useMemo(() => {
     return (booking.items || []).map((it) => it.serviceId || it.id).filter(Boolean);
@@ -86,11 +89,18 @@ function RescheduleBookingModalContent({ booking, onClose, onSuccess }) {
     };
 
     try {
-      await rescheduleMutation.mutateAsync({ bookingId: booking.id, payload });
+      setIsSubmitting(true);
+      if (onReschedule) {
+        await onReschedule(payload);
+      } else {
+        await rescheduleMutation.mutateAsync({ bookingId: booking.id, payload });
+      }
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
       setErrorMessage(getRescheduleErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -101,7 +111,7 @@ function RescheduleBookingModalContent({ booking, onClose, onSuccess }) {
       <button
         type="button"
         onClick={onClose}
-        disabled={rescheduleMutation.isPending}
+        disabled={isPending}
         className="absolute top-5 right-5 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
       >
         <X className="w-5 h-5" />
@@ -199,7 +209,7 @@ function RescheduleBookingModalContent({ booking, onClose, onSuccess }) {
         <button
           type="button"
           onClick={onClose}
-          disabled={rescheduleMutation.isPending}
+          disabled={isPending}
           className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
         >
           Giữ nguyên lịch cũ
@@ -207,11 +217,11 @@ function RescheduleBookingModalContent({ booking, onClose, onSuccess }) {
         <button
           type="button"
           onClick={handleConfirmReschedule}
-          disabled={!selectedSlotTime || rescheduleMutation.isPending}
+          disabled={!selectedSlotTime || isPending}
           className="px-5 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
-          {rescheduleMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          <span>{rescheduleMutation.isPending ? "Đang xử lý dời lịch..." : "Xác nhận dời lịch"}</span>
+          {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          <span>{isPending ? "Đang xử lý dời lịch..." : "Xác nhận dời lịch"}</span>
         </button>
       </div>
     </div>

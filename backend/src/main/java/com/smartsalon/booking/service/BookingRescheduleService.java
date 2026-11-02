@@ -1,5 +1,6 @@
 package com.smartsalon.booking.service;
 
+import com.smartsalon.booking.dto.GuestRescheduleRequest;
 import com.smartsalon.booking.entity.BookingEntity;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,19 @@ public interface BookingRescheduleService {
             BookingEntity booking,
             LocalDateTime newBookingTime,
             Long requestedStylistId,
+            LocalDateTime now
+    );
+
+    /**
+     * Authenticates a guest booking by phone and booking code, then reschedules it.
+     * A phone/code mismatch throws ErrorCode.BOOKING_NOT_FOUND with no leak.
+     *
+     * @param request guest reschedule request holding phone, code, new time and optional stylist
+     * @param now current reference time
+     * @return the updated BookingEntity
+     */
+    BookingEntity rescheduleGuestBooking(
+            GuestRescheduleRequest request,
             LocalDateTime now
     );
 }

@@ -46,6 +46,24 @@ public class BookingRescheduleServiceImpl implements BookingRescheduleService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public BookingEntity rescheduleGuestBooking(
+            com.smartsalon.booking.dto.GuestRescheduleRequest request,
+            LocalDateTime now) {
+        if (request == null || request.phone() == null || request.phone().isBlank()
+                || request.bookingCode() == null || request.bookingCode().isBlank()) {
+            throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+        String cleanPhone = request.phone().trim();
+        String cleanCode = request.bookingCode().trim();
+        BookingEntity booking = bookingRepository
+                .findByCustomerPhoneAndBookingCodeAndIsDeletedFalse(cleanPhone, cleanCode)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        return rescheduleBooking(booking, request.newBookingTime(), request.stylistId(), now);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public BookingEntity rescheduleBooking(
             BookingEntity booking,
             LocalDateTime newBookingTime,

@@ -38,6 +38,10 @@ export function getRescheduleErrorMessage(error) {
     case "STYLIST_OFF_SHIFT":
       return "Kỹ thuật viên không có ca làm việc trong khung giờ này. Vui lòng chọn Stylist khác hoặc để hệ thống tự động phân bổ.";
 
+    case 2005:
+    case "BOOKING_NOT_FOUND":
+      return "Không tìm thấy thông tin lịch hẹn hoặc thông tin xác thực không chính xác.";
+
     case 1003:
     case "FORBIDDEN":
       return "Bạn không có quyền dời lịch hẹn này.";
