@@ -41,7 +41,8 @@ public enum ErrorCode {
     STEP_ASSIGNMENT_NOT_FOUND(4004, "Không tìm thấy bước kỹ thuật được phân công", HttpStatus.NOT_FOUND),
     ORDER_ITEM_NOT_FOUND(4005, "Không tìm thấy mục hàng trong đơn", HttpStatus.NOT_FOUND),
     INVALID_MEDIA_TYPE(4006, "Định dạng tệp không hợp lệ, chỉ chấp nhận ảnh JPEG, PNG, WEBP, GIF", HttpStatus.BAD_REQUEST),
-    EMPTY_FILE(4007, "Tệp tải lên không được để trống", HttpStatus.BAD_REQUEST);
+    EMPTY_FILE(4007, "Tệp tải lên không được để trống", HttpStatus.BAD_REQUEST),
+    TOO_MANY_REQUESTS(2013, "Quá nhiều yêu cầu, vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS);
 
     private final int code;
     private final String message;

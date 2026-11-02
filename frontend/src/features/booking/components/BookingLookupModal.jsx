@@ -25,6 +25,18 @@ const STATUS_BADGES = {
   NO_SHOW: { label: "Vắng mặt", bg: "bg-rose-100 text-rose-800 border-rose-200" },
 };
 
+export function getLookupErrorMessage(err) {
+  if (
+    err?.status === 429 ||
+    err?.code === 2013 ||
+    err?.code === "TOO_MANY_REQUESTS" ||
+    err?.response?.status === 429
+  ) {
+    return "Bạn đã thực hiện quá nhiều yêu cầu tra cứu. Vui lòng thử lại sau 10 phút.";
+  }
+  return "Không tìm thấy lịch hẹn phù hợp hoặc hệ thống đang bận.";
+}
+
 export function BookingLookupModal({ isOpen, onClose, onSelectBooking }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -57,7 +69,7 @@ export function BookingLookupModal({ isOpen, onClose, onSelectBooking }) {
         setResults(res || []);
       }
     } catch (err) {
-      setErrorMsg("Không tìm thấy lịch hẹn phù hợp hoặc hệ thống đang bận.");
+      setErrorMsg(getLookupErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

@@ -78,6 +78,21 @@ public class TestAuthConfig {
     }
 
     @Bean
+    @Primary
+    public com.smartsalon.common.service.RateLimiter testRateLimiter() {
+        return new com.smartsalon.common.service.RateLimiter() {
+            private final Map<String, java.util.concurrent.atomic.AtomicLong> counters = new ConcurrentHashMap<>();
+
+            @Override
+            public boolean tryAcquire(String key, long limit, java.time.Duration window) {
+                if (key == null || limit <= 0) return false;
+                long count = counters.computeIfAbsent(key, k -> new java.util.concurrent.atomic.AtomicLong(0)).incrementAndGet();
+                return count <= limit;
+            }
+        };
+    }
+
+    @Bean
     public org.springframework.boot.ApplicationRunner testDataInitializer(
             com.smartsalon.user.repository.UserRepository userRepository,
             com.smartsalon.user.repository.RoleRepository roleRepository,

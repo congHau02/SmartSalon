@@ -48,9 +48,11 @@ export const bookingApi = {
   },
 
   // Tra cứu danh sách lịch hẹn của khách hàng qua số điện thoại
-  lookupBookings: async (phone) => {
+  lookupBookings: async (phone, bookingCode) => {
     if (!phone) return [];
-    const response = await axiosClient.get("/bookings/lookup", { params: { phone } });
+    const params = { phone };
+    if (bookingCode) params.bookingCode = bookingCode;
+    const response = await axiosClient.get("/bookings/lookup", { params });
     return response?.result ?? response ?? [];
   },
 

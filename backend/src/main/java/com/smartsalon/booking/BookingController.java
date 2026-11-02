@@ -9,11 +9,15 @@ import com.smartsalon.booking.entity.BookingStatus;
 import com.smartsalon.booking.service.BookingService;
 import com.smartsalon.booking.service.SlotCalculationService;
 import com.smartsalon.common.ApiResponse;
+import com.smartsalon.common.service.RateLimiter;
+import com.smartsalon.exception.AppException;
+import com.smartsalon.exception.ErrorCode;
 import com.smartsalon.payment.dto.PaymentQrInfo;
 import com.smartsalon.payment.service.PayOSService;
 import com.smartsalon.security.BranchScopeGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -35,6 +40,7 @@ public class BookingController {
     private final BookingService bookingService;
     private final PayOSService payOSService;
     private final BranchScopeGuard branchScopeGuard;
+    private final RateLimiter rateLimiter;
 
     @GetMapping("/stylists")
     @Operation(summary = "Lấy danh sách Stylist đang hoạt động theo chi nhánh")
@@ -81,7 +87,14 @@ public class BookingController {
     @Operation(summary = "Tra cứu danh sách lịch hẹn của khách hàng theo số điện thoại")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> lookupBookings(
             @RequestParam String phone,
-            @RequestParam(required = false) String bookingCode) {
+            @RequestParam(required = false) String bookingCode,
+            HttpServletRequest httpRequest) {
+        String clientIp = httpRequest != null && httpRequest.getRemoteAddr() != null ? httpRequest.getRemoteAddr() : "127.0.0.1";
+        String cleanPhone = phone != null ? phone.trim() : "";
+        String rateLimitKey = "rl:lookup:" + clientIp + ":" + cleanPhone;
+        if (!rateLimiter.tryAcquire(rateLimitKey, 5, Duration.ofMinutes(10))) {
+            throw new AppException(ErrorCode.TOO_MANY_REQUESTS);
+        }
         List<BookingResponse> response = bookingService.lookupBookingsByPhone(phone, bookingCode);
         return ResponseEntity.ok(ApiResponse.success("Tra cứu lịch hẹn thành công", response));
     }
