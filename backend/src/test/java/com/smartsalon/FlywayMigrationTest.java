@@ -252,5 +252,9 @@ class FlywayMigrationTest {
         jdbcTemplate.execute("SELECT voucher_id, branch_id FROM voucher_branches WHERE 1=0");
         jdbcTemplate.execute("SELECT voucher_id, order_id, customer_id, discount_amount, redeemed_at FROM voucher_redemptions WHERE 1=0");
         jdbcTemplate.execute("SELECT voucher_id FROM orders WHERE 1=0");
+
+        // 15. Verify V14 Schema: voucher_code on bookings
+        assertTrue(result.migrationsExecuted >= 14, "Expected at least 14 migrations (including V14)");
+        jdbcTemplate.execute("SELECT voucher_code FROM bookings WHERE 1=0");
     }
 }

@@ -4,7 +4,9 @@ import com.smartsalon.pos.dto.PosOrderResponse;
 import com.smartsalon.voucher.dto.CreateVoucherRequest;
 import com.smartsalon.voucher.dto.ToggleVoucherActiveRequest;
 import com.smartsalon.voucher.dto.UpdateVoucherRequest;
+import com.smartsalon.voucher.dto.ValidateVoucherRequest;
 import com.smartsalon.voucher.dto.VoucherResponse;
+import com.smartsalon.voucher.dto.VoucherValidationResponse;
 
 import java.util.List;
 
@@ -23,4 +25,6 @@ public interface VoucherService {
     PosOrderResponse applyVoucherToOrder(Long orderId, String code);
 
     PosOrderResponse removeVoucherFromOrder(Long orderId);
+
+    VoucherValidationResponse validateVoucher(ValidateVoucherRequest request);
 }

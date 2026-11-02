@@ -29,8 +29,23 @@ public record CreateBookingRequest(
         @Email(message = "Email không đúng định dạng")
         String customerEmail,
 
-        String notes
+        String notes,
+
+        String voucherCode
 ) {
+    public CreateBookingRequest(
+            Long branchId,
+            Long stylistId,
+            List<Long> serviceIds,
+            LocalDateTime bookingTime,
+            String customerName,
+            String customerPhone,
+            String customerEmail,
+            String notes
+    ) {
+        this(branchId, stylistId, serviceIds, bookingTime, customerName, customerPhone, customerEmail, notes, null);
+    }
+
     public CreateBookingRequest(
             Long branchId,
             Long stylistId,
@@ -40,6 +55,6 @@ public record CreateBookingRequest(
             String customerPhone,
             String notes
     ) {
-        this(branchId, stylistId, serviceIds, bookingTime, customerName, customerPhone, null, notes);
+        this(branchId, stylistId, serviceIds, bookingTime, customerName, customerPhone, null, notes, null);
     }
 }

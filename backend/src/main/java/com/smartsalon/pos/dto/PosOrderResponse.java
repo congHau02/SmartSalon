@@ -30,6 +30,7 @@ public class PosOrderResponse {
     private Boolean isDiscountManual;
     private Long voucherId;
     private String voucherCode;
+    private String voucherNotice;
     private String discountSource;
     private BigDecimal voucherDiscountAmount;
     private BigDecimal tierDiscountAmount;

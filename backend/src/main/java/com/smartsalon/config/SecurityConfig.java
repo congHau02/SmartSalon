@@ -64,7 +64,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/code/**", "/api/v1/bookings/BK-*").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/*/payment-info").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/bookings/lookup").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/bookings", "/api/v1/bookings/reschedule").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/bookings", "/api/v1/bookings/reschedule", "/api/v1/vouchers/validate").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

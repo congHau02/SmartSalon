@@ -4,7 +4,10 @@ import com.smartsalon.pos.dto.PosOrderResponse;
 import com.smartsalon.voucher.dto.CreateVoucherRequest;
 import com.smartsalon.voucher.dto.ToggleVoucherActiveRequest;
 import com.smartsalon.voucher.dto.UpdateVoucherRequest;
+import com.smartsalon.voucher.dto.ValidateVoucherRequest;
 import com.smartsalon.voucher.dto.VoucherResponse;
+import com.smartsalon.voucher.dto.VoucherValidationResponse;
+import com.smartsalon.voucher.helper.BookingVoucherHelper;
 import com.smartsalon.voucher.service.VoucherService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,6 +20,7 @@ public class VoucherServiceImpl implements VoucherService {
 
     private final VoucherAdminService adminService;
     private final VoucherPosService posService;
+    private final BookingVoucherHelper bookingVoucherHelper;
 
     @Override
     public VoucherResponse createVoucher(CreateVoucherRequest request) {
@@ -51,5 +55,10 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     public PosOrderResponse removeVoucherFromOrder(Long orderId) {
         return posService.removeVoucherFromOrder(orderId);
+    }
+
+    @Override
+    public VoucherValidationResponse validateVoucher(ValidateVoucherRequest request) {
+        return bookingVoucherHelper.validateVoucher(request);
     }
 }

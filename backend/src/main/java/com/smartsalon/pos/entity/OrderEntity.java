@@ -59,6 +59,9 @@ public class OrderEntity extends BaseEntity {
     @JoinColumn(name = "voucher_id")
     private com.smartsalon.voucher.entity.VoucherEntity voucher;
 
+    @Transient
+    private String voucherNotice;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     @Builder.Default
@@ -96,6 +99,9 @@ public class OrderEntity extends BaseEntity {
     public void removeItem(OrderItemEntity item) {
         items.remove(item);
         item.setOrder(null);
+        if (items.isEmpty()) {
+            this.subtotal = BigDecimal.ZERO;
+        }
     }
 
     public void recalculateTotals() {

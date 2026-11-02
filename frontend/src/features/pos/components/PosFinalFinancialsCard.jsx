@@ -89,6 +89,11 @@ export function PosFinalFinancialsCard({
                 {voucherErrorMessage}
               </p>
             )}
+            {order?.voucherNotice && (
+              <p className="mt-1 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5">
+                {order.voucherNotice}
+              </p>
+            )}
           </div>
         )}
 

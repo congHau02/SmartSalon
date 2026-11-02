@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import { useLoyaltyPreview } from "../../customer/useCustomer";
 import { guestBookingSchema } from "../booking.schema";
+import { voucherApi } from "../../../api/voucherApi";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { BookingBreakdownReviewCard } from "./BookingBreakdownReviewCard";
 
@@ -66,12 +67,49 @@ export function CustomerConfirmStep({
   const effectiveTier = user?.membershipTier || loyaltyData?.membershipTier || "STANDARD";
   const effectiveDiscountPercent = user?.discountPercent ?? loyaltyData?.discountPercent ?? 0;
 
+  const [voucherInput, setVoucherInput] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [voucherError, setVoucherError] = useState(null);
+  const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
+
+  const handleApplyVoucher = async (codeToApply) => {
+    const cleanCode = (codeToApply || voucherInput || "").trim().toUpperCase();
+    if (!cleanCode) {
+      setVoucherError("Vui lòng nhập mã giảm giá");
+      return;
+    }
+    setVoucherError(null);
+    setIsValidatingVoucher(true);
+    try {
+      const res = await voucherApi.validateVoucher({
+        code: cleanCode,
+        branchId: branch?.id,
+        subtotal: totalPrice,
+        phone: lookupPhone,
+      });
+      setAppliedVoucher(res);
+      setVoucherInput(cleanCode);
+    } catch (err) {
+      setAppliedVoucher(null);
+      setVoucherError(err?.response?.data?.message || err?.message || "Mã giảm giá không hợp lệ");
+    } finally {
+      setIsValidatingVoucher(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherInput("");
+    setVoucherError(null);
+  };
+
   const onGuestSubmit = (data) => {
     onSubmitBooking({
       customerName: data.customerName,
       customerPhone: data.customerPhone,
       customerEmail: data.customerEmail ? data.customerEmail.trim() : undefined,
       notes: data.notes || undefined,
+      voucherCode: appliedVoucher?.code || undefined,
     });
   };
 
@@ -83,6 +121,7 @@ export function CustomerConfirmStep({
         customerPhone: user.phone || "0900000000",
         customerEmail: user.email || getValues("customerEmail") || undefined,
         notes: getValues("notes") || undefined,
+        voucherCode: appliedVoucher?.code || undefined,
       });
       return;
     }
@@ -118,6 +157,15 @@ export function CustomerConfirmStep({
               membershipTier: effectiveTier,
               discountPercent: effectiveDiscountPercent,
               creditBalance: Number(user?.creditBalance ?? loyaltyData?.creditBalance ?? 0),
+            }}
+            voucherState={{
+              voucherInput,
+              setVoucherInput,
+              appliedVoucher,
+              voucherError,
+              isValidatingVoucher,
+              onApplyVoucher: handleApplyVoucher,
+              onRemoveVoucher: handleRemoveVoucher,
             }}
             isSubmitting={isSubmitting}
           />

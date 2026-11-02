@@ -20,4 +20,18 @@ export const guestBookingSchema = z.object({
     .optional()
     .or(z.literal("")),
   notes: z.string().max(500, "Ghi chú không vượt quá 500 ký tự").optional(),
+  voucherCode: z
+    .string()
+    .trim()
+    .max(50, "Mã giảm giá không quá 50 ký tự")
+    .optional()
+    .or(z.literal("")),
+});
+
+export const voucherValidateSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1, "Mã giảm giá không được để trống")
+    .max(50, "Mã giảm giá không quá 50 ký tự"),
 });

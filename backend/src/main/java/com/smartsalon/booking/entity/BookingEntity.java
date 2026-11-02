@@ -88,6 +88,9 @@ public class BookingEntity extends BaseEntity {
     @Builder.Default
     private int rescheduleCount = 0;
 
+    @Column(name = "voucher_code", length = 50)
+    private String voucherCode;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

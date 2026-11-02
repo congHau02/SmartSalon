@@ -25,4 +25,14 @@ export const voucherApi = {
     const response = await axiosClient.patch(`/admin/vouchers/${id}/active`, { active });
     return response?.result || response?.data || response;
   },
+
+  validateVoucher: async ({ code, branchId, subtotal, phone }) => {
+    const response = await axiosClient.post("/vouchers/validate", {
+      code,
+      branchId,
+      subtotal,
+      phone: phone || undefined,
+    });
+    return response?.result || response?.data || response;
+  },
 };

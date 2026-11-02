@@ -69,6 +69,7 @@ public class PosOrderMapper {
                 .isDiscountManual(order.isDiscountManual())
                 .voucherId(order.getVoucher() != null ? order.getVoucher().getId() : null)
                 .voucherCode(order.getVoucher() != null ? order.getVoucher().getCode() : null)
+                .voucherNotice(order.getVoucherNotice())
                 .discountSource(discountSource)
                 .voucherDiscountAmount(voucherDiscountAmount)
                 .tierDiscountAmount(tierDiscountAmount)

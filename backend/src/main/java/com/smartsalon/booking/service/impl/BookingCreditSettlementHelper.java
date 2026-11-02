@@ -14,6 +14,7 @@ import com.smartsalon.security.BranchScopeGuard;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.repository.UserRepository;
 import com.smartsalon.user.service.CustomerIdentityService;
+import com.smartsalon.voucher.helper.BookingVoucherHelper;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class BookingCreditSettlementHelper implements org.springframework.context.ApplicationEventPublisherAware {
 
     private final CustomerIdentityService customerIdentityService;
@@ -33,6 +33,36 @@ public class BookingCreditSettlementHelper implements org.springframework.contex
     private final RealtimeNotificationService realtimeNotificationService;
     private final BranchScopeGuard branchScopeGuard;
     private final EntityManager entityManager;
+    private final BookingVoucherHelper bookingVoucherHelper;
+
+    public BookingCreditSettlementHelper(
+            CustomerIdentityService customerIdentityService,
+            UserRepository userRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            RealtimeNotificationService realtimeNotificationService,
+            BranchScopeGuard branchScopeGuard,
+            EntityManager entityManager) {
+        this(customerIdentityService, userRepository, paymentTransactionRepository,
+                realtimeNotificationService, branchScopeGuard, entityManager, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BookingCreditSettlementHelper(
+            CustomerIdentityService customerIdentityService,
+            UserRepository userRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            RealtimeNotificationService realtimeNotificationService,
+            BranchScopeGuard branchScopeGuard,
+            EntityManager entityManager,
+            BookingVoucherHelper bookingVoucherHelper) {
+        this.customerIdentityService = customerIdentityService;
+        this.userRepository = userRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.realtimeNotificationService = realtimeNotificationService;
+        this.branchScopeGuard = branchScopeGuard;
+        this.entityManager = entityManager;
+        this.bookingVoucherHelper = bookingVoucherHelper;
+    }
 
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -143,6 +173,23 @@ public class BookingCreditSettlementHelper implements org.springframework.contex
         }
     }
 
+    public String validateAndNormalizeVoucher(
+            String voucherCode,
+            BranchEntity branch,
+            BigDecimal totalPrice,
+            String phone,
+            String name) {
+
+        if (voucherCode == null || voucherCode.isBlank()) {
+            return null;
+        }
+        if (bookingVoucherHelper == null) {
+            return voucherCode.trim().toUpperCase();
+        }
+        UserEntity customer = customerIdentityService.resolveForBooking(phone, name, branch);
+        return bookingVoucherHelper.validateAndNormalizeBookingVoucher(voucherCode, branch, totalPrice, customer);
+    }
+
     public BookingEntity buildDraftBooking(
             CreateBookingRequest request,
             BranchEntity branch,
@@ -156,6 +203,26 @@ public class BookingCreditSettlementHelper implements org.springframework.contex
             BigDecimal totalPrice,
             BigDecimal depositAmount,
             List<ServiceEntity> services) {
+        return buildDraftBooking(
+                request, branch, creditResolution, assignedStylist, bookingCode,
+                startTime, endTime, now, totalDurationMinutes, totalPrice, depositAmount,
+                services, request.voucherCode());
+    }
+
+    public BookingEntity buildDraftBooking(
+            CreateBookingRequest request,
+            BranchEntity branch,
+            CreditResolution creditResolution,
+            UserEntity assignedStylist,
+            String bookingCode,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            LocalDateTime now,
+            int totalDurationMinutes,
+            BigDecimal totalPrice,
+            BigDecimal depositAmount,
+            List<ServiceEntity> services,
+            String voucherCode) {
 
         boolean covered = creditResolution.coveredByCredit();
         BookingEntity booking = BookingEntity.builder()
@@ -175,6 +242,7 @@ public class BookingCreditSettlementHelper implements org.springframework.contex
                 .customerName(request.customerName().trim())
                 .customerPhone(request.customerPhone().trim())
                 .customerEmail(request.customerEmail() != null && !request.customerEmail().isBlank() ? request.customerEmail().trim() : null)
+                .voucherCode(voucherCode)
                 .notes(request.notes())
                 .items(new ArrayList<>())
                 .build();

@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
-import { MapPin, Lock, Loader2 } from "lucide-react";
+import { MapPin, Lock, Loader2, Tag, Check, X } from "lucide-react";
 import { formatCurrency } from "../../../lib/utils";
 import { MembershipTierBadge } from "../../../components/common/MembershipTierBadge";
 
 export function BookingBreakdownReviewCard({
   bookingSummary,
+  voucherState = {},
   isSubmitting,
   // Graceful fallbacks for legacy prop shape
   branch = bookingSummary?.branch,
@@ -19,11 +20,28 @@ export function BookingBreakdownReviewCard({
   discountPercent = bookingSummary?.discountPercent || 0,
   creditBalance = bookingSummary?.creditBalance || 0,
 }) {
-  const discountAmount = useMemo(
+  const {
+    voucherInput = "",
+    setVoucherInput,
+    appliedVoucher = null,
+    voucherError = null,
+    isValidatingVoucher = false,
+    onApplyVoucher,
+    onRemoveVoucher,
+  } = voucherState;
+
+  const tierDiscountAmount = useMemo(
     () => Math.round((Number(totalPrice || 0) * (discountPercent || 0)) / 100),
     [totalPrice, discountPercent]
   );
-  const finalEstimatedPrice = Math.max(0, Number(totalPrice || 0) - discountAmount);
+
+  const voucherDiscountAmount = useMemo(
+    () => Number(appliedVoucher?.discountAmount || 0),
+    [appliedVoucher]
+  );
+
+  const effectiveEstimatedDiscount = Math.max(tierDiscountAmount, voucherDiscountAmount);
+  const finalEstimatedPrice = Math.max(0, Number(totalPrice || 0) - effectiveEstimatedDiscount);
   const remainingAtSalon = Math.max(0, finalEstimatedPrice - Number(depositAmount || 0));
 
   return (
@@ -98,10 +116,75 @@ export function BookingBreakdownReviewCard({
                 <span>(-{discountPercent}%):</span>
               </span>
               <span className="font-bold">
-                -{formatCurrency(discountAmount)}
+                -{formatCurrency(tierDiscountAmount)}
               </span>
             </div>
           )}
+
+          {/* Voucher Input & Applied Display */}
+          <div className="pt-2 pb-1 border-t border-slate-100 space-y-2">
+            <div className="flex items-center gap-2">
+              <Tag className="w-3.5 h-3.5 text-pink-600 shrink-0" />
+              {appliedVoucher ? (
+                <div className="flex-1 flex items-center justify-between bg-pink-50 border border-pink-200 rounded-lg px-2.5 py-1 text-xs text-pink-800">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <span className="text-[11px] text-pink-600">Voucher:</span>
+                    <span className="font-mono font-bold text-pink-900 tracking-wider">{appliedVoucher.code}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onRemoveVoucher}
+                    className="flex items-center gap-0.5 text-[11px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Gỡ</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex-1 flex gap-1.5">
+                  <input
+                    type="text"
+                    value={voucherInput}
+                    onChange={(e) => setVoucherInput && setVoucherInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (onApplyVoucher) onApplyVoucher(voucherInput);
+                      }
+                    }}
+                    placeholder="MÃ GIẢM GIÁ (VD: TET2026)"
+                    className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1 font-mono uppercase text-slate-800 text-xs placeholder:text-slate-400 focus:outline-none focus:border-pink-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onApplyVoucher && onApplyVoucher(voucherInput)}
+                    disabled={isValidatingVoucher || !voucherInput?.trim()}
+                    className="px-3 py-1 rounded-lg bg-pink-600 hover:bg-pink-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isValidatingVoucher ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    <span>Áp dụng</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {voucherError && (
+              <p className="text-[11px] text-rose-600 font-medium pl-5">
+                {voucherError}
+              </p>
+            )}
+
+            {appliedVoucher && (
+              <div className="pl-5 space-y-0.5">
+                <p className="text-[11px] text-pink-700 font-semibold">
+                  Ước tính giảm {formatCurrency(voucherDiscountAmount)} tại salon
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  * Tiền cọc giữ chỗ 20% và mã QR thanh toán không thay đổi.
+                </p>
+              </div>
+            )}
+          </div>
 
           {creditBalance > 0 && (
             <div className="flex items-center justify-between text-emerald-800 bg-emerald-50/80 px-2.5 py-1.5 rounded-lg border border-emerald-200">
@@ -111,7 +194,10 @@ export function BookingBreakdownReviewCard({
           )}
 
           <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-200">
-            <span className="font-bold text-pink-900 text-sm">Tiền cọc giữ chỗ (20%):</span>
+            <div>
+              <span className="font-bold text-pink-900 text-sm block">Tiền cọc giữ chỗ (20%):</span>
+              <span className="text-[10px] text-slate-400 block">Không giảm trừ bởi voucher</span>
+            </div>
             <span className="font-extrabold text-pink-700 text-lg">
               {formatCurrency(depositAmount)}
             </span>

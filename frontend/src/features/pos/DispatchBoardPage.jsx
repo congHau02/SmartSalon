@@ -51,7 +51,8 @@ export function DispatchBoardPage() {
     branchId: selectedBranchId,
     date: selectedDate,
     onSuccess: (data) => {
-      showToast(`Check-in thành công! Đơn hàng ${data.orderCode} đã được khởi tạo.`);
+      const notice = data?.voucherNotice ? ` Lưu ý: ${data.voucherNotice}` : "";
+      showToast(`Check-in thành công! Đơn hàng ${data.orderCode} đã được khởi tạo.${notice}`, data?.voucherNotice ? "warning" : "info");
       setSelectedOrder(data);
     },
     onError: (err) => {

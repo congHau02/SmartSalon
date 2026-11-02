@@ -125,7 +125,7 @@ export function BookingWizardPage() {
   // Create booking mutation
   const createBookingMutation = useCreateBooking();
 
-  const handleConfirmBooking = async ({ customerName, customerPhone, customerEmail, notes }) => {
+  const handleConfirmBooking = async ({ customerName, customerPhone, customerEmail, notes, voucherCode }) => {
     setErrorMessage(null);
 
     if (!selectedBranchId || !selectedSlotTime || selectedServices.length === 0) {
@@ -142,6 +142,7 @@ export function BookingWizardPage() {
       customerPhone,
       customerEmail: customerEmail || undefined,
       notes,
+      voucherCode: voucherCode || undefined,
     };
 
     try {

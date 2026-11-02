@@ -20,6 +20,7 @@ import com.smartsalon.pos.entity.OrderItemType;
 import com.smartsalon.pos.entity.OrderStatus;
 import com.smartsalon.user.entity.UserEntity;
 import com.smartsalon.user.service.CustomerIdentityService;
+import com.smartsalon.voucher.helper.BookingVoucherHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +37,7 @@ public class PosOrderCreationHelper {
     private final ServiceRepository serviceRepository;
     private final ProductRepository productRepository;
     private final PosStaffResolutionHelper staffResolutionHelper;
+    private final BookingVoucherHelper bookingVoucherHelper;
 
     public UserEntity resolveCurrentUser() {
         return staffResolutionHelper.resolveCurrentUser();
@@ -108,6 +110,9 @@ public class PosOrderCreationHelper {
 
         order.recalculateTotals();
         order.applyMembershipTierDiscountIfAutomatic();
+        if (bookingVoucherHelper != null) {
+            bookingVoucherHelper.preApplyBookingVoucherToOrder(order, booking.getVoucherCode());
+        }
         return order;
     }
 

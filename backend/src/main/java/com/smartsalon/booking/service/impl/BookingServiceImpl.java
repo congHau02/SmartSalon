@@ -68,6 +68,9 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal depositAmount = BookingEntity.calculateDepositAmount(totalPrice);
         String bookingCode = generateUniqueBookingCode(startTime);
 
+        String validatedVoucherCode = creditSettlementHelper.validateAndNormalizeVoucher(
+                request.voucherCode(), branch, totalPrice, request.customerPhone(), request.customerName());
+
         UserEntity assignedStylist = stylistSlotAssignmentService.assignAndLockStylist(
                 branch, request.stylistId(), startTime, endTime, now, bookingCode);
 
@@ -76,7 +79,7 @@ public class BookingServiceImpl implements BookingService {
 
         BookingEntity booking = creditSettlementHelper.buildDraftBooking(
                 request, branch, creditResolution, assignedStylist, bookingCode,
-                startTime, endTime, now, totalDurationMinutes, totalPrice, depositAmount, services);
+                startTime, endTime, now, totalDurationMinutes, totalPrice, depositAmount, services, validatedVoucherCode);
 
         return persistBookingAndReleaseIfConfirmed(booking, assignedStylist, startTime, endTime, creditResolution, depositAmount);
     }
