@@ -183,3 +183,11 @@ _Avoid_: Reminder email, 24h ping, alert notification
 **Reschedule**:
 The self-service operation allowing a customer to move an upcoming confirmed Booking to a new time slot at the same branch with the same services at least 2 hours prior to the original appointment time. Enforces a maximum of one reschedule per booking, preserving the paid Deposit, acquiring new multi-bucket Slot Locks before releasing old ones, and resetting the reminder timestamp.
 _Avoid_: Rebook, postpone, booking edit, time change
+
+**Voucher**:
+A promotional marketing code offering either a fixed monetary discount (`FIXED`) or a percentage reduction (`PERCENT`, optionally capped by a maximum discount limit) on eligible salon Orders. Constrained by active validity dates, minimum order subtotals, global usage limits, per-customer redemption limits, and optional branch restrictions. Evaluated non-stackably against customer Membership Tier discounts (`max(tier, voucher)`).
+_Avoid_: Coupon, promo code, discount ticket, gift card
+
+**Voucher Redemption**:
+The immutable transaction record created when a Voucher is consumed upon an Order's transition to `PAID` inside the unified POS settlement transaction. Enforces pessimistic row-level locking on the voucher, increments its used count, and guarantees exactly one redemption per order via a database unique constraint.
+_Avoid_: Voucher claim, voucher check-in, coupon usage

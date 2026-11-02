@@ -19,6 +19,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PosSettlementService settlementService;
     private final PosDispatchQueryService dispatchQueryService;
     private final PosVisualLogService visualLogService;
+    private final com.smartsalon.voucher.service.impl.VoucherPosService voucherPosService;
 
     @Override
     @Transactional
@@ -132,5 +133,17 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Transactional(readOnly = true)
     public StylistDailyWorklogResponse getStylistDailyWorklog(Long branchId, Long stylistId, LocalDate date) {
         return dispatchQueryService.getStylistDailyWorklog(branchId, stylistId, date);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse applyVoucher(Long orderId, String code) {
+        return voucherPosService.applyVoucherToOrder(orderId, code);
+    }
+
+    @Override
+    @Transactional
+    public PosOrderResponse removeVoucher(Long orderId) {
+        return voucherPosService.removeVoucherFromOrder(orderId);
     }
 }

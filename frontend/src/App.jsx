@@ -22,6 +22,7 @@ import { CustomerProfilePage } from "./features/customer/CustomerProfilePage";
 import { RealtimeProvider, RealtimeToastContainer } from "./features/realtime";
 import { DispatchBoardPage } from "./features/pos/DispatchBoardPage";
 import { ShiftRosterPage } from "./features/shifts/ShiftRosterPage";
+import { VouchersPage } from "./features/voucher/VouchersPage";
 
 export default function App() {
   return (
@@ -59,6 +60,7 @@ export default function App() {
                   <Route path="products" element={<ProductsPage />} />
                   <Route path="inventory" element={<BranchInventoryPage />} />
                   <Route path="inventory/transactions" element={<InventoryTransactionsPage />} />
+                  <Route path="vouchers" element={<VouchersPage />} />
                 </Route>
               </Route>
 

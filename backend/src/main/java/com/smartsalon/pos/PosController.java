@@ -90,6 +90,23 @@ public class PosController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật đơn hàng thành công", response));
     }
 
+    @PostMapping("/orders/{orderId}/voucher")
+    @Operation(summary = "Áp dụng mã voucher giảm giá cho đơn hàng chưa thanh toán")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> applyVoucher(
+            @PathVariable Long orderId,
+            @Valid @RequestBody com.smartsalon.voucher.dto.ApplyVoucherRequest request) {
+        PosOrderResponse response = posOrderService.applyVoucher(orderId, request.getCode());
+        return ResponseEntity.ok(ApiResponse.success("Áp dụng mã giảm giá thành công", response));
+    }
+
+    @DeleteMapping("/orders/{orderId}/voucher")
+    @Operation(summary = "Gỡ bỏ mã voucher khỏi đơn hàng chưa thanh toán")
+    public ResponseEntity<ApiResponse<PosOrderResponse>> removeVoucher(
+            @PathVariable Long orderId) {
+        PosOrderResponse response = posOrderService.removeVoucher(orderId);
+        return ResponseEntity.ok(ApiResponse.success("Gỡ bỏ mã giảm giá thành công", response));
+    }
+
     @DeleteMapping("/orders/{orderId}/items/{itemId}")
     @Operation(summary = "Xóa dịch vụ hoặc sản phẩm khỏi đơn hàng POS")
     public ResponseEntity<ApiResponse<PosOrderResponse>> removeOrderItem(

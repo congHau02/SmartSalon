@@ -40,9 +40,19 @@ Prior to Phase 11, four customer-facing revenue and security gaps existed:
    - Paid deposit, total price, service items, and branch carry over 100% without requiring payment gateway interactions.
 
 4. **Non-Stacking Vouchers Settled at POS Payment**:
-   - Support fixed-amount and percentage discounts.
-   - For an order, calculate $\text{discount} = \max(\text{tierDiscount}, \text{voucherDiscount})$; discounts never stack.
-   - Pessimistically lock and redeem vouchers inside the unified payment transaction upon transition to `PAID`.
+   - Support fixed-amount (`FIXED`) and percentage (`PERCENT`) discount types with optional max discount caps (`max_discount`), minimum order subtotals (`min_order_amount`), date validity windows (`starts_at`, `ends_at`), total usage limits (`usage_limit`), per-customer limits (`per_customer_limit`), and optional branch restrictions via `voucher_branches`.
+   - **Non-stacking rule**: For an order, calculate $\text{autoDiscount} = \max(\text{tierDiscount}, \text{voucherDiscount})$; discounts never stack.
+     - `orders.voucher_id` is linked to the order if and only if the voucher discount is greater than or equal to the membership tier discount.
+     - If the membership tier discount is strictly higher, the order applies the tier discount and `orders.voucher_id` remains `null`.
+     - A manual discount override entered by the cashier takes precedence over all automatic discounts, clears `orders.voucher_id`, and sets `discount_source = 'MANUAL'`.
+   - **Commission ledger independence**: Stylist commission pools and amounts are strictly calculated against catalog prices (`item.price`), ensuring promotional discounts are funded by the salon and never penalize stylist earnings.
+   - **Settlement & Concurrency Safety**:
+     - Applying a voucher to a draft unpaid order only previews the non-stacking calculation and does not consume quota or increment `used_count`.
+     - Final voucher redemption occurs strictly upon transition to `PAID` within `PosSettlementService.executeUnifiedSettlement`.
+     - The voucher row is locked with pessimistic write locking (`findByIdForUpdate`). Validity, dates, active status, total quota, and per-customer limits are re-verified under the lock.
+     - A unique record is inserted into `voucher_redemptions` (`order_id` has a database `UNIQUE` constraint preventing duplicate redemption).
+     - `vouchers.used_count` is incremented by 1.
+     - Concurrent checkouts competing for the last available usage result in exactly one successful redemption; losing transactions receive error code `5009` (`VOUCHER_NO_LONGER_VALID`).
 
 ## Consequences
 

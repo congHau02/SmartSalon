@@ -43,4 +43,8 @@ public interface PosOrderService {
     PosOrderResponse quickCompleteBooking(Long bookingId, QuickCompleteBookingRequest request);
 
     StylistDailyWorklogResponse getStylistDailyWorklog(Long branchId, Long stylistId, LocalDate date);
+
+    PosOrderResponse applyVoucher(Long orderId, String code);
+
+    PosOrderResponse removeVoucher(Long orderId);
 }

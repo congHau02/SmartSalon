@@ -35,6 +35,25 @@ public class PosOrderMapper {
             }
         }
 
+        BigDecimal tierDiscountAmount = BigDecimal.ZERO;
+        if (order.getCustomer() != null && !"walkin.guest".equalsIgnoreCase(order.getCustomer().getUsername())) {
+            tierDiscountAmount = customerTier.calculateDiscount(order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO);
+        }
+
+        BigDecimal voucherDiscountAmount = BigDecimal.ZERO;
+        if (order.getVoucher() != null) {
+            voucherDiscountAmount = order.getVoucher().calculateDiscount(order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO);
+        }
+
+        String discountSource = "NONE";
+        if (order.isDiscountManual()) {
+            discountSource = "MANUAL";
+        } else if (order.getVoucher() != null) {
+            discountSource = "VOUCHER";
+        } else if (tierDiscountAmount.compareTo(BigDecimal.ZERO) > 0) {
+            discountSource = "TIER";
+        }
+
         return PosOrderResponse.builder()
                 .id(order.getId())
                 .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
@@ -48,6 +67,11 @@ public class PosOrderMapper {
                 .subtotal(order.getSubtotal())
                 .discountAmount(order.getDiscountAmount())
                 .isDiscountManual(order.isDiscountManual())
+                .voucherId(order.getVoucher() != null ? order.getVoucher().getId() : null)
+                .voucherCode(order.getVoucher() != null ? order.getVoucher().getCode() : null)
+                .discountSource(discountSource)
+                .voucherDiscountAmount(voucherDiscountAmount)
+                .tierDiscountAmount(tierDiscountAmount)
                 .customerMembershipTier(customerTier.name())
                 .customerDiscountPercent(customerTier.getDiscountPercent())
                 .customerCreditBalance(customerCreditBalance)

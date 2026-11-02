@@ -245,5 +245,12 @@ class FlywayMigrationTest {
         // 13. Verify V10, V11 & V12 Schema: customer_email, reminder_sent_at, reschedule_count on bookings
         assertTrue(result.migrationsExecuted >= 12, "Expected at least 12 migrations (including V12)");
         jdbcTemplate.execute("SELECT customer_email, reminder_sent_at, reschedule_count FROM bookings WHERE 1=0");
+
+        // 14. Verify V13 Schema: vouchers, voucher_branches, voucher_redemptions, orders.voucher_id
+        assertTrue(result.migrationsExecuted >= 13, "Expected at least 13 migrations (including V13)");
+        jdbcTemplate.execute("SELECT code, `type`, `value`, max_discount, min_order_amount, starts_at, ends_at, usage_limit, per_customer_limit, used_count, active FROM vouchers WHERE 1=0");
+        jdbcTemplate.execute("SELECT voucher_id, branch_id FROM voucher_branches WHERE 1=0");
+        jdbcTemplate.execute("SELECT voucher_id, order_id, customer_id, discount_amount, redeemed_at FROM voucher_redemptions WHERE 1=0");
+        jdbcTemplate.execute("SELECT voucher_id FROM orders WHERE 1=0");
     }
 }

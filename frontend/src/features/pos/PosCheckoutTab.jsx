@@ -24,6 +24,13 @@ export function PosCheckoutTab({
     setPaymentMethod,
     discountInput,
     setDiscountInput,
+    voucherInput,
+    setVoucherInput,
+    voucherErrorMessage,
+    handleApplyVoucher,
+    handleRemoveVoucher,
+    isApplyingVoucher,
+    isRemovingVoucher,
     subtotal,
     depositDeducted,
     effectiveLiveFinal,
@@ -77,6 +84,13 @@ export function PosCheckoutTab({
         setDiscountInput={setDiscountInput}
         depositDeducted={depositDeducted}
         effectiveLiveFinal={effectiveLiveFinal}
+        voucherInput={voucherInput}
+        setVoucherInput={setVoucherInput}
+        voucherErrorMessage={voucherErrorMessage}
+        onApplyVoucher={handleApplyVoucher}
+        onRemoveVoucher={handleRemoveVoucher}
+        isApplyingVoucher={isApplyingVoucher}
+        isRemovingVoucher={isRemovingVoucher}
       />
 
       <PosCheckoutPreviews

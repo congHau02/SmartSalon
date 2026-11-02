@@ -32,6 +32,7 @@ public class PosSettlementService {
     private final PosInventoryAndCommissionSettler inventoryAndCommissionSettler;
     private final PosCustomerAndPaymentSettler customerAndPaymentSettler;
     private final PosOrderMapper orderMapper;
+    private final com.smartsalon.voucher.service.impl.VoucherSettlementService voucherSettlementService;
 
     @Transactional
     public PosOrderResponse checkoutOrder(Long orderId, CheckoutRequest request) {
@@ -54,7 +55,12 @@ public class PosSettlementService {
             if (request.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR);
             }
-            order.applyManualDiscount(request.getDiscountAmount());
+            BigDecimal currentDiscount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
+            boolean isManualOverride = order.isDiscountManual()
+                    || request.getDiscountAmount().compareTo(currentDiscount) != 0;
+            if (isManualOverride) {
+                order.applyManualDiscount(request.getDiscountAmount());
+            }
         }
         if (request != null && request.getNotes() != null) {
             order.setNotes(request.getNotes());
@@ -130,6 +136,7 @@ public class PosSettlementService {
         UserEntity lockedCustomer = customerAndPaymentSettler.lockCustomerAndApplyRetainedCredit(order);
         inventoryAndCommissionSettler.deductInventoryAndRecordCommissions(order);
         customerAndPaymentSettler.recordPaymentTransaction(order, paymentMethod);
+        voucherSettlementService.redeemVoucherForOrder(order);
 
         order.setPaymentMethod(paymentMethod);
         order.setSettledBy(settlingUser);

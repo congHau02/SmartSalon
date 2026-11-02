@@ -10,6 +10,7 @@ import {
   Users,
   AlertTriangle,
   DownloadCloud,
+  Tag,
 } from "lucide-react";
 
 export const ADMIN_NAV_GROUPS = [
@@ -39,6 +40,11 @@ export const ADMIN_NAV_GROUPS = [
         to: "/admin?tab=export",
         tab: "export",
         icon: DownloadCloud,
+      },
+      {
+        label: "Mã giảm giá & Voucher",
+        to: "/admin/vouchers",
+        icon: Tag,
       },
     ],
   },

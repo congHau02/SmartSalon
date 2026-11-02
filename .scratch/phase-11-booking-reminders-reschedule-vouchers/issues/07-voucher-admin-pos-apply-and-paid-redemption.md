@@ -4,16 +4,16 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] New Flyway migration (next free version) creates `vouchers`, `voucher_branches`, `voucher_redemptions` (UNIQUE `order_id`) and adds nullable `voucher_id` to `orders`.
-- [ ] Voucher module (entity, repository, service, controller, mapper, validator) following existing package conventions; codes stored upper-case and matched case-insensitively.
-- [ ] `VoucherValidator` checks, each with a distinct error code: exists, active, within `starts_at`/`ends_at`, branch allowed (empty set = all), subtotal ≥ `min_order_amount`, `used_count < usage_limit` (null = unlimited), customer redemptions < `per_customer_limit` (skipped for `walkin.guest`).
-- [ ] Discount: `PERCENT` → `subtotal × value / 100` capped by `max_discount`; `FIXED` → `value`; both clamped to `[0, subtotal]`. Domain unit tests cover cap and clamp.
-- [ ] Admin API: create/update/list (ADMIN write; ADMIN + branch-scoped MANAGER read) and activate/deactivate; POS API: apply/remove a voucher on an unpaid order.
-- [ ] Auto-computed discount is `max(tier, voucher)`; `orders.voucher_id` set only when the voucher wins; manual override unchanged.
-- [ ] On `PAID`: lock the voucher, re-validate, increment `used_count`, insert redemption; invalid now → `VOUCHER_NO_LONGER_VALID`, settlement rolls back.
-- [ ] Admin vouchers page (table + form dialog, query hooks, columns/options in `*.constants`) and POS checkout voucher input with rejection messages.
-- [ ] MockMvc tests: every validator rejection; tier vs voucher picks the larger and never sums; commission ledger identical with and without voucher; redemption only on `PAID`; per-customer limit; branch restriction; concurrent checkout of the last usage → exactly one succeeds (prior art: POS concurrency integration test).
-- [ ] Frontend vitest for tier-vs-voucher display logic (prior art: POS calculations test).
-- [ ] ADR-0015 records non-stacking + redemption-at-`PAID`; `GLOSSARY.md` gains **Voucher** and **Voucher Redemption**.
+- [x] New Flyway migration (next free version) creates `vouchers`, `voucher_branches`, `voucher_redemptions` (UNIQUE `order_id`) and adds nullable `voucher_id` to `orders`.
+- [x] Voucher module (entity, repository, service, controller, mapper, validator) following existing package conventions; codes stored upper-case and matched case-insensitively.
+- [x] `VoucherValidator` checks, each with a distinct error code: exists, active, within `starts_at`/`ends_at`, branch allowed (empty set = all), subtotal ≥ `min_order_amount`, `used_count < usage_limit` (null = unlimited), customer redemptions < `per_customer_limit` (skipped for `walkin.guest`).
+- [x] Discount: `PERCENT` → `subtotal × value / 100` capped by `max_discount`; `FIXED` → `value`; both clamped to `[0, subtotal]`. Domain unit tests cover cap and clamp.
+- [x] Admin API: create/update/list (ADMIN write; ADMIN + branch-scoped MANAGER read) and activate/deactivate; POS API: apply/remove a voucher on an unpaid order.
+- [x] Auto-computed discount is `max(tier, voucher)`; `orders.voucher_id` set only when the voucher wins; manual override unchanged.
+- [x] On `PAID`: lock the voucher, re-validate, increment `used_count`, insert redemption; invalid now → `VOUCHER_NO_LONGER_VALID`, settlement rolls back.
+- [x] Admin vouchers page (table + form dialog, query hooks, columns/options in `*.constants`) and POS checkout voucher input with rejection messages.
+- [x] MockMvc tests: every validator rejection; tier vs voucher picks the larger and never sums; commission ledger identical with and without voucher; redemption only on `PAID`; per-customer limit; branch restriction; concurrent checkout of the last usage → exactly one succeeds (prior art: POS concurrency integration test).
+- [x] Frontend vitest for tier-vs-voucher display logic (prior art: POS calculations test).
+- [x] ADR-0015 records non-stacking + redemption-at-`PAID`; `GLOSSARY.md` gains **Voucher** and **Voucher Redemption**.

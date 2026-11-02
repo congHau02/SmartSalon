@@ -28,6 +28,11 @@ public class PosOrderResponse {
     private BigDecimal subtotal;
     private BigDecimal discountAmount;
     private Boolean isDiscountManual;
+    private Long voucherId;
+    private String voucherCode;
+    private String discountSource;
+    private BigDecimal voucherDiscountAmount;
+    private BigDecimal tierDiscountAmount;
     private String customerMembershipTier;
     private Integer customerDiscountPercent;
     private BigDecimal customerCreditBalance;

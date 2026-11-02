@@ -166,3 +166,41 @@ export function useAttendanceAction({ branchId, onSuccess, onError } = {}) {
     },
   });
 }
+
+/**
+ * Hook for applying a voucher code to an order.
+ */
+export function useApplyVoucher(orderId, { onSuccess, onError } = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (code) => posApi.applyVoucher(orderId, code),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.order(orderId) });
+      invalidateRealtimeCaches(queryClient);
+      if (onSuccess) onSuccess(data, variables, context);
+    },
+    onError: (err, variables, context) => {
+      if (onError) onError(err, variables, context);
+    },
+  });
+}
+
+/**
+ * Hook for removing a voucher from an order.
+ */
+export function useRemoveVoucher(orderId, { onSuccess, onError } = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => posApi.removeVoucher(orderId),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.order(orderId) });
+      invalidateRealtimeCaches(queryClient);
+      if (onSuccess) onSuccess(data, variables, context);
+    },
+    onError: (err, variables, context) => {
+      if (onError) onError(err, variables, context);
+    },
+  });
+}

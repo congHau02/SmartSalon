@@ -136,4 +136,14 @@ export const posApi = {
     const response = await axiosClient.post("/pos/attendance/action", data);
     return response?.result || response?.data || response;
   },
+
+  applyVoucher: async (orderId, code) => {
+    const response = await axiosClient.post(`/pos/orders/${orderId}/voucher`, { code });
+    return response?.result || response?.data || response;
+  },
+
+  removeVoucher: async (orderId) => {
+    const response = await axiosClient.delete(`/pos/orders/${orderId}/voucher`);
+    return response?.result || response?.data || response;
+  },
 };

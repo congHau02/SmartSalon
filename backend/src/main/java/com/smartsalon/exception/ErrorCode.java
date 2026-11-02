@@ -46,7 +46,17 @@ public enum ErrorCode {
     RESCHEDULE_WINDOW_EXPIRED(2014, "Chỉ được dời lịch hẹn trước giờ hẹn ít nhất 2 tiếng", HttpStatus.BAD_REQUEST),
     BOOKING_ALREADY_RESCHEDULED(2015, "Mỗi lịch hẹn chỉ được dời lịch tối đa 1 lần", HttpStatus.BAD_REQUEST),
     BOOKING_NOT_CONFIRMED(2016, "Chỉ có thể dời lịch hẹn ở trạng thái đã xác nhận", HttpStatus.BAD_REQUEST),
-    STYLIST_OFF_SHIFT(2017, "Kỹ thuật viên không có ca làm việc vào khung giờ này", HttpStatus.BAD_REQUEST);
+    STYLIST_OFF_SHIFT(2017, "Kỹ thuật viên không có ca làm việc vào khung giờ này", HttpStatus.BAD_REQUEST),
+    VOUCHER_NOT_FOUND(5001, "Không tìm thấy mã giảm giá", HttpStatus.NOT_FOUND),
+    VOUCHER_INACTIVE(5002, "Mã giảm giá đang tạm khóa hoặc không hoạt động", HttpStatus.BAD_REQUEST),
+    VOUCHER_NOT_STARTED(5003, "Mã giảm giá chưa đến thời gian áp dụng", HttpStatus.BAD_REQUEST),
+    VOUCHER_EXPIRED(5004, "Mã giảm giá đã hết hạn sử dụng", HttpStatus.BAD_REQUEST),
+    VOUCHER_BRANCH_NOT_ALLOWED(5005, "Mã giảm giá không áp dụng tại chi nhánh này", HttpStatus.BAD_REQUEST),
+    VOUCHER_MIN_ORDER_AMOUNT_NOT_MET(5006, "Đơn hàng chưa đạt giá trị tối thiểu để áp dụng mã", HttpStatus.BAD_REQUEST),
+    VOUCHER_USAGE_LIMIT_EXCEEDED(5007, "Mã giảm giá đã hết lượt sử dụng trên hệ thống", HttpStatus.BAD_REQUEST),
+    VOUCHER_CUSTOMER_LIMIT_EXCEEDED(5008, "Bạn đã sử dụng hết lượt của mã giảm giá này", HttpStatus.BAD_REQUEST),
+    VOUCHER_NO_LONGER_VALID(5009, "Mã giảm giá không còn hiệu lực tại thời điểm thanh toán", HttpStatus.CONFLICT),
+    VOUCHER_ALREADY_EXISTS(5010, "Mã giảm giá đã tồn tại trong hệ thống", HttpStatus.CONFLICT);
 
     private final int code;
     private final String message;

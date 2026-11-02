@@ -55,6 +55,10 @@ public class OrderEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal finalAmount = BigDecimal.ZERO;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private com.smartsalon.voucher.entity.VoucherEntity voucher;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     @Builder.Default
@@ -95,15 +99,15 @@ public class OrderEntity extends BaseEntity {
     }
 
     public void recalculateTotals() {
-        BigDecimal computedSubtotal = BigDecimal.ZERO;
-        if (items != null) {
+        if (items != null && !items.isEmpty()) {
+            BigDecimal computedSubtotal = BigDecimal.ZERO;
             for (OrderItemEntity item : items) {
                 if (!item.isDeleted() && item.getTotalPrice() != null) {
                     computedSubtotal = computedSubtotal.add(item.getTotalPrice());
                 }
             }
+            this.subtotal = computedSubtotal;
         }
-        this.subtotal = computedSubtotal;
         this.finalAmount = calculateFinalAmountWithDraftDiscount(this.discountAmount);
     }
 
@@ -132,14 +136,50 @@ public class OrderEntity extends BaseEntity {
             recalculateTotals();
             return;
         }
+        applyAutomaticDiscount(this.voucher);
+    }
+
+    public void applyAutomaticDiscount(com.smartsalon.voucher.entity.VoucherEntity voucherToApply) {
+        if (this.isDiscountManual) {
+            recalculateTotals();
+            return;
+        }
+
+        BigDecimal safeSubtotal = this.subtotal != null ? this.subtotal : BigDecimal.ZERO;
+        BigDecimal tierDiscount = BigDecimal.ZERO;
         if (this.customer != null && !"walkin.guest".equalsIgnoreCase(this.customer.getUsername())) {
             com.smartsalon.user.entity.MembershipTier tier = this.customer.getMembershipTier() != null
                     ? this.customer.getMembershipTier()
                     : com.smartsalon.user.entity.MembershipTier.STANDARD;
-            BigDecimal safeSubtotal = this.subtotal != null ? this.subtotal : BigDecimal.ZERO;
-            this.discountAmount = tier.calculateDiscount(safeSubtotal);
+            tierDiscount = tier.calculateDiscount(safeSubtotal);
+        }
+
+        BigDecimal voucherDiscount = BigDecimal.ZERO;
+        if (voucherToApply != null) {
+            if (voucherToApply.getMinOrderAmount() == null || safeSubtotal.compareTo(voucherToApply.getMinOrderAmount()) >= 0) {
+                voucherDiscount = voucherToApply.calculateDiscount(safeSubtotal);
+            }
+        }
+
+        if (voucherToApply != null && voucherDiscount.compareTo(tierDiscount) > 0) {
+            this.voucher = voucherToApply;
+            this.discountAmount = voucherDiscount;
+        } else {
+            this.voucher = null;
+            this.discountAmount = tierDiscount;
         }
         recalculateTotals();
+    }
+
+    public void applyVoucher(com.smartsalon.voucher.entity.VoucherEntity voucherToApply) {
+        this.isDiscountManual = false;
+        applyAutomaticDiscount(voucherToApply);
+    }
+
+    public void removeVoucher() {
+        this.voucher = null;
+        this.isDiscountManual = false;
+        applyAutomaticDiscount(null);
     }
 
     public void applyManualDiscount(BigDecimal requested) {
@@ -152,8 +192,10 @@ public class OrderEntity extends BaseEntity {
                 ? this.customer.getMembershipTier()
                 : com.smartsalon.user.entity.MembershipTier.STANDARD;
         BigDecimal auto = tier.calculateDiscount(this.subtotal).min(cap);
+        this.voucher = null;
         this.discountAmount = clamped;
         this.isDiscountManual = clamped.compareTo(auto) != 0;
+        this.finalAmount = calculateFinalAmountWithDraftDiscount(this.discountAmount);
     }
 
     public BigDecimal payableAfterCredit(BigDecimal amount) {
